@@ -1,0 +1,75 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { createFixture, VERSION, FIXTURE_PASSWORD } = require('./mock_server.cjs');
+(async () => {
+  let tick = 1000;
+  const fixture = createFixture({ port: 0, now: () => tick, maxAgeMs: 100 });
+  const base = await fixture.start();
+  let assertions = 0;
+  const check = (actual, expected) => { assert.deepEqual(actual, expected); assertions++; };
+  async function rpc(channel, args = [], token = '', workspaceId = 'main', options = {}) {
+    const response = await fetch(base + '/rpc', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Client-Version': options.version ?? VERSION, ...(token ? { Authorization: 'Bearer ' + token } : {}), ...options.headers }, body: JSON.stringify({ channel, args, workspaceId }) });
+    return { status: response.status, body: await response.json() };
+  }
+  try {
+    check(fixture.server.address().address, '127.0.0.1');
+    const health = await fetch(base + '/health');
+    check((await health.json()).version, VERSION);
+    check(health.headers.get('cache-control'), 'no-store');
+    check((await rpc('auth:status')).body, { data: { needsSetup: false, user: null } });
+    check((await rpc('auth:login', [{ username: 'demo.admin', password: 'wrong-secret' }])).status, 400);
+    check((await rpc('auth:status', [], '', 'main', { version: '1.43.3' })).status, 409);
+    check((await rpc('reports:dashboard')).status, 401);
+    const login = await rpc('auth:login', [{ username: 'demo.admin', password: FIXTURE_PASSWORD }]);
+    check(login.status, 200); check(login.body.data.user.role, 'admin');
+    const admin = login.body.data.sessionToken;
+    assert.match(admin, /^[a-f0-9]{64}$/); assertions++;
+    const users = await rpc('auth:switch', ['fiber-users'], admin);
+    check(users.status, 200);
+    const usersToken = users.body.data.sessionToken;
+    check((await rpc('reports:dashboard', [], admin, 'fiber-users')).status, 403);
+    check((await rpc('auth:status', [], usersToken, 'main')).body.data.user, null);
+    const finance = await rpc('finance:overview', [{}], usersToken, 'fiber-users');
+    check(finance.status, 200); check(finance.body.data.wallets[0].balance, 1250);
+    check(finance.body.data.whishFees, 12.5); check(finance.body.data.dashboardTotals.profitBeforeOther, 887.5);
+    check(finance.body.data.report.profitParts[0].cost, 1600);
+    const all = await rpc('finance:overview', [{ workspaceId: 'all' }], admin);
+    check(all.status, 200); check(all.body.data.dashboardTotals.basis, 'business_sum'); check(all.body.data.businesses.length, 7);
+    const before = clone(finance.body.data);
+    for (const channel of ['bills:renew', 'resellers:fund', 'resellers:refund', 'resellers:payBill', 'finance:walletMove', 'auth:createOwner', 'products:create', 'portal:createCustomer', 'workspace:reset']) check((await rpc(channel, [{ amount: 100 }], usersToken, 'fiber-users')).status, 403);
+    check((await rpc('finance:overview', [{}], usersToken, 'fiber-users')).body.data, before);
+    const customerSearch = await rpc('portal:search', ['customer'], usersToken, 'fiber-users');
+    check(customerSearch.body.data.total, 3);
+    check((await rpc('portal:search', ['x'], usersToken, 'fiber-users')).status, 400);
+    check((await rpc('bills:list', ['2026-10-01', '2026-10-31'], usersToken, 'fiber-users')).body.data.length, 2);
+    check((await rpc('bills:list', ['2026-02-30', '2026-10-31'], usersToken, 'fiber-users')).status, 400);
+    check((await rpc('bills:list', ['2026-10-20', '2026-10-01'], usersToken, 'fiber-users')).status, 400);
+    const cashierLogin = await rpc('auth:login', [{ username: 'demo.cashier', password: FIXTURE_PASSWORD }]);
+    check(cashierLogin.body.data.user.role, 'cashier');
+    const cashier = cashierLogin.body.data.sessionToken;
+    check((await rpc('finance:overview', [{ workspaceId: 'all' }], cashier)).status, 403);
+    check((await rpc('finance:overview', [{ accountKey: 'main:1' }], cashier)).status, 403);
+    const cashierUsers = (await rpc('auth:switch', ['fiber-users'], cashier)).body.data.sessionToken;
+    check((await rpc('bills:list', ['2026-10-01', '2026-10-31'], cashierUsers, 'fiber-users')).body.data.length, 1);
+    const supportLogin = await rpc('auth:login', [{ username: 'demo.support', password: FIXTURE_PASSWORD }]);
+    const support = supportLogin.body.data.sessionToken;
+    check((await rpc('auth:switch', ['studio'], support)).status, 403);
+    const resellerToken = (await rpc('auth:switch', ['fiber-resellers'], support)).body.data.sessionToken;
+    const list = await rpc('resellers:accounts', [], resellerToken, 'fiber-resellers');
+    check(list.status, 200); check(list.body.data.accounts[0].balance, -240);
+    check(list.body.data.accounts[0].balanceRead, true);
+    const originResponse = await fetch(base + '/health', { headers: { Origin: 'https://attacker.invalid' } });
+    check(originResponse.status, 403);
+    const local = await fetch(base + '/health', { headers: { Origin: 'http://localhost:54321' } });
+    check(local.headers.get('access-control-allow-origin'), 'http://localhost:54321');
+    check((await rpc('auth:logout', [], usersToken, 'fiber-users')).status, 200);
+    check((await rpc('reports:dashboard', [], usersToken, 'fiber-users')).status, 401);
+    tick += 101;
+    check((await rpc('reports:dashboard', [], admin)).status, 401);
+    const log = JSON.stringify(fixture.requestLog);
+    check(log.includes(FIXTURE_PASSWORD), false); check(log.includes('wrong-secret'), false); check(log.includes(admin), false); check(log.includes('Bearer'), false); check(log.includes('demo.admin'), false); check(log.includes('customer01'), false);
+    check(Object.keys(fixture.requestLog[0]).sort(), ['channel', 'method', 'path', 'status', 'workspaceId']);
+    console.log('PASS synthetic RPC fixture: ' + assertions + ' checks; loopback-only; all roles; exact version; scoped tokens; safe logout/expiry; DTOs; ownership; financial writes rejected; CORS; no secrets or customer queries in request logs.');
+  } finally { await fixture.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
+function clone(value) { return JSON.parse(JSON.stringify(value)); }

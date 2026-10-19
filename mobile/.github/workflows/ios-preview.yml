@@ -1,0 +1,92 @@
+# LOCAL TEMPLATE ONLY. After explicit approval, place this file at the
+# repository root: .github/workflows/ios-preview.yml, with the app in mobile/.
+name: iOS unsigned preview (manual, not installable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_unsigned_only:
+        description: 'I authorize a cloud Mac compile only; outputs are unsigned and cannot be installed on an iPhone.'
+        required: true
+        default: false
+        type: boolean
+      build_target:
+        description: 'Compile targets; neither option creates a signed IPA.'
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - archive
+          - simulator
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-unsigned-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compile-only:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm_unsigned_only
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      FLUTTER_ROOT: ${{ github.workspace }}/.ci/flutter
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out the reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          submodules: false
+          lfs: false
+
+      - name: Check out the exact official Flutter 3.47.7 source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: flutter/flutter
+          ref: abaf9c523780a608bd46686fd5e53740a07077f8
+          path: .ci/flutter
+          persist-credentials: false
+          fetch-depth: 1
+          submodules: false
+          lfs: false
+
+      - name: Verify the official SDK release tag before bootstrapping
+        shell: bash
+        run: |
+          git -C "$FLUTTER_ROOT" fetch --depth=1 --no-tags origin refs/tags/3.47.7:refs/tags/3.47.7
+          test "$(git -C "$FLUTTER_ROOT" rev-parse 'refs/tags/3.47.7^{commit}')" = abaf9c523780a608bd46686fd5e53740a07077f8
+          test "$(git -C "$FLUTTER_ROOT" rev-parse HEAD)" = abaf9c523780a608bd46686fd5e53740a07077f8
+
+      - name: Validate and compile unsigned iOS outputs
+        working-directory: mobile
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ inputs.build_target }}
+        run: sh tool/build-ios.sh "$BUILD_TARGET"
+
+      - name: Keep unsigned compile evidence (not an iPhone installer)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-UNSIGNED-not-installable-${{ github.run_id }}
+          path: mobile/build/ios-preview/
+          retention-days: 7
+          if-no-files-found: error
+          include-hidden-files: false
+
+      - name: State the distribution boundary
+        shell: bash
+        run: |
+          printf '%s\n' \
+            '## Unsigned iOS compile only' \
+            'These artifacts are not installable on an iPhone. No signed IPA was produced.' \
+            'The simulator app is for a compatible Mac simulator only.' \
+            'No signing credentials, App Store Connect upload or TestFlight submission were used.' \
+            'iOS still requires HTTPS; the temporary Android HTTP exception is not enabled.' \
+            >> "$GITHUB_STEP_SUMMARY"
