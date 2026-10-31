@@ -78,7 +78,7 @@ Browser printing opens the user's print dialog and supports the supplied layouts
 
 ## Encrypted backup verification and restore preparation
 
-Main Admin can configure encrypted backups, inspect sanitized history, create a local encrypted backup, test an enabled destination and retry its delivery. Provider/network access remains disabled unless `PROVIDERS_ENABLED=true`; the default prevents Proradius, FTP and email calls. With delivery disabled, manual local encrypted backups still work. Automatic scheduled delivery starts only when providers are explicitly enabled and backup settings are configured. The live server must be running for its schedule.
+Main Admin can configure encrypted backups, inspect sanitized history, create a local encrypted backup, test an enabled destination and retry its delivery. Provider/network access remains disabled unless `PROVIDERS_ENABLED=true`; the default prevents Proradius, FTP and email calls. Manual and automatic daily encrypted local backups work with FTP/email disabled, independently of provider access. Enable the schedule and save a recovery passphrase; external delivery remains optional and requires reviewed destination settings plus explicitly enabled providers. The live server must be running for its schedule.
 
 The archive contains all seven databases and the supported network/Internet/update settings files. Backup-delivery secrets and the server master key are not included. All raw backup copies and encrypted archives remain private files, outside the web root. Set an off-host retention policy and monitor failures; do not assume local history alone is a recovery plan. Existing optional plaintext FTP is a retained compatibility setting; choose FTPS and valid TLS certificates for production delivery.
 

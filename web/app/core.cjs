@@ -3828,7 +3828,8 @@ await initializeDatabase();
 registerHandlers();registerWorkspaceHandlers();registerBackupHandlers();
 const blockedDelivery=()=>{throw Error('External backup delivery is disabled for this server.');};
 backupManager=new BackupManager({directory:dataDirectory,safeStorage,snapshot:backupSnapshot,version,canRun:()=>!closed&&workspaceDatabases.size===WORKSPACES.length,...providersEnabled?{}:{ftpFactory:blockedDelivery,mailFactory:blockedDelivery}});
-if(providersEnabled){const tick=()=>{scheduledBackup=backupManager.tick().catch(()=>{});};tick();backupTimer=setInterval(tick,60000);backupTimer.unref?.();}
+// Local encrypted snapshots remain scheduled even when provider access is off.
+{const tick=()=>{scheduledBackup=backupManager.tick().catch(()=>{});};tick();backupTimer=setInterval(tick,60000);backupTimer.unref?.();}
 return {request,metadata,createOwner,close};
 }catch(error){try{releaseResources();}finally{releaseLock();activeDirectories.delete(dataKey);}throw error;}
 }

@@ -1,6 +1,6 @@
 # FIBER net lb website preview
 
-Version 0.1.1 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.2 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 This is a deployment candidate for isolated staging. The existing Main PC remains the accounting authority until an agreed cutover. The website uses the seven existing SQLite database formats; a copied-data rehearsal is required before real use. Fictional previews and their checks are separate from accepting live business data.
 
@@ -33,7 +33,7 @@ node tools/check-source.cjs
 npm test
 ```
 
-Tests use fictional, temporary data. The suite covers the genuine headless core, real HTTP sessions, roles and business isolation, funding and monthly closing, copied-data preservation, and a real Chrome browser. Thirty unchanged accepted financial fixtures run against 66 unchanged accounting modules; their hashes are recorded in `test/retained/manifest.json`.
+Tests use fictional, temporary data. The suite covers the genuine headless core, real HTTP sessions, roles and business isolation, funding and monthly closing, copied-data preservation, and a real Chrome browser. Thirty unchanged accepted financial fixtures run against 65 unchanged accounting modules and one explicitly hashed website backup adaptation; original desktop and reviewed website hashes are recorded in `test/retained/manifest.json`. Dedicated backup tests verify local-only daily scheduling, seven-database recovery and blocked external delivery while providers are disabled.
 
 Chrome must be installed for the UI test. Set `CHROME_BIN` to its absolute path if needed. `CHROME_TEST_NO_SANDBOX=1` is reserved for disposable CI runners, not normal deployment. There is no TypeScript build or configured lint tool in this plain JavaScript project; the source check verifies JavaScript syntax and public-package boundaries. No coverage percentage is claimed.
 

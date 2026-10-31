@@ -61,7 +61,8 @@ class BackupManager{
    if(next[destination].enabled&&(!next[destination].host||!next[destination].username||!next[destination].passwordEncrypted))throw Error('Enter the '+destination.toUpperCase()+' host, username and password.');
   }
   if(next.email.enabled&&(!next.email.from||!next.email.to))throw Error('Enter the sender and recipient email addresses.');
-  if(next.enabled&&!next.ftp.enabled&&!next.email.enabled)throw Error('Enable server delivery or email before enabling the daily schedule.');
+  // Every scheduled job first saves an encrypted local snapshot. External
+  // delivery is optional, so local protection does not require FTP or email.
   next.configuredAt=old.enabled&&old.configuredAt?old.configuredAt:this.now().toISOString();
   atomicJson(this.settingsFile,next);return this.status();
  }

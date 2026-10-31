@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -20,8 +20,8 @@
     },
     {
       "name": "DEPLOYMENT.md",
-      "length": 15987,
-      "sha256": "f78a38457f37d92f044c003f2d30665ab166358851110cde5b18fab8149ad3d8"
+      "length": 16085,
+      "sha256": "68a8ace859baba95e08900d42350cd80a9d2404e473487b5ee431cb3fecea514"
     },
     {
       "name": "Dockerfile",
@@ -35,8 +35,8 @@
     },
     {
       "name": "README.md",
-      "length": 4109,
-      "sha256": "52e4e0a24685a1195affaba050695ee9758ca483a79e7a6dad5ccfb1e2974a82"
+      "length": 4336,
+      "sha256": "05b08946d53644feb6a9e2458b69a40e0919339ba21a24f914bafec2d2ccbc6d"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -65,8 +65,8 @@
     },
     {
       "name": "app/backup-manager.cjs",
-      "length": 20364,
-      "sha256": "39d1c8fc249e4d9501b5a531a3be6a4eaeb6614b75c616b93a72890f01988434"
+      "length": 20375,
+      "sha256": "d95a01e441dd86ac86c01aa9d8199cbd8d354b5736e4121eb8875874986a054a"
     },
     {
       "name": "app/bandwidth-accounting.cjs",
@@ -130,8 +130,8 @@
     },
     {
       "name": "app/core.cjs",
-      "length": 370940,
-      "sha256": "abb00fb189d2d3b700309626c8376451b7a022fbc416e0a8dc3f81d436248334"
+      "length": 371000,
+      "sha256": "501fbb762e5aff013553190e5edadf8344e2c6640b7c7f461e786253fb788328"
     },
     {
       "name": "app/customer-registration.cjs",
@@ -505,8 +505,8 @@
     },
     {
       "name": "app/src/index.html",
-      "length": 145516,
-      "sha256": "e8071975d8db7449cbe18296c3382ebe2a1ffb3812a6ae596bc3ea571818a8da"
+      "length": 145596,
+      "sha256": "a7baf4525ea88935681ff5d860215d12340a3ea37e07690d6f6ffdaf0e527ba5"
     },
     {
       "name": "app/src/internet-pricing.js",
@@ -751,17 +751,22 @@
     {
       "name": "package-lock.json",
       "length": 1367,
-      "sha256": "c9cd8e24907f20cdd0b0e4edf5bffd89e21947760788759d35efecde90991384"
+      "sha256": "1254b4be43897851bd923c8fd3a4846a476e7f08793341a8d9823b8f36e88dcf"
     },
     {
       "name": "package.json",
       "length": 508,
-      "sha256": "dbb9bd1c40e62b14bcad433ae5ad5eb70282d485938660af0d0989a6cf000163"
+      "sha256": "d57e3df403d9194c54b1e9094e8ed3d4464e7a19badb3070e208c49fe74bd39f"
     },
     {
       "name": "server.cjs",
       "length": 23537,
       "sha256": "8f5ea72e7e17b3e5583fdc99e92d20d3f6cf627c38ee05ea9d6be8d91547e1c9"
+    },
+    {
+      "name": "test/backup-local-schedule.test.cjs",
+      "length": 6978,
+      "sha256": "078f927e790f98f8a82409ad4e307f09c6c95aa48b9858db8920074ddbec44f6"
     },
     {
       "name": "test/browser-bridge.test.cjs",
@@ -810,8 +815,8 @@
     },
     {
       "name": "test/financial-regression.test.cjs",
-      "length": 817,
-      "sha256": "37d239a09359c25dfc37114abdc60a492fc07d39cad2a6a812ad477476cedfc8"
+      "length": 983,
+      "sha256": "c649d0d11c79068311ba6ebff3a52ac8afaae959240082a00cda426f25c0923c"
     },
     {
       "name": "test/mail-dependency.test.cjs",
@@ -825,8 +830,8 @@
     },
     {
       "name": "test/retained/manifest.json",
-      "length": 14144,
-      "sha256": "9be305df8fdd9d26673c7e2b7e6205cb96120aadc46a9c01fe54ecc4af739656"
+      "length": 14651,
+      "sha256": "d805d1bd73a1c062aafbf0eb22f286c972b9dc2bdae1b5e8398d53edf883334e"
     },
     {
       "name": "test/retained/qa-admin-money-transfers.cjs",
@@ -1015,8 +1020,8 @@
     },
     {
       "name": "tools/run-retained-tests.cjs",
-      "length": 3070,
-      "sha256": "17dfdbe11a3b5469a9c6d2833f4bbdb34a0172b9210b67ecacea649315ea3f57"
+      "length": 4075,
+      "sha256": "4ca6634b3f643f16327152a56817634f5dde61f7a5d902a05356ecdad2397644"
     },
     {
       "name": "tools/verify-backup.cjs",

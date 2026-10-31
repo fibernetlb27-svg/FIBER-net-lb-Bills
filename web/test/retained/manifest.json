@@ -388,6 +388,14 @@
       "sha256": "f183821154867581ce53b2f7c1317bb149ddb53df6ba4021d214f4ce8e83c24d"
     }
   ],
+  "websiteAdaptations": [
+    {
+      "file": "backup-manager.cjs",
+      "sourceSha256": "39d1c8fc249e4d9501b5a531a3be6a4eaeb6614b75c616b93a72890f01988434",
+      "sha256": "d95a01e441dd86ac86c01aa9d8199cbd8d354b5736e4121eb8875874986a054a",
+      "reason": "Website-only local encrypted daily backups do not require an external delivery destination. Original desktop baseline hash remains recorded in modules; dedicated local schedule and provider-disabled restore tests cover this adaptation."
+    }
+  ],
   "helpers": [],
   "excludedHostSpecificFixtures": [
     {
