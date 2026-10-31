@@ -1,0 +1,220 @@
+/* Presentation only. These groups retain the existing metric order, native
+   controls, verified notes and display calculations. Receipt/print CSS is not
+   part of this screen-only workspace. */
+@media screen {
+  html[data-ui="daisy"] #finance-employee-summary.finance-workspace-summary.finance-admin-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, .75fr);
+    grid-template-areas: "ledger controls" "profit controls";
+    align-items: start;
+    align-content: start;
+    gap: 16px;
+  }
+
+  html[data-ui="daisy"] .finance-workspace-summary > .finance-balance-ledger {
+    grid-area: ledger;
+    display: grid;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+  }
+
+  html[data-ui="daisy"] .finance-workspace-summary > .finance-balance-ledger > .metric-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(6rem, max-content);
+    grid-template-areas: "label amount" "note note";
+    align-items: center;
+    gap: 4px 16px;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 15px 18px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  html[data-ui="daisy"] .finance-workspace-summary > .finance-balance-ledger > .metric-card:last-child {
+    border-bottom: 0;
+  }
+
+  html[data-ui="daisy"] .finance-balance-ledger > .metric-card > span {
+    grid-area: label;
+    margin: 0;
+    color: var(--text);
+    font-size: .82rem;
+    font-weight: 600;
+  }
+
+  html[data-ui="daisy"] .finance-balance-ledger > .metric-card > strong {
+    grid-area: amount;
+    margin: 0;
+    color: var(--text);
+    text-align: right;
+    font-size: clamp(1.05rem, 1.5vw, 1.35rem);
+    font-weight: 650;
+    line-height: 1.3;
+    letter-spacing: -.025em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  html[data-ui="daisy"] .finance-balance-ledger > .metric-card > small {
+    grid-area: note;
+    margin: 0;
+    font-size: .7rem;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  html[data-ui="daisy"] .finance-balance-ledger > [data-finance-metric="cash"] > strong,
+  html[data-ui="daisy"] .finance-balance-ledger > [data-finance-metric="wallets"] > strong {
+    color: var(--success);
+  }
+
+  html[data-ui="daisy"] .finance-workspace-summary > .finance-deduction-stack {
+    grid-area: controls;
+    display: grid;
+    align-content: start;
+    align-items: start;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  html[data-ui="daisy"] .finance-deduction-stack > .metric-card {
+    min-width: 0;
+    min-height: 0;
+    gap: 10px;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: none;
+  }
+
+  html[data-ui="daisy"] .finance-deduction-stack > .metric-card > span {
+    color: var(--text);
+    font-size: .85rem;
+    font-weight: 650;
+  }
+
+  html[data-ui="daisy"] .finance-deduction-stack > .metric-card > strong {
+    margin: 0;
+    font-size: 1.5rem;
+    line-height: 1.3;
+  }
+
+  html[data-ui="daisy"] .finance-deduction-stack > .metric-card > small {
+    font-size: .7rem;
+    line-height: 1.5;
+  }
+
+  html[data-ui="daisy"] .finance-deduction-stack .finance-profit-toggle {
+    margin-top: 0;
+    font-size: .75rem;
+  }
+
+  html[data-ui="daisy"] .finance-deduction-stack .finance-monthly-row {
+    min-height: 58px;
+    padding: 11px;
+    border-radius: 9px;
+    background: var(--ice);
+  }
+
+  html[data-ui="daisy"] .finance-deduction-stack .finance-monthly-row-label {
+    font-size: .76rem;
+  }
+
+  html[data-ui="daisy"] .finance-deduction-stack .finance-monthly-row strong {
+    font-size: 1rem;
+  }
+
+  html[data-ui="daisy"] .finance-workspace-summary > [data-finance-metric="net-profit"] {
+    grid-area: profit;
+    min-width: 0;
+    min-height: 0;
+    gap: 9px;
+    margin: 0;
+    padding: 22px;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--blue);
+    border-radius: 14px;
+    background: var(--ice);
+    box-shadow: none;
+  }
+
+  html[data-ui="daisy"] .finance-workspace-summary > [data-finance-metric="net-profit"] > span {
+    color: var(--text);
+    font-size: .84rem;
+    font-weight: 650;
+  }
+
+  html[data-ui="daisy"] .finance-workspace-summary > [data-finance-metric="net-profit"] > strong {
+    margin: 0;
+    font-size: clamp(1.8rem, 3vw, 2.6rem);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.04em;
+  }
+
+  html[data-ui="daisy"] .finance-workspace-summary > [data-finance-metric="net-profit"] > small {
+    margin: 0;
+    font-size: .73rem;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 1150px) {
+    html[data-ui="daisy"] #finance-employee-summary.finance-workspace-summary.finance-admin-summary {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "ledger" "controls" "profit";
+    }
+
+    html[data-ui="daisy"] .finance-workspace-summary > .finance-deduction-stack {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    html[data-ui="daisy"] .finance-deduction-stack > [data-finance-metric="other-expenses"] {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 700px) {
+    html[data-ui="daisy"] .finance-workspace-summary > .finance-deduction-stack {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    html[data-ui="daisy"] .finance-workspace-summary > .finance-balance-ledger > .metric-card {
+      grid-template-columns: minmax(0, 1fr) minmax(5rem, max-content);
+      gap: 4px 10px;
+      padding: 14px;
+    }
+
+    html[data-ui="daisy"] .finance-balance-ledger > .metric-card > strong {
+      font-size: 1.08rem;
+    }
+
+    html[data-ui="daisy"] .finance-workspace-summary > [data-finance-metric="net-profit"] {
+      padding: 18px;
+    }
+  }
+
+  @media (max-width: 380px) {
+    html[data-ui="daisy"] .finance-workspace-summary > .finance-balance-ledger > .metric-card {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "label" "amount" "note";
+    }
+
+    html[data-ui="daisy"] .finance-balance-ledger > .metric-card > strong {
+      text-align: left;
+    }
+  }
+}
+@media screen {
+  html[data-ui="daisy"] .finance-admin-money-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  html[data-ui="daisy"] .finance-admin-money-actions .button{min-height:36px;padding:7px 12px;font-size:12px}
+  html[data-ui="daisy"] .finance-workspace-summary .finance-admin-money-actions{justify-content:flex-end}
+}

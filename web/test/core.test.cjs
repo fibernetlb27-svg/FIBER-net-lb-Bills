@@ -1,0 +1,74 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),crypto=require('node:crypto');
+const {createBackend}=require('../app/core.cjs');
+const {DATABASES}=require('../app/backup-archive.cjs');
+const password='Fictional-core-only-123';
+function testSecrets(){
+ const key=crypto.randomBytes(32);
+ return {isEncryptionAvailable:()=>true,getSelectedStorageBackend:()=> 'server_aes_256_gcm',encryptString(value){const iv=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',key,iv),encrypted=Buffer.concat([cipher.update(value,'utf8'),cipher.final()]);return Buffer.concat([iv,cipher.getAuthTag(),encrypted]);},decryptString(value){const decipher=crypto.createDecipheriv('aes-256-gcm',key,value.subarray(0,12));decipher.setAuthTag(value.subarray(12,28));return Buffer.concat([decipher.update(value.subarray(28)),decipher.final()]).toString('utf8');}};
+}
+async function good(backend,channel,args=[],token='',workspaceId='main'){
+ const response=await backend.request({channel,args,token,workspaceId});assert.equal(response.status,200,channel+': '+response.error);return response.data;
+}
+test('headless core preserves authorization, custody, idempotency and seven-file persistence',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'fibernetlb-core-fictional-'));
+ let backend;
+ t.after(async()=>{await backend?.close();fs.rmSync(directory,{recursive:true,force:true});});
+ await assert.rejects(createBackend({dataDirectory:directory}),/all seven/);
+ assert.deepEqual(fs.readdirSync(directory),[],'Failed production startup writes nothing');
+ backend=await createBackend({dataDirectory:directory,initialize:true,secrets:testSecrets()});
+ assert.equal(backend.metadata().needsSetup,true);assert.equal(backend.metadata().sections.length,7);
+ assert(DATABASES.every(name=>fs.statSync(path.join(directory,name)).isFile()));
+ if(process.platform!=='win32')for(const name of DATABASES)assert.equal(fs.statSync(path.join(directory,name)).mode&0o077,0,'Private database permissions survive atomic saves');
+ await assert.rejects(createBackend({dataDirectory:directory}),/active backend writer/);
+ assert.equal((await backend.request({channel:'auth:createOwner',args:[{}]})).status,403);
+ const owner=await backend.createOwner({username:'owner',fullName:'Fictional Owner',password});
+ assert.equal(owner.role,'admin');
+ await assert.rejects(backend.createOwner({username:'other',fullName:'Other',password}),/already/);
+ const login=await good(backend,'auth:login',[{username:'owner',password}]),admin=login.sessionToken;
+ assert.equal(login.user.accountKey,owner.accountKey);
+ assert.equal((await backend.request({channel:'auth:login',args:[{username:'owner',password:'wrong'}]})).status,400);
+ assert.equal((await backend.request({channel:'drawer:get'})).status,401);
+ await good(backend,'drawer:setBalance',[{balance:100,note:'Fictional opening custody'}],admin);
+ assert.equal((await good(backend,'drawer:get',[],admin)).balance,100);
+ const input={workspaceId:'main',holderAccountKey:owner.accountKey,method:'cash',walletId:'',direction:'deposit',amount:25,note:'Fictional bank deposit'};
+ const review=await good(backend,'bank:preview',[input],admin),instruction={...input,requestId:crypto.randomUUID(),token:review.token,confirmation:'TRANSFER BANK'};
+ const first=await good(backend,'bank:transfer',[instruction],admin);assert.equal(first.amount,25);
+ const after=await good(backend,'bank:sources',[{workspaceId:'main'}],admin);
+ assert.equal(after.businessBalances.cash,75);assert.equal(after.bankBalance,25);assert.equal(after.businessBalances.cash+after.bankBalance,100);
+ assert.equal((await good(backend,'bank:transfer',[instruction],admin)).idempotent,true);
+ assert.equal((await backend.request({channel:'bank:transfer',args:[{...instruction,amount:26}],token:admin})).status,400);
+ const viewer=await good(backend,'users:create',[{username:'viewer',fullName:'Fictional Viewer',password,role:'viewer',allowedSections:['fiber-users']}],admin);
+ const viewerLogin=await good(backend,'auth:login',[{username:'viewer',password}]);assert.equal(viewerLogin.user.role,'viewer');
+ for(const channel of ['bank:sources','users:list','portal:settings','backups:status'])assert.notEqual((await backend.request({channel,args:channel==='bank:sources'?[{workspaceId:'main'}]:[],token:viewerLogin.sessionToken})).status,200,channel+' must enforce Admin access');
+ const switched=await good(backend,'auth:switch',['fiber-users'],admin);
+ assert.equal((await backend.request({channel:'drawer:get',workspaceId:'main',token:switched.sessionToken})).status,403);
+ assert.equal((await good(backend,'drawer:get',[],switched.sessionToken,'fiber-users')).balance,0);
+ const backup=await good(backend,'backups:status',[],admin);assert.equal(backup.folder,undefined);assert.equal(backup.requiresServerRunning,true);
+ assert.equal(backend.metadata().providersEnabled,false);
+ const configured=await good(backend,'portal:configure',[{username:'fictional-api',password:'Fictional-portal-secret-only'}],admin);
+ assert.equal(configured.configured,true);assert.equal(configured.password,undefined);
+ assert.equal(fs.readFileSync(path.join(directory,'internet-api-settings.json'),'utf8').includes('Fictional-portal-secret-only'),false);
+ const fetchOriginal=global.fetch;let externalCalls=0;global.fetch=async()=>{externalCalls++;throw Error('A real provider must never be called in core QA.');};
+ try{const blocked=await backend.request({channel:'portal:test',args:['fictional-customer'],token:admin});assert.equal(blocked.status,400);assert.match(blocked.error,/provider access is disabled/);assert.equal(externalCalls,0);}finally{global.fetch=fetchOriginal;}
+ const savedBackup=await good(backend,'backups:save',[{enabled:false,passphrase:'Fictional-backup-passphrase-123',ftp:{enabled:false},email:{enabled:false}}],admin);
+ assert.equal(savedBackup.folder,undefined);assert.equal(savedBackup.settings.hasPassphrase,true);assert.equal(JSON.stringify(savedBackup).includes('Fictional-backup-passphrase-123'),false);
+ const completedBackup=await good(backend,'backups:run',[],admin),job=completedBackup.history[0];assert.equal(completedBackup.folder,undefined);assert.equal(job.local,'saved');assert.equal(job.ftp,'disabled');assert.equal(job.email,'disabled');
+ const {openBackup}=require('../app/backup-archive.cjs');const archive=await openBackup(fs.readFileSync(path.join(directory,'scheduled-backups',job.filename)),'Fictional-backup-passphrase-123');
+ assert(DATABASES.every(name=>archive.entries.some(entry=>entry.name===name)),'A browser-authorized local encrypted backup contains all seven fictional databases');
+ for(const channel of ['printing:printers','backups:openFolder','backups:extract','updates:install','workspace:reset','bills:reset','sharing:openWhatsApp'])assert.notEqual((await backend.request({channel,token:admin})).status,200,channel+' is not remotely exposed');
+ assert.equal(Object.keys(require.cache).some(name=>/[\\/]electron[\\/]/.test(name)),false,'No Electron package loaded');
+ const pendingRead=good(backend,'auth:login',[{username:'owner',password}]);
+ await backend.close();assert.equal((await pendingRead).user.username,'owner','Close drains an in-flight asynchronous sign-in');
+ assert.equal(fs.existsSync(path.join(directory,'.fibernetlb-web.lock')),false);
+ backend=await createBackend({dataDirectory:directory});
+ assert.equal(backend.metadata().needsSetup,false);
+ const restarted=await good(backend,'auth:login',[{username:'owner',password}]);
+ const persisted=await good(backend,'bank:sources',[{workspaceId:'main'}],restarted.sessionToken);
+ assert.equal(persisted.businessBalances.cash,75);assert.equal(persisted.bankBalance,25);
+ assert.equal((await good(backend,'bank:transfer',[instruction],restarted.sessionToken)).idempotent,true);
+ assert.equal((await backend.request({channel:'drawer:get',token:admin})).status,401,'Restart invalidates in-memory tokens');
+ await good(backend,'auth:logout',[],restarted.sessionToken);
+ assert.equal((await backend.request({channel:'drawer:get',token:restarted.sessionToken})).status,401);
+ assert.equal(viewer.username,'viewer');
+});

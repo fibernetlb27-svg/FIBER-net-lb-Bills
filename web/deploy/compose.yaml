@@ -1,0 +1,62 @@
+name: fibernetlb-web
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 12m
+    environment:
+      APP_ORIGIN: https://${APP_HOSTNAME:?Set the website hostname in the private deployment environment}
+      DATA_DIRECTORY: /data
+      SECRETS_KEY_FILE: /run/secrets/server-key
+      BIND_ADDRESS: 0.0.0.0
+      PORT: "3000"
+      PROVIDERS_ENABLED: ${PROVIDERS_ENABLED:-false}
+      TRUSTED_PROXY_ADDRESSES: 172.31.250.2
+    volumes:
+      - type: bind
+        source: ${PRIVATE_DATA_DIRECTORY:?Set the private seven-database directory}
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${SERVER_KEY_FILE:?Set the separate owner-only 32-byte encryption key file}
+        target: /run/secrets/server-key
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks:
+      private:
+        ipv4_address: 172.31.250.3
+    # No published application port. Only Caddy can reach this service.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_HOSTNAME: ${APP_HOSTNAME:?Set the website hostname}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      private:
+        ipv4_address: 172.31.250.2
+networks:
+  private:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/29
+volumes:
+  caddy_data:
+  caddy_config:

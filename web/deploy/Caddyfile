@@ -1,0 +1,12 @@
+{$APP_HOSTNAME} {
+    encode zstd gzip
+    # No request/body/access logging: receipts, credentials and sessions are private.
+    reverse_proxy web:3000 {
+        transport http {
+            dial_timeout 5s
+            response_header_timeout 660s
+            read_timeout 660s
+            write_timeout 30s
+        }
+    }
+}

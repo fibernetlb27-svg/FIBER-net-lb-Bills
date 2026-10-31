@@ -1,0 +1,79 @@
+.ba-root { min-width: 0; }
+.ba-root [hidden], .ba-dialog [hidden] { display: none !important; }
+.ba-root .ba-topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin: 8px 0 22px; }
+.ba-root .ba-topline h2 { margin: 6px 0 8px; font-size: clamp(1.6rem, 2.6vw, 2.25rem); letter-spacing: -.04em; }
+.ba-root .ba-topline .field-note { margin: 0; line-height: 1.55; }
+.ba-root .ba-nav { display: flex; flex-wrap: wrap; gap: 9px; margin-bottom: 20px; }
+.ba-root .ba-nav .active { border-color: var(--blue); color: var(--blue); background: var(--surface); box-shadow: inset 0 -3px var(--blue); }
+.ba-root .ba-filter { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 18px 20px; margin-bottom: 20px; }
+.ba-root .ba-filter > div { flex: 1 1 230px; align-self: center; }
+.ba-root .ba-filter strong, .ba-root .ba-filter small { display: block; }
+.ba-root .ba-filter small { color: var(--muted); margin-top: 5px; font-size: .75rem; line-height: 1.5; max-width: 400px; }
+.ba-root label, .ba-dialog label { display: grid; gap: 7px; font-size: .78rem; font-weight: 700; color: var(--muted); }
+.ba-root .ba-filter input { min-width: 150px; }
+.ba-root .ba-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 24px; }
+.ba-root .ba-metrics .metric-card { min-height: 160px; }
+.ba-root h3 { margin: 5px 0 7px; font-size: 1.1rem; }
+.ba-root .panel-heading { gap: 18px; }
+.ba-root .panel-heading > div { min-width: 0; }
+.ba-root .panel-heading .field-note { font-size: .8rem; line-height: 1.65; margin: 6px 0 0; }
+.ba-root .panel-heading > button { flex-shrink: 0; }
+.ba-root .ba-status { padding: 14px 18px; margin: 0 0 20px; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 12px; color: var(--text); background: var(--surface); line-height: 1.6; overflow-wrap: anywhere; }
+.ba-root .ba-status.ba-error { border-left-color: var(--danger); }
+.ba-root .ba-supplier-statement { padding: 20px 24px; border-bottom: 1px solid var(--line); }
+.ba-root .ba-supplier-statement:last-child { border-bottom: 0; }
+.ba-root .ba-statement-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.ba-root .ba-supplier-name { flex: 1 1 200px; min-width: 0; }
+.ba-root h4 { margin: 0 0 7px; font-size: 1rem; overflow-wrap: anywhere; }
+.ba-root .ba-supplier-name small { display: block; color: var(--muted); font-size: .75rem; line-height: 1.65; overflow-wrap: anywhere; }
+.ba-root .ba-balances { display: grid; grid-template-columns: repeat(3, minmax(100px,1fr)); gap: 24px; margin: 0; }
+.ba-root .ba-balances dt { color: var(--muted); font-size: .72rem; }
+.ba-root .ba-balances dd { margin: 7px 0 0; font-size: 1.1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ba-root .ba-remaining dd { color: var(--warning); }
+.ba-root .ba-supplier-statement > details { margin-top: 16px; }
+.ba-root summary { width: fit-content; cursor: pointer; color: var(--muted); font-size: .78rem; font-weight: 700; padding: 5px 0; }
+.ba-root summary span { margin-left: 8px; font-size: .7rem; }
+.ba-root .ba-lines { margin-top: 12px; }
+.ba-root .ba-lines th { font-size: .65rem; }
+.ba-root .ba-lines td { font-size: .8rem; }
+.ba-root td { overflow-wrap: anywhere; }
+.ba-root td small { display: block; max-width: 300px; color: var(--muted); font-size: .72rem; line-height: 1.6; margin-top: 4px; }
+.ba-root .ba-badge { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px; margin-top: 5px; color: var(--muted); font-size: .7rem; }
+.ba-root .ba-empty { color: var(--muted); text-align: center; padding: 30px 22px; line-height: 1.7; }
+.ba-root .ba-history { margin-top: 24px; }
+.ba-dialog { width: min(760px, calc(100vw - 32px)); }
+.ba-dialog #ba-fields { min-width: 0; padding: 0; border: 0; margin: 18px 0 0; }
+.ba-dialog #ba-fields > .field-note, .ba-dialog .field-note { color: var(--muted); font-size: .8rem; line-height: 1.7; }
+.ba-dialog :is(input,select,textarea) { min-width: 0; max-width: 100%; width: 100%; }
+.ba-dialog textarea { min-height: 76px; resize: vertical; padding: 11px 13px; font: inherit; color: var(--text); border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.ba-dialog textarea:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+.ba-dialog input[readonly] { opacity: .8; cursor: default; }
+.ba-dialog .ba-check { display: flex; align-items: center; gap: 10px; line-height: 1.5; }
+.ba-dialog .ba-check input { width: 18px; height: 18px; min-height: 18px; margin: 0; accent-color: var(--blue); }
+.ba-dialog .ba-input-action { display: flex; gap: 8px; }
+.ba-dialog .ba-input-action input { flex: 1 1 100px; }
+.ba-dialog .ba-input-action button { padding: 0 10px; font-size: .7rem; flex: 0 0 auto; }
+.ba-dialog .ba-payee { padding: 17px 18px; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 6px; background: var(--ice); }
+.ba-dialog .ba-payee strong { overflow-wrap: anywhere; }
+.ba-dialog .ba-payee small { color: var(--muted); overflow-wrap: anywhere; font-size: .78rem; line-height: 1.6; }
+.ba-dialog .ba-payee > span { margin-top: 6px; font-size: .8rem; color: var(--muted); }
+.ba-dialog .ba-payee b { color: var(--text); margin-left: 10px; }
+.ba-dialog .ba-payment-preview { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--ice); margin-top: 20px; }
+.ba-dialog .ba-payment-preview > div { display: grid; gap: 7px; }
+.ba-dialog .ba-payment-preview span { color: var(--muted); font-size: .78rem; }
+.ba-dialog .ba-payment-preview strong { color: var(--text); font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.ba-dialog .form-error { overflow-wrap: anywhere; }
+.ba-dialog .ba-success { display: grid; justify-items: center; gap: 10px; padding: 8px 14px 22px; text-align: center; }
+.ba-dialog .ba-success > span { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%; color: var(--success); border: 2px solid var(--success); background: var(--surface); font-size: 1.75rem; animation: ba-success .24s ease-out; }
+.ba-dialog .ba-success strong { font-size: 1.25rem; line-height: 1.5; overflow-wrap: anywhere; }
+.ba-dialog .ba-success small { color: var(--muted); overflow-wrap: anywhere; }
+.ba-dialog .ba-receipt { padding: 0; margin: 0; }
+.ba-dialog .ba-receipt > div { display: grid; grid-template-columns: minmax(110px,.65fr) minmax(0,1fr); gap: 18px; border-top: 1px solid var(--line); padding: 12px 0; }
+.ba-dialog .ba-receipt dt { color: var(--muted); font-size: .78rem; }
+.ba-dialog .ba-receipt dd { margin: 0; text-align: right; font-size: .82rem; line-height: 1.5; overflow-wrap: anywhere; }
+html[data-theme="fibernetlb"] .ba-root .ba-nav .active { color: var(--blue); border-color: var(--blue); background: var(--surface); }
+@keyframes ba-success { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .ba-dialog .ba-success > span { animation: none; } }
+@media (max-width: 1250px) { .ba-root .ba-statement-heading { flex-wrap: wrap; } .ba-root .ba-balances { flex: 1 1 330px; gap: 14px; } }
+@media (max-width: 800px) { .ba-root .ba-metrics { grid-template-columns: 1fr; } .ba-root .ba-topline { flex-wrap: wrap; } .ba-root .ba-statement-heading { align-items: flex-start; } .ba-root .ba-statement-heading > button { width: 100%; } .ba-root .panel-heading { flex-wrap: wrap; } .ba-root .ba-filter { padding: 16px; } .ba-root .ba-filter label { flex: 1 1 150px; } .ba-root .ba-filter input { width: 100%; min-width: 0; } .ba-root .ba-supplier-statement { padding: 18px; } }
+@media (max-width: 550px) { .ba-root .ba-nav { display: grid; grid-template-columns: 1fr 1fr; } .ba-root .ba-nav .button { padding: 8px; font-size: .75rem; } .ba-root .ba-balances { grid-template-columns: repeat(3,minmax(0,1fr)); } .ba-root .ba-balances dd { font-size: .92rem; } .ba-root .ba-balances dt { font-size: .65rem; } .ba-dialog .form-grid { grid-template-columns: 1fr; } .ba-dialog .modal-actions { flex-wrap: wrap; } .ba-dialog .modal-actions .button { flex: 1; } .ba-dialog .modal-heading { gap: 10px; } .ba-dialog .modal-heading h2 { font-size: 1.15rem; } }

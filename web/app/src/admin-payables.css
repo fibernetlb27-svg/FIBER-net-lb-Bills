@@ -1,0 +1,59 @@
+/* Main Admin business-scoped payables are separate from collection/finance cards. */
+.admin-payables-panel { margin:0 0 30px; min-width:0; }
+.admin-payables-heading { display:flex; justify-content:space-between; align-items:center; gap:18px; margin:20px 0 18px; }
+.admin-payables-heading h2 { margin:0; font-size:22px; }
+.admin-payables-heading .field-note { margin:8px 0 0; }
+.admin-payables-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }
+.admin-payable-card { min-width:0; min-height:286px; display:flex; align-items:flex-start; flex-direction:column; border-top:4px solid #7c5cdb; }
+.admin-payable-card > strong { max-width:100%; margin:12px 0 8px; font-size:clamp(25px,2.5vw,40px); overflow-wrap:anywhere; }
+.admin-payable-monthly { border-top-color:#d58b16; }
+.admin-payable-companyDebts { border-top-color:#cf5665; }
+.admin-payable-period { margin:12px 0 0; }
+.admin-payable-status { margin:8px 0 14px; overflow-wrap:anywhere; }
+.admin-payable-status:empty { display:none; }
+.admin-payable-error { color:#a14717; }
+.admin-payable-actions { display:flex; flex-direction:column; align-items:stretch; gap:10px; width:100%; margin-top:auto; padding-top:18px; }
+.admin-payable-actions .button { white-space:normal; text-align:center; justify-content:center; overflow-wrap:anywhere; }
+.admin-payable-actions .text-button { align-self:flex-start; }
+.admin-payables-note { margin:15px 2px 0; max-width:1180px; }
+.admin-payables-modal { box-sizing:border-box; width:min(1240px,calc(100vw - 48px)); max-width:1240px; padding:28px; }
+.admin-payables-modal .modal-heading > div { min-width:0; }
+.admin-payables-modal h2,.admin-payables-modal .subtext,.admin-payables-modal .field-note { overflow-wrap:anywhere; }
+.admin-payables-toolbar { display:flex; align-items:center; justify-content:space-between; gap:14px; margin:20px 0 14px; }
+.admin-payables-toolbar .search-box { flex:1; max-width:650px; min-width:0; }
+.admin-payables-toolbar input { min-width:0; }
+.admin-payables-modal .table-wrap { border:1px solid var(--line); border-radius:12px; }
+.admin-payables-modal table { min-width:760px; }
+.admin-payables-modal td { vertical-align:top; }
+.admin-payables-modal td.number { white-space:nowrap; }
+.admin-payables-modal td:last-child { width:100px; }
+.admin-payable-cell { display:flex; flex-direction:column; gap:7px; min-width:100px; max-width:380px; overflow-wrap:anywhere; }
+.admin-payable-cell > span,.admin-payable-cell > small { color:var(--muted); }
+.admin-payables-list-note { margin:20px 0 0; line-height:1.65; }
+.admin-payables-modal .empty-state { min-height:160px; }
+html[data-theme="fibernetlb"] .admin-payable-card { border-top-color:#9b86ec; }
+html[data-theme="fibernetlb"] .admin-payable-monthly { border-top-color:#ff9b39; }
+html[data-theme="fibernetlb"] .admin-payable-companyDebts { border-top-color:#f47d8b; }
+html[data-theme="fibernetlb"] .admin-payable-error { color:#ffa86b; }
+@media(max-width:1100px) { .admin-payables-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:750px) { .admin-payables-grid { grid-template-columns:1fr; gap:16px; } .admin-payables-heading { flex-direction:column; align-items:stretch; } .admin-payable-card { min-height:245px; } .admin-payable-card > strong { font-size:34px; } }
+@media(max-width:750px) {
+ .admin-payables-modal { width:calc(100vw - 24px); max-height:calc(100vh - 24px); padding:20px; }
+ .admin-payables-toolbar { align-items:stretch; flex-direction:column; }
+ .admin-payables-toolbar .search-box { width:100%; box-sizing:border-box; max-width:none; }
+ .admin-payables-modal table { min-width:0; }
+ .admin-payables-modal thead { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+ .admin-payables-modal tbody,.admin-payables-modal tr,.admin-payables-modal td { display:block; }
+ .admin-payables-modal tbody tr + tr { border-top:2px solid var(--line); }
+ .admin-payables-modal td { width:auto !important; padding:10px 16px; text-align:left; border:0; }
+ .admin-payables-modal td[data-label] { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+ .admin-payables-modal td[data-label]::before { content:attr(data-label); flex:0 0 76px; color:var(--muted); font-size:12px; font-weight:700; }
+ .admin-payables-modal td[data-label="Payment"] { display:block; padding-top:18px; }
+ .admin-payables-modal td[data-label="Payment"]::before { display:block; margin-bottom:8px; }
+ .admin-payables-modal td[data-label="Action"] { padding-bottom:18px; }
+ .admin-payables-modal td[data-label="Action"] .button { flex:1; justify-content:center; }
+ .admin-payable-cell { min-width:0; max-width:none; }
+ .admin-payables-modal td.number { white-space:normal; overflow-wrap:anywhere; }
+}
+@media(max-width:400px) { .admin-payables-modal { padding:16px; } .admin-payables-modal .modal-heading { flex-direction:column; } .admin-payables-modal .modal-heading > button { align-self:flex-end; } .admin-payables-modal td { padding-left:12px; padding-right:12px; } }
+@media print { .admin-payables-panel,.admin-payables-modal { display:none !important; } }

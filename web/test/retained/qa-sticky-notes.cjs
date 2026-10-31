@@ -1,0 +1,17 @@
+'use strict';
+const assert=require('node:assert/strict'),Notes=require('./sticky-notes.cjs');
+(async()=>{const SQL=await require('sql.js')(),db=new SQL.Database();Notes.initialize(db);assert.equal(Notes.needsMigration(db),false);let account='user-a',active=true,inspection=false,fail=false,saves=0;
+const service=new Notes.StickyNotes({db,authorize:()=>({account_key:account,active,activity_inspection:inspection}),now:()=> '2026-10-29T14:00:00',saveEntry:async()=>{if(fail)throw Error('Synthetic disk failure');saves++;}});
+const input={id:'note-synthetic-a',title:'Private reminder',body:'Bring router\nCall tomorrow',color:'yellow',pinned:true,requestId:'notes-request-a'};
+const first=await service.save(input);assert.equal(first.note.version,1);assert.equal(first.note.pinned,true);assert.equal((await service.list()).notes[0].body,input.body);assert.equal(saves,1);
+assert.deepEqual(await service.save(input),first);assert.equal(saves,1);await assert.rejects(service.save({...input,body:'Conflicting replay'}),/cannot be reused/);
+account='user-b';assert.equal(service.list().notes.length,0);await assert.rejects(service.save({...input,requestId:'notes-b-edit',version:1}),/unavailable/);assert.throws(()=>service.status({requestId:input.requestId}),/cannot be reused/);assert.throws(()=>service.list({accountKey:'user-a'}),/valid private/);
+account='user-a';const second=await service.save({...input,body:'Updated reminder',requestId:'notes-request-a2',version:1});assert.equal(second.note.version,2);await assert.rejects(service.save({...input,requestId:'notes-stale-a',version:1}),/changed on another PC/);
+const removed=await service.remove({id:input.id,version:2,requestId:'notes-delete-a'});assert.equal(removed.note.deleted,true);assert.equal(service.list().notes.length,0);assert.equal(service.list({deleted:true}).notes.length,1);
+const restored=await service.restore({id:input.id,version:3,requestId:'notes-restore-a'});assert.equal(restored.note.version,4);assert.equal(service.list().notes.length,1);
+await assert.rejects(service.save({...input,id:'note-empty-a',title:'',body:'',requestId:'notes-empty-a'}),/Write a title/);await assert.rejects(service.save({...input,id:'note-long-a',body:'x'.repeat(8001),requestId:'notes-long-a'}),/note text/);
+active=false;assert.throws(()=>service.list(),/own active/);active=true;inspection=true;assert.throws(()=>service.list(),/own active/);inspection=false;
+fail=true;const uncertain={...input,id:'note-synthetic-fail',requestId:'notes-fail-a'};await assert.rejects(service.save(uncertain),/could not be confirmed/);assert.equal(service.status({requestId:uncertain.requestId}).state,'save_required');fail=false;await service.resume({requestId:uncertain.requestId});assert.equal(service.status({requestId:uncertain.requestId}).state,'completed');assert.equal(service.list().notes.length,2);
+const saved=db.export(),reopened=new SQL.Database(saved),again=new Notes.StickyNotes({db:reopened,authorize:()=>({account_key:'user-a',active:true}),now:()=> '2026-10-29T15:00:00',saveEntry:async()=>{}});assert.equal(again.list().notes.length,2);assert.equal(again.status({requestId:uncertain.requestId}).state,'completed');
+console.log('Sticky Notes QA PASS: per-user isolation, inspection/inactive denial, multiline content, optimistic edit conflict, exact retry, soft delete/restore, validation, save recovery and restart. Synthetic data only.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

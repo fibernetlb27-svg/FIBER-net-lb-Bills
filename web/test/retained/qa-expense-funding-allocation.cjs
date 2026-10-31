@@ -1,0 +1,25 @@
+const assert=require('node:assert/strict'),init=require('sql.js');
+const Expenses=require('./expense-management.cjs'),Optional=require('./optional-whish-fees.cjs');
+const query=(db,sql)=>db.exec(sql)[0]?.values||[];
+(async()=>{
+ const SQL=await init(),db=new SQL.Database();
+ db.exec("CREATE TABLE expense_categories(id INTEGER PRIMARY KEY,name TEXT UNIQUE);INSERT INTO expense_categories VALUES(1,'Other');CREATE TABLE expenses(id INTEGER PRIMARY KEY,expense_date TEXT,category TEXT,description TEXT,amount REAL,user_id INTEGER,source_type TEXT DEFAULT 'manual',source_id INTEGER,created_at TEXT DEFAULT CURRENT_TIMESTAMP);INSERT INTO expenses VALUES(1,'2026-10-19','Other','Original expense',30,17,'manual',NULL,'2026-10-19T12:00:00');INSERT INTO expenses VALUES(2,'2026-10-19','Other','Original purchase',40,17,'purchase_receipt',3,'2026-10-19T12:00:00');CREATE TABLE cash_drawer_transactions(id INTEGER PRIMARY KEY,amount REAL);INSERT INTO cash_drawer_transactions VALUES(1,200);CREATE TABLE finance_wallet_entries(id TEXT PRIMARY KEY,amount_cents INTEGER);INSERT INTO finance_wallet_entries VALUES('original',20000);");
+ assert(Expenses.needsExpenseMigration(db));Expenses.initializeExpenses(db,'fiber-resellers');Optional.initialize(db);assert(!Expenses.needsExpenseMigration(db));Expenses.initializeExpenses(db,'fiber-resellers');
+ const wallets=[{id:'active',label:'Original label',number:'03123456',active:1},{id:'inactive',label:'Inactive',number:'03123457',active:0}],input={expenseDate:'2026-10-19',category:'Other',description:'Original expense',amount:30},context={workspaceId:'fiber-resellers',actorKey:'main:1',actorName:'Original Admin',actorRole:'admin',now:'2026-10-19T13:00:00',fundingWallets:wallets};
+ assert.equal(Expenses.expenseRecord(db,1).fundingMethod,'');assert.equal(Expenses.expenseRecord(db,1).fundingWallet,null);
+ assert.equal(Expenses.expenseInput(input,'fiber-resellers',{fundingWallets:wallets}).fundingMethod,'','Older clients are unrecorded, never assumed Cash.');
+ for(const bad of ['',null,0,'Cash drawer','cash',{},[]])assert.throws(()=>Expenses.expenseInput({...input,fundingMethod:bad},'fiber-resellers',{fundingWallets:wallets}),/Cash or Whish/);
+ for(const bad of [undefined,'','missing','inactive'])assert.throws(()=>Expenses.expenseInput({...input,fundingMethod:'Whish Money',...bad===undefined?{}:{fundingWalletId:bad}},'fiber-resellers',{fundingWallets:wallets}),/active Whish wallet/);
+ assert.throws(()=>Expenses.expenseInput({...input,fundingMethod:'Cash',fundingWalletId:'active'},'fiber-resellers',{fundingWallets:wallets}),/only for Whish/);
+ const cash=Expenses.updateExpense(db,1,{...input,fundingMethod:'Cash'},context);assert.equal(cash.fundingMethod,'Cash');assert.equal(cash.fundingWallet,null);assert.equal(cash.userId,17);assert.equal(cash.createdAt,'2026-10-19T12:00:00');
+ assert.equal(Expenses.updateExpense(db,1,{...input,amount:32},context).fundingMethod,'Cash','Omission preserves an existing funding source.');
+ const whish=Expenses.updateExpense(db,1,{...input,fundingMethod:'Whish Money',fundingWalletId:'active',deductWhishFee:true},context);assert.deepEqual(whish.fundingWallet,{id:'active',label:'Original label',number:'03123456'});assert.equal(whish.whishFee,.3);assert.equal(whish.amount,30);
+ wallets[0]={...wallets[0],label:'Changed label',number:'03999999',active:0};
+ const retained=Expenses.updateExpense(db,1,{...input,description:'Edited later',deductWhishFee:false},context);assert.deepEqual(retained.fundingWallet,whish.fundingWallet,'Inactive and renamed wallet keeps the original immutable snapshot when unchanged.');
+ assert.deepEqual(Expenses.updateExpense(db,1,{...input,fundingMethod:'Whish Money',fundingWalletId:'active'},context).fundingWallet,whish.fundingWallet);
+ assert.throws(()=>Expenses.updateExpense(db,1,{...input,fundingMethod:'Whish Money',fundingWalletId:'inactive'},context),/active Whish/);
+ assert.throws(()=>Expenses.updateExpense(db,2,{...input,fundingMethod:'Cash'},context),/original transaction/);
+ const logs=query(db,'SELECT before_json,after_json FROM expense_edits');assert.equal(JSON.parse(logs[0][0]).fundingMethod,'');assert.equal(JSON.parse(logs[0][1]).fundingMethod,'Cash');assert(logs.some(row=>JSON.parse(row[1]).fundingWallet?.number==='03123456'));
+ assert.deepEqual(query(db,'SELECT * FROM cash_drawer_transactions'),[[1,200]],'Funding allocation never debits or credits a drawer.');assert.deepEqual(query(db,'SELECT * FROM finance_wallet_entries'),[['original',20000]],'Funding allocation never debits or credits a wallet.');
+ console.log('Expense funding allocation QA passed: additive legacy-unrecorded migration; Cash/Whish validation; active canonical wallet selection; immutable historical wallet snapshots after rename/deactivation; omission preserves source; owner/business/source protections; audited edits; optional fee keeps principal unchanged; no cash/wallet journal mutations. Synthetic databases only.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

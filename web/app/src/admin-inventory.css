@@ -1,0 +1,13 @@
+/* Main Admin catalogue controls; business windows keep their existing layout. */
+.admin-inventory-scope { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:20px 24px; margin-bottom:20px; }
+.admin-inventory-scope > div { flex:1; min-width:0; }
+.admin-inventory-scope .compact-select { max-width:440px; }
+.admin-inventory-scope .subtext { margin-bottom:0; max-width:850px; overflow-wrap:anywhere; }
+.admin-inventory-filter { margin-bottom:12px; display:flex; justify-content:flex-end; }
+.admin-inventory-filter .compact-select { min-width:240px; max-width:100%; }
+.admin-business-badge { display:inline-block; max-width:100%; padding:4px 8px; border:1px solid var(--line); border-radius:7px; margin-top:5px; color:var(--text); font-size:12px; font-weight:600; overflow-wrap:anywhere; }
+#admin-pos-history { margin-top:20px; }
+#admin-pos-history td small { display:block; color:var(--muted); margin-top:5px; }
+.admin-catalog-warning { color:#a34b00 !important; font-weight:600; }
+[data-theme="fibernetlb"] .admin-catalog-warning { color:#ffcd7a !important; }
+@media(max-width:700px) { .admin-inventory-scope { align-items:stretch; flex-direction:column; padding:18px; gap:12px; } .admin-inventory-scope .compact-select { max-width:none; } .admin-inventory-filter { justify-content:stretch; } .admin-inventory-filter .compact-select { width:100%; } }

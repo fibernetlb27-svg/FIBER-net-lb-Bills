@@ -1,0 +1,177 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),net=require('node:net'),crypto=require('node:crypto');
+const {spawn}=require('node:child_process');
+const {createBackend}=require('../app/core.cjs');
+const {createServer}=require('../server.cjs');
+const {createSecretStorage}=require('../lib/secrets.cjs');
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function unusedPort(){const server=net.createServer();await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});const port=server.address().port;await new Promise(resolve=>server.close(resolve));return port;}
+async function connect(url){
+ const socket=new WebSocket(url),pending=new Map(),events=[];let next=0;
+ await new Promise((resolve,reject)=>{socket.addEventListener('open',resolve,{once:true});socket.addEventListener('error',reject,{once:true});});
+ socket.addEventListener('message',event=>{const value=JSON.parse(String(event.data));if(value.id){const request=pending.get(value.id);if(request){pending.delete(value.id);clearTimeout(request.timer);value.error?request.reject(Error(value.error.message)):request.resolve(value.result);}}else events.push(value);});
+ return {events,close:()=>socket.close(),send(method,params={}){const id=++next;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(Error('Browser command timed out: '+method));},20000);pending.set(id,{resolve,reject,timer});socket.send(JSON.stringify({id,method,params}));});}};
+}
+async function pageFor(debugPort,url){const response=await fetch('http://127.0.0.1:'+debugPort+'/json/new?'+encodeURIComponent(url),{method:'PUT'});const target=await response.json();const page=await connect(target.webSocketDebuggerUrl);await page.send('Runtime.enable');await page.send('Page.enable');return page;}
+async function evaluate(page,expression){const value=await page.send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true,userGesture:true});if(value.exceptionDetails)throw Error(value.exceptionDetails.exception?.description||value.exceptionDetails.text);return value.result.value;}
+async function waitFor(page,expression,label,timeout=20000){const start=Date.now();while(Date.now()-start<timeout){if(await evaluate(page,expression))return;await pause(100);}const detail=await evaluate(page,"({url:location.href,toasts:document.getElementById('toast-region')?.innerText,body:document.body.innerText.slice(0,1400)})");throw Error(label+' timed out: '+JSON.stringify(detail));}
+function pdfSize(bytes){const match=bytes.toString('latin1').match(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/);assert.ok(match,'PDF has a MediaBox');return match.slice(1).map(Number);}
+const viewports=[[320,700],[375,812],[390,844],[414,896],[430,932],[600,900],[768,1024],[1024,768],[1440,1000],[1920,1080],[844,390]];
+async function responsive(page,label){
+ for(const [width,height]of viewports){
+  await page.send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<900});
+  await evaluate(page,"new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  const result=await evaluate(page,"(()=>{const width=innerWidth,dialog=document.querySelector('dialog[open]'),rect=dialog?.getBoundingClientRect();return {overflow:document.documentElement.scrollWidth-width,dialog:rect?{left:rect.left,right:rect.right,width:rect.width,height:rect.height}:null,culprits:[...document.querySelectorAll('body *')].filter(el=>el.offsetParent&&el.getBoundingClientRect().right>width+2&&!el.closest('.table-wrap, .sidebar')).slice(0,6).map(el=>({tag:el.tagName,id:el.id,class:el.className,text:el.innerText?.slice(0,50)}))};})()");
+  assert.ok(result.overflow<=2,label+' at '+width+'x'+height+' has page overflow: '+JSON.stringify(result));
+  if(result.dialog)assert.ok(result.dialog.left>=-1&&result.dialog.right<=width+1,label+' dialog fits '+width+'x'+height+': '+JSON.stringify(result.dialog));
+ }
+ await page.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+}
+async function enlargedText(page,label){
+ await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+ try{
+  const scale=await evaluate(page,"(()=>{const rows=[...document.querySelectorAll('body *')].filter(el=>el.getClientRects().length&&(/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(el.tagName)||[...el.childNodes].some(node=>node.nodeType===3&&node.textContent.trim()))).map(el=>{const css=getComputedStyle(el);return {el,style:el.getAttribute('style'),font:parseFloat(css.fontSize),line:css.lineHeight};});window.__qaTextStyles=rows;for(const row of rows){row.el.style.setProperty('font-size',row.font*1.25+'px','important');if(row.line.endsWith('px'))row.el.style.setProperty('line-height',parseFloat(row.line)*1.25+'px','important');}const control=rows.find(row=>/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(row.el.tagName));return {count:rows.length,before:control?.font,after:control?parseFloat(getComputedStyle(control.el).fontSize):0};})()");
+  assert.ok(scale.count>0&&scale.after>=scale.before*1.249,label+' actually enlarges visible text and controls by25%');
+  await evaluate(page,"new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  const layout=await evaluate(page,"(()=>{const dialog=document.querySelector('dialog[open]'),rect=dialog?.getBoundingClientRect();return {overflow:document.documentElement.scrollWidth-innerWidth,dialog:rect?{left:rect.left,right:rect.right,overflow:dialog.scrollWidth-dialog.clientWidth}:null};})()");
+  assert.ok(layout.overflow<=2,label+' enlarged text has page overflow: '+JSON.stringify(layout));
+  if(layout.dialog)assert.ok(layout.dialog.left>=-1&&layout.dialog.right<=391&&layout.dialog.overflow<=2,label+' enlarged-text dialog fits390px: '+JSON.stringify(layout));
+ }finally{
+  await evaluate(page,"for(const row of window.__qaTextStyles||[]){if(row.style===null)row.el.removeAttribute('style');else row.el.setAttribute('style',row.style);}delete window.__qaTextStyles;");
+  await page.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+ }
+}
+
+test('genuine browser signs in, uses accounting routes, prints paper layouts, and clears private views',{timeout:180000},async t=>{
+ const chrome=process.env.CHROME_BIN||['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','/usr/bin/google-chrome','/usr/bin/chromium'].find(file=>fs.existsSync(file));
+ assert.ok(chrome,'Set CHROME_BIN to a Chromium browser to run browser validation.');
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'fibernetlb-web-browser-fictional-'));
+ const data=path.join(directory,'data'),downloads=path.join(directory,'downloads');fs.mkdirSync(downloads);
+ const secrets=createSecretStorage(crypto.randomBytes(32)),pages=[];let backend,server,child,browser;
+ t.after(async()=>{
+  for(const page of pages)page.close();
+  try{await browser?.send('Browser.close');}catch{}browser?.close();
+  if(child&&child.exitCode===null){child.kill();await Promise.race([new Promise(resolve=>child.once('exit',resolve)),pause(2000)]);}
+  if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+  await backend?.close();secrets.destroy();
+  const resolved=path.resolve(directory),temporary=path.resolve(os.tmpdir());
+  assert.equal(path.dirname(resolved),temporary);assert.ok(path.basename(resolved).startsWith('fibernetlb-web-browser-fictional-'));
+  for(let attempt=0;attempt<10;attempt++){try{fs.rmSync(resolved,{recursive:true,force:true});break;}catch(error){if(attempt===9)throw error;await pause(250);}}
+ });
+ backend=await createBackend({dataDirectory:data,initialize:true,secrets,providersEnabled:false,version:'0.1.0-browser-test'});
+ const password='Fictional-browser-only-2026!';
+ await backend.createOwner({username:'browser.fixture.admin',fullName:'Fictional Browser Admin',password});
+ const ownerLogin=await backend.request({channel:'auth:login',args:[{username:'browser.fixture.admin',password}],workspaceId:'main'});
+ const viewer=await backend.request({channel:'users:create',args:[{username:'browser.fixture.viewer',fullName:'Fictional Browser Viewer',password,role:'viewer',allowedSections:['fiber-users']}],workspaceId:'main',token:ownerLogin.data.sessionToken});
+ assert.equal(viewer.status,200);
+ const port=await unusedPort(),origin='http://127.0.0.1:'+port;
+ server=createServer({backend,origin,demo:true});await new Promise(resolve=>server.listen(port,'127.0.0.1',resolve));
+ const debugUrl=await new Promise((resolve,reject)=>{
+  let log='';const timer=setTimeout(()=>reject(Error('Chrome did not expose a test debugging socket.')),20000);
+  child=spawn(chrome,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-extensions','--disable-component-update',...(process.env.CHROME_TEST_NO_SANDBOX==='1'?['--no-sandbox']:[]),'--remote-debugging-port=0','--user-data-dir='+path.join(directory,'chrome'),'about:blank'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
+  child.once('error',error=>{clearTimeout(timer);reject(error);});
+  child.stderr.on('data',chunk=>{log+=String(chunk);const match=log.match(/DevTools listening on (ws:\/\/[^\s]+)/);if(match){clearTimeout(timer);resolve(match[1]);}});
+  child.once('exit',code=>{clearTimeout(timer);reject(Error('Chrome exited before test startup: '+code));});
+ });
+ browser=await connect(debugUrl);const debugPort=Number(new URL(debugUrl).port);
+ await browser.send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});
+ const page=await pageFor(debugPort,origin);pages.push(page);
+ await page.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+ await waitFor(page,"document.querySelector('#auth-screen')&&!document.querySelector('#auth-screen').classList.contains('hidden')",'Login screen');
+ await responsive(page,'Login');
+ await enlargedText(page,'Login');
+ assert.equal(await evaluate(page,"document.querySelector('#website-preview-banner').hidden"),false);
+ await evaluate(page,`document.querySelector('#login-username').value='browser.fixture.admin';document.querySelector('#login-password').value=${JSON.stringify(password)};document.querySelector('#login-form').requestSubmit();`);
+ await waitFor(page,"!document.querySelector('#app-shell').classList.contains('hidden')&&document.querySelector('#current-user-name').textContent==='Fictional Browser Admin'",'Administrator dashboard');
+ await waitFor(page,"document.querySelector('#updates-button-label').textContent==='Website version'",'Website version controls');
+ await responsive(page,'Main dashboard');
+ assert.equal(await evaluate(page,"document.querySelector('#network-settings-button').classList.contains('website-only-hidden')"),true);
+ assert.equal(await evaluate(page,"Boolean(window.posApi.printing)"),false);
+ await evaluate(page,"window.__qaPending=0;window.__qaFailures=[];const qaFetch=window.fetch;window.fetch=async(...args)=>{window.__qaPending++;try{const response=await qaFetch(...args);if(!response.ok)window.__qaFailures.push({channel:args[1]?.body?JSON.parse(args[1].body).channel:String(args[0]),status:response.status});return response;}finally{window.__qaPending--;}};");
+ const views=await evaluate(page,"[...document.querySelectorAll('.nav-item[data-view]')].filter(button=>button.offsetParent&&!['dashboard','backups'].includes(button.dataset.view)).map(button=>button.dataset.view)");
+ for(const view of views){
+  await evaluate(page,`document.querySelector('.nav-item[data-view="${view}"]').click()`);
+  await pause(120);await waitFor(page,"window.__qaPending===0",'Main '+view+' requests');
+  assert.equal(await evaluate(page,`state.currentView===${JSON.stringify(view)}`),true,'Main '+view+' route is active');
+  await responsive(page,'Main '+view);
+  if(view==='ledger'){
+   await evaluate(page,"document.querySelector('#ledger-close-month').value='2026-01';document.querySelector('#ledger-close-button').click()");
+   await waitFor(page,"Boolean(document.querySelector('dialog[open]'))",'Monthly close dialog');
+   await responsive(page,'Monthly close dialog');await evaluate(page,"document.querySelector('dialog[open]').close()");
+  }
+ }
+ for(const view of ['bank','company-debts','fixed-monthly']){
+  await evaluate(page,`switchView('${view}')`);await pause(120);await waitFor(page,"window.__qaPending===0",'Main '+view+' requests');
+  assert.equal(await evaluate(page,`state.currentView===${JSON.stringify(view)}`),true);
+  await responsive(page,'Main '+view);
+  const button={bank:'bank-deposit','company-debts':'cd-add','fixed-monthly':'fm-add'}[view];
+  await evaluate(page,`document.querySelector('#${button}').click()`);
+  await waitFor(page,"Boolean(document.querySelector('dialog[open]'))",view+' dialog');
+  await responsive(page,view+' dialog');if(view==='bank')await enlargedText(page,'Bank transfer dialog');await evaluate(page,"document.querySelector('dialog[open]').close()");
+ }
+ assert.deepEqual(await evaluate(page,"window.__qaFailures"),[],'Main navigation requests succeed');
+ await evaluate(page,"document.querySelector('[data-view=backups]').click()");
+ await waitFor(page,"document.querySelector('#backup-running-status').textContent==='Ready'",'Server backup status');
+ assert.equal(await evaluate(page,"document.querySelector('#backup-open-folder').disabled&&document.querySelector('#backup-extract').disabled"),true);
+ await evaluate(page,"document.querySelector('[data-view=dashboard]').click();document.querySelector('#portal-settings-button').click()");
+ await waitFor(page,"document.querySelector('#portal-settings-dialog')?.open||document.querySelector('#portal-dialog')?.open",'Provider settings');
+ await evaluate(page,"for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();void posApi.bandwidth.open()");
+ await waitFor(page,"document.querySelector('#bandwidth-accounting-root')&&!document.querySelector('#bandwidth-accounting-root').hidden",'Supplier accounting route');
+ await responsive(page,'Supplier accounting');
+ await evaluate(page,"document.querySelector('#bandwidth-window-close').click()");
+ await waitFor(page,"document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",'Return from supplier accounting');
+ for(const section of ['printer','studio','mobile-ogero','iptv','fiber-resellers','fiber-users']){
+  await evaluate(page,`document.querySelector('[data-workspace="${section}"]').click()`);
+  await waitFor(page,`location.search.includes('${section}')&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')`,'Authorized '+section+' business switch');
+  await responsive(page,section+' dashboard');
+ }
+ for(const [view,button,dialog]of [['products','add-product','product-dialog'],['expenses','add-expense','expense-dialog']]){
+  await evaluate(page,`document.querySelector('[data-view=${view}]').click()`);await pause(200);
+  await responsive(page,'Business '+view);
+  await evaluate(page,`document.querySelector('#${button}').click()`);await waitFor(page,`document.querySelector('#${dialog}').open`,view+' form');
+  await responsive(page,view+' form');await enlargedText(page,view+' form');await evaluate(page,`document.querySelector('#${dialog}').close()`);
+ }
+ await evaluate(page,"document.querySelector('[data-view=pos]').click()");await pause(200);await responsive(page,'POS catalog and cart');
+ // Disposable financial fixture travels through the real cookie/CSRF gateway and accounting backend.
+ const sale=await evaluate(page,"(async()=>{const product=await posApi.products.create({sku:'WEB-QA-SERVICE',name:'Fictional browser service',category:'Maintenance',currency:'USD',cost:1,price:5,barcodes:['9823456789012']});const receipt=await posApi.sales.create({items:[{productId:product.id,quantity:1}],paymentMethod:'Cash',customerName:'Fictional Browser Customer'});showReceipt('sale',receipt);return {id:receipt.id,invoiceNo:receipt.invoiceNo,total:receipt.total};})()");
+ assert.ok(sale.id);assert.ok(sale.invoiceNo);
+ await waitFor(page,"document.querySelector('#receipt-dialog').open&&document.querySelector('#receipt-customer').textContent==='Fictional Browser Customer'",'Saved receipt');
+ await page.send('Emulation.setEmulatedMedia',{media:'print'});
+ for(const [paper,expected]of [['a4',[595,842]],['a5',[420,595]]]){
+  await evaluate(page,`document.querySelector('#receipt-paper-size').value='${paper}';document.querySelector('#receipt-paper-size').dispatchEvent(new Event('change'));document.body.dataset.printTarget='receipt';`);
+  const pdf=await page.send('Page.printToPDF',{printBackground:true,preferCSSPageSize:true});
+  const size=pdfSize(Buffer.from(pdf.data,'base64'));
+  assert.ok(Math.abs(size[0]-expected[0])<2&&Math.abs(size[1]-expected[1])<2,paper+' PDF dimensions '+size);
+ }
+ for(const [paper,width]of [['thermal-80',74],['thermal-58',52],['xp-235b',48]]){
+  await evaluate(page,`document.querySelector('#receipt-paper-size').value='${paper}';document.querySelector('#receipt-paper-size').dispatchEvent(new Event('change'));document.body.dataset.printTarget='receipt';`);
+  const actual=await evaluate(page,"document.querySelector('#printable-receipt').getBoundingClientRect().width*25.4/96");
+  assert.ok(actual<=width+0.2,paper+' printable width '+actual);
+  const pdf=await page.send('Page.printToPDF',{printBackground:true,preferCSSPageSize:true,paperWidth:(paper==='thermal-80'?80:58)/25.4,paperHeight:300/25.4});
+  assert.ok(Buffer.from(pdf.data,'base64').length>1000);
+ }
+ await page.send('Emulation.setEmulatedMedia',{media:'screen'});
+ await evaluate(page,"delete document.body.dataset.printTarget;document.querySelector('#receipt-dialog').close()");
+ await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+ const overflow=await evaluate(page,"document.documentElement.scrollWidth>innerWidth+2");assert.equal(overflow,false,'Phone dashboard fits its viewport');
+ await evaluate(page,"(async()=>{const date=new Date().toISOString().slice(0,10);return posApi.reports.export(date,date,'','');})()");
+ for(let i=0;i<30&&!fs.readdirSync(downloads).some(name=>name.endsWith('.csv'));i++)await pause(100);
+ const csv=fs.readdirSync(downloads).find(name=>name.endsWith('.csv'));assert.ok(csv,'Browser downloads a CSV');assert.match(fs.readFileSync(path.join(downloads,csv),'utf8'),/profit|revenue|report/i);
+ const second=await pageFor(debugPort,origin+'/?workspaceId=fiber-users');pages.push(second);
+ await waitFor(second,"document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",'Second tab session');
+ await evaluate(page,"localStorage.setItem('fiber-browser-qa-pending-marker','original-request');document.querySelector('#logout-button').click()");
+ for(const target of [page,second]){
+  await waitFor(target,"document.querySelector('#app-shell').classList.contains('hidden')&&!document.querySelector('#auth-screen').classList.contains('hidden')",'Logout privacy');
+  assert.equal(await evaluate(target,"document.querySelector('#receipt-customer').textContent"),'');
+  assert.equal(await evaluate(target,"document.querySelector('#login-password').value"),'');
+ }
+ assert.equal(await evaluate(page,"localStorage.getItem('fiber-browser-qa-pending-marker')"),'original-request');
+ await evaluate(page,`document.querySelector('#login-username').value='browser.fixture.viewer';document.querySelector('#login-password').value=${JSON.stringify(password)};document.querySelector('#login-form').requestSubmit();`);
+ await waitFor(page,"!document.querySelector('#app-shell').classList.contains('hidden')&&document.querySelector('#current-user-name').textContent==='Fictional Browser Viewer'",'Viewer session');
+ assert.equal(await evaluate(page,"document.querySelector('[data-view=users]').classList.contains('hidden')&&document.querySelector('#add-product').classList.contains('hidden')"),true,'Viewer management controls are hidden');
+ assert.equal(await evaluate(page,"posApi.backups.status().then(()=>false,error=>error.status===403)"),true,'Viewer cannot bypass backup authorization');
+ assert.equal(await evaluate(page,"posApi.workspace.open('printer').then(()=>false,error=>error.status===403||error.status===400)"),true,'Viewer cannot open an unassigned business');
+ const exceptions=pages.flatMap(target=>target.events.filter(event=>event.method==='Runtime.exceptionThrown').map(event=>event.params.exceptionDetails.exception?.description||event.params.exceptionDetails.text));
+ assert.deepEqual(exceptions,[],'Browser has no uncaught JavaScript exceptions');
+ t.diagnostic('Real Node/core + Chrome: eleven phone/tablet/desktop viewport sizes,125% enlarged-text login and bank/product/expense forms, Main navigation, bank/debts/monthly/ledger, backups/provider settings, supplier route, all seven businesses, real financial receipt, A4/A5/80mm/58mm/XP-235B PDF, CSV download, cross-tab logout and Viewer permission isolation passed.');
+});

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" data-theme="classic">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
+    <title>Bandwidth Accounting — FIBER net lb</title>
+    <link rel="icon" href="favicon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="bandwidth-accounting.css" />
+    <link rel="stylesheet" href="bandwidth-window.css" />
+    <link rel="stylesheet" href="website.css" />
+    <script src="theme-init.js"></script>
+    <script src="browser-contract.js"></script>
+    <script src="browser-api.js"></script>
+    <script src="bandwidth-window.js" defer></script>
+  </head>
+  <body class="bandwidth-window">
+    <p id="website-preview-banner" class="website-preview-banner" role="status" hidden>Website preview — fictional data</p>
+    <header class="bandwidth-window-header">
+      <div class="bandwidth-window-brand"><img src="fibernetlb-logo.png" alt="FIBER net lb" /><div><p class="eyebrow">MAIN OFFICE</p><h1>Supplier accounting</h1></div></div>
+      <div class="bandwidth-window-tools"><label>Theme<select id="bandwidth-window-theme"><option value="classic">Classic</option><option value="fibernetlb">FIBER net lb</option></select></label><span id="bandwidth-window-admin"></span><button id="bandwidth-window-close" type="button" class="button button-secondary">Back to Main dashboard</button></div>
+    </header>
+    <p id="bandwidth-window-status" class="activity-scope" role="status" aria-live="polite">Checking administrator access…</p>
+    <main id="bandwidth-accounting-root" hidden></main>
+    <div id="bandwidth-window-toast" role="status" aria-live="polite" hidden></div>
+    <script src="bandwidth-accounting.js"></script>
+  </body>
+</html>

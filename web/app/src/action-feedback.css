@@ -1,0 +1,48 @@
+/* Short, one-shot motion only; never delay confirmation or repeat an operation. */
+#portal-confirm-dialog[open] { animation: confirmation-arrive 220ms cubic-bezier(.2,.8,.2,1); }
+#portal-confirm-dialog[open]::backdrop { animation: confirmation-backdrop 180ms ease-out; }
+#portal-confirm-dialog[open] .portal-confirm-icon { animation: confirmation-mark 280ms cubic-bezier(.2,.8,.2,1); }
+@keyframes confirmation-arrive { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes confirmation-backdrop { from { opacity: 0; } to { opacity: 1; } }
+@keyframes confirmation-mark { from { transform: scale(.85); } to { transform: scale(1); } }
+.operation-success {
+  position: fixed; inset: 24px 24px auto auto; margin: 0; z-index: 1000;
+  display: flex; align-items: flex-start; gap: 14px; padding: 20px;
+  width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, var(--line)); border-radius: 18px;
+  color: var(--text); background: var(--surface); box-shadow: 0 16px 50px rgba(6,25,40,.2);
+  animation: success-arrive 240ms cubic-bezier(.2,.8,.2,1);
+}
+.operation-success-mark { flex: 0 0 48px; width: 48px; height: 48px; color: var(--success); }
+.operation-success-mark svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.operation-success-mark circle { fill: color-mix(in srgb, var(--success) 10%, var(--surface)); stroke-dasharray: 126; animation: success-ring 420ms ease-out; }
+.operation-success-mark path { stroke-width: 3; stroke-dasharray: 30; animation: success-check 480ms ease-out; }
+.operation-success-copy { min-width: 0; flex: 1; padding-top: 3px; overflow-wrap: anywhere; }
+.operation-success-copy strong { font-size: .95rem; line-height: 1.4; }
+.operation-success-copy p { margin: 7px 0 0; font-size: .8rem; line-height: 1.6; color: var(--muted); }
+.operation-warning { border-color: color-mix(in srgb, var(--warning) 55%, var(--line)); }
+.operation-warning .operation-success-mark { color: var(--warning); }
+.operation-warning .operation-success-mark circle { fill: color-mix(in srgb, var(--warning) 10%, var(--surface)); }
+.operation-warning .operation-success-mark path { animation: warning-mark 400ms ease-out; stroke-dasharray: none; }
+@keyframes warning-mark { from { opacity: 0; } to { opacity: 1; } }
+.operation-success-close { flex: 0 0 30px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font: inherit; font-size: 1.4rem; cursor: pointer; }
+.operation-success-close:hover { background: var(--ice); color: var(--text); }
+.operation-success-close:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+@keyframes success-arrive { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes success-ring { from { stroke-dashoffset: 126; } to { stroke-dashoffset: 0; } }
+@keyframes success-check { 0%, 30% { stroke-dashoffset: 30; } 100% { stroke-dashoffset: 0; } }
+#bill-form[aria-busy="true"] #bill-renew-button::before,
+#new-customer-form[aria-busy="true"] #nc-create::before {
+  content: ''; flex: 0 0 14px; width: 14px; height: 14px; border: 2px solid currentColor;
+  border-right-color: transparent; border-radius: 50%; animation: operation-pending 900ms linear infinite;
+}
+@keyframes operation-pending { to { transform: rotate(360deg); } }
+@media (max-width: 600px) { .operation-success { inset: 16px 16px auto auto; padding: 16px; gap: 10px; } }
+@media (prefers-reduced-motion: reduce) {
+  #portal-confirm-dialog[open], #portal-confirm-dialog[open]::backdrop,
+  #portal-confirm-dialog[open] .portal-confirm-icon, .operation-success,
+  .operation-success-mark circle, .operation-success-mark path,
+  #bill-form[aria-busy="true"] #bill-renew-button::before,
+  #new-customer-form[aria-busy="true"] #nc-create::before { animation: none !important; }
+}
+@media print { .operation-success { display: none !important; } }

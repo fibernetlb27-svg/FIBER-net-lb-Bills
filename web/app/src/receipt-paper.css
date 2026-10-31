@@ -1,0 +1,86 @@
+/* Fiber net lb Users receipts only; other businesses/print targets keep their layouts. */
+.receipt-paper-settings { display: grid; gap: 7px; margin-top: 16px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.receipt-paper-settings label { display: grid; grid-template-columns: auto minmax(190px,1fr); align-items: center; gap: 14px; font-size: .8rem; }
+.receipt-paper-settings select { min-width: 0; }
+.receipt-paper-settings small { color: var(--muted); line-height: 1.5; }
+body[data-receipt-paper-scope="users"] #printable-receipt { container: users-receipt / inline-size; min-width: 0; box-sizing: border-box; }
+body[data-receipt-paper-scope="users"] #printable-receipt * { color: #152536 !important; }
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items :is(tr,td,th) { background: transparent !important; }
+body[data-receipt-paper-scope="users"] #printable-receipt :is(h2,strong,td,th,p,span,small) { overflow-wrap: anywhere; white-space: normal; }
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items { width: 100%; table-layout: fixed; }
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items th:first-child { width: 46%; }
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items th:nth-child(2) { width: 10%; }
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items :is(th,td):nth-child(3),
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items :is(th,td):nth-child(4) { width: 22%; }
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-meta > div { min-width: 0; }
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-total,
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-balance { gap: 12px; }
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-total strong,
+body[data-receipt-paper-scope="users"] #printable-receipt .receipt-balance strong { min-width: 0; text-align: right; }
+body[data-receipt-paper-scope="users"][data-receipt-paper="thermal-80"] #printable-receipt { width: 80mm; max-width: 100%; margin-inline: auto; padding: 3mm; }
+body[data-receipt-paper-scope="users"][data-receipt-paper="thermal-58"] #printable-receipt { width: 58mm; max-width: 100%; margin-inline: auto; padding: 3mm; }
+body[data-receipt-paper-scope="users"][data-receipt-paper="xp-235b"] #printable-receipt { width: 58mm; max-width: 100%; margin-inline: auto; padding: 3mm 5mm; }
+
+/* The same layout automatically activates when Auto uses a narrow printer page. */
+@container users-receipt (max-width: 90mm) {
+  body[data-receipt-paper-scope="users"] #printable-receipt > header { display: block; padding-bottom: 3mm; }
+  body[data-receipt-paper-scope="users"] #printable-receipt > header img { width: 45mm; max-width: 100%; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-title { display: block; margin: 3mm 0; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-title p { font-size: 8pt; letter-spacing: .04em; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-title h2 { margin-top: 2mm; font-size: 10pt; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-meta { grid-template-columns: minmax(0,1fr); gap: 2mm; padding: 2mm; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-meta strong { font-size: 8.5pt; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-credentials { margin: 3mm 0 0; padding: 2mm; border-radius: 0; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-credentials strong { font-size: 8.5pt; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items { margin-top: 3mm; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items thead { display: none; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items tbody { display: block; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items tr { display: block; padding: 2mm 0; border-bottom: 1px solid #aab6c1; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items td { display: block; width: auto !important; min-height: 0; padding: 1mm 0; border: 0; font-size: 8pt; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items td.number { display: grid; grid-template-columns: 11mm minmax(0,1fr); gap: 2mm; text-align: right; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items td.number::before { text-align: left; font-weight: 600; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items td:nth-child(2)::before { content: "Qty"; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items td:nth-child(3)::before { content: "Price"; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items td:nth-child(4)::before { content: "Total"; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-item-variant { max-width: none; font-size: 7.5pt; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-total,
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-balance { display: grid; grid-template-columns: minmax(0,1fr); gap: 1mm; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-total { padding: 3mm 0 2mm; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-total strong { font-size: 13pt; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-balance { font-size: 8.5pt; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-payment { display: block; padding: 2mm; font-size: 8pt; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-payment .ui-icon { display: none; }
+  body[data-receipt-paper-scope="users"] #printable-receipt .receipt-note,
+  body[data-receipt-paper-scope="users"] #printable-receipt > footer { font-size: 7.5pt; }
+}
+
+@media (max-width: 650px) { .receipt-paper-settings label { grid-template-columns: minmax(0,1fr); gap: 7px; } }
+@media print {
+  html:has(body[data-print-target="receipt"][data-receipt-paper-scope="users"]) { color-scheme: light !important; background: #fff !important; background-image: none !important; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] { page: users-receipt; display: block; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] #printable-receipt * { color: #111 !important; background: transparent !important; box-shadow: none !important; text-shadow: none !important; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] #receipt-dialog .no-print { display: none !important; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] > :not(#receipt-dialog) { display: none !important; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] #receipt-dialog { page: users-receipt; display: block !important; position: static; inset: auto; width: 100%; max-width: none; height: auto; max-height: none; margin: 0; padding: 0; overflow: visible; border: 0; border-radius: 0; background: #fff !important; box-shadow: none !important; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] #receipt-dialog::backdrop { display: none; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] #printable-receipt { page: users-receipt; position: static; inset: auto; width: 100%; max-width: none; height: auto; min-height: 0; margin: 0; padding: 0; transform: none; border: 0; border-radius: 0; overflow: visible; background: #fff !important; color: #000 !important; box-shadow: none; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"][data-receipt-paper="thermal-80"] #printable-receipt { max-width: 74mm; margin-inline: auto; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"][data-receipt-paper="thermal-58"] #printable-receipt { max-width: 52mm; margin-inline: auto; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"][data-receipt-paper="xp-235b"] #printable-receipt { max-width: 48mm; margin-inline: auto; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] .receipt-items tr { break-inside: avoid; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] #printable-receipt :is(.receipt-total,.receipt-balance,.receipt-payment,footer) { break-inside: avoid; }
+  @container users-receipt (min-width: 90mm) and (max-width: 160mm) {
+    body[data-receipt-paper-scope="users"] #printable-receipt > header { padding-bottom: 10px; }
+    body[data-receipt-paper-scope="users"] #printable-receipt > header img { width: 170px; }
+    body[data-receipt-paper-scope="users"] #printable-receipt .receipt-credentials { margin: 6px 0; padding: 8px; gap: 4px; }
+    body[data-receipt-paper-scope="users"] #printable-receipt .receipt-title { margin: 12px 0 8px; }
+    body[data-receipt-paper-scope="users"] #printable-receipt .receipt-meta { padding: 8px; gap: 6px; }
+    body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items { margin-top: 10px; }
+    body[data-receipt-paper-scope="users"] #printable-receipt .receipt-items :is(td,th) { padding: 6px 5px; }
+    body[data-receipt-paper-scope="users"] #printable-receipt .receipt-total { padding: 8px 4px 6px; }
+    body[data-receipt-paper-scope="users"] #printable-receipt .receipt-balance { margin: 6px 0; }
+    body[data-receipt-paper-scope="users"] #printable-receipt .receipt-payment { margin-top: 6px; padding: 7px 12px; }
+    body[data-receipt-paper-scope="users"] #printable-receipt .receipt-note { margin-top: 7px; }
+    body[data-receipt-paper-scope="users"] #printable-receipt > footer { margin-top: 12px; padding-top: 8px; }
+  }
+}

@@ -1,0 +1,41 @@
+'use strict';
+// Synthetic opening projections and pure finance totals. The durable archive
+// verifier is a mocked read-only boundary here; actual Main QA covers its proof.
+const assert=require('node:assert/strict'),Module=require('node:module');
+const Finance=require('./finance-ledger.cjs'),Opening=require('./month-opening-custody.cjs'),{businessTotals,sumBusinessTotals}=require('./consolidated-finance.cjs');
+const original=Module._load,proofs=new WeakMap();let proofReads=0;
+Module._load=function(name,parent,...args){if(name==='./month-closing.cjs'&&parent?.filename===require.resolve('./month-opening-custody.cjs'))return {verifyArchive({db,workspaceId,month}){proofReads++;assert.equal(workspaceId,'fiber-resellers');const expected=proofs.get(db)?.get(month),row=Finance.query(db,'SELECT archive_json FROM finance_months WHERE month=?',[month])[0];if(!expected){const value=JSON.parse(row.archive_json);if(value.mode===undefined&&value.all.closing.mode===undefined)return null;throw Error('Synthetic immutable close proof missing.');}if(row?.archive_json!==expected)throw Error('Synthetic immutable close proof mismatch.');return JSON.parse(expected);}};return original.call(this,name,parent,...args);};
+const options={workspaceId:'fiber-resellers',accountKey:null,through:'2026-11-03'};
+const closing=(cash,wallet=0,mode='carry_forward')=>({cash,wallets:[{id:'synthetic-wallet',balance:wallet}],...mode?{mode}:{},bank:123456});
+const archive=(month,all,employees={})=>({month,...all.mode==='carry_forward'?{mode:'carry_forward',requestId:'synthetic-closing-'+month}:{},all:{report:{revenue:999},daily:[],closing:all},employees});
+const member=(cash,wallet=0)=>({report:{revenue:999},daily:[],closing:closing(cash,wallet)});
+const clone=value=>JSON.parse(JSON.stringify(value));
+(async()=>{const SQL=await require('sql.js')(),db=new SQL.Database();try{
+ const empty=Opening.summary({db,...options});assert.equal(empty.mode,'none');assert.equal(empty.total,0);assert.equal(empty.month,null);assert.equal(proofReads,0);
+ db.exec('CREATE TABLE finance_months(month TEXT PRIMARY KEY,archive_json TEXT NOT NULL)');
+ const put=(month,value,{proof=true}={})=>{const raw=JSON.stringify(value);db.run('INSERT OR REPLACE INTO finance_months VALUES(?,?)',[month,raw]);if(proof){const map=proofs.get(db)||new Map();map.set(month,raw);proofs.set(db,map);}return raw;};
+ put('2026-09',archive('2026-09',closing(999,88,null)),{proof:false});
+ put('2026-10',archive('2026-10',closing(80,20),{'holder-a':member(50,10),'holder-b':member(30,10)}));
+ put('2026-11',archive('2026-11',closing(90,15),{'holder-a':member(55,10),'holder-b':member(35,5)}));
+ const snapshot=Buffer.from(db.export()),nov=Opening.summary({db,...options});assert.equal(nov.month,'2026-10');assert.equal(nov.openingDate,'2026-11-01');assert.equal(nov.total,100);assert.equal(nov.cash,80);assert.equal(nov.wallets,20);assert.equal(nov.mode,'carry_forward');assert(Buffer.from(db.export()).equals(snapshot),'Opening projection performs no database writes.');
+ assert.equal(Opening.summary({db,...options,through:'2026-12-03'}).total,105);
+ const october=Opening.summary({db,...options,through:'2026-10-31'});assert.equal(october.mode,'legacy_zero');assert.equal(october.total,0,'Legacy cash/wallet snapshots already have offset openings and cannot be subtracted again.');
+ assert.equal(Opening.summary({db,...options,through:'2026-09-30'}).mode,'none','Closing that same as-of month is not its own opening.');
+ const a=Opening.summary({db,...options,accountKey:'holder-a'}),b=Opening.summary({db,...options,accountKey:'holder-b'}),absent=Opening.summary({db,...options,accountKey:'missing-employee'});assert.equal(a.total,60);assert.equal(b.total,40);assert.equal(absent.total,0);assert.equal(absent.mode,'carry_forward');assert.equal(absent.accountKey,'missing-employee');
+ const section={id:'fiber-resellers',name:'Resellers'},view=(cash,wallet,opening,netDeposits=0)=>({accountKey:opening.accountKey,today:opening.through,monthOpening:opening,bankCustody:{basis:'bank_internal_custody',workspaceId:'fiber-resellers',accountKey:opening.accountKey,through:opening.through,custodyStart:opening.openingDate,netDeposits},report:{revenue:999999,grossProfit:999999,expenses:0,whishFees:0},dashboard:{drawer:{balance:cash}},wallets:[{balance:wallet}],bandwidthCost:{incurredCost:0},bandwidthSpending:{paid:0,pendingCount:0}});
+ const total=value=>businessTotals(section,value).profitBeforeOther;
+ assert.equal(total(view(80,20,nov)),0,'Carried holdings are assets, not new-month earnings.');
+ assert.equal(total(view(50,20,nov,30)),0,'Choosing $30 for Bank preserves $70 current custody and creates no profit.');
+ assert.equal(total(view(120,20,nov,-40)),0,'Withdrawal of old Bank savings is not revenue.');
+ assert.equal(total(view(90,30,nov)),20,'Only current earnings above carried custody appear as profit.');
+ assert.equal(total(view(30,10,a,20)),0);assert.equal(total(view(30,10,b)),0);
+ const combined=sumBusinessTotals([{section,overview:view(50,20,nov,30)},{section:{id:'printer',name:'Printer'},overview:{...view(20,0,{...nov,workspaceId:'printer'},0),bankCustody:{...view(20,0,nov).bankCustody,workspaceId:'printer'},report:{revenue:80,grossProfit:12,expenses:0,whishFees:0}}}]);assert.equal(combined.profitBeforeOther,12,'Report-based businesses never subtract balance carry from their transaction profit.');
+ const oldView=view(7,3,october);oldView.today=october.through;oldView.bankCustody.through=october.through;assert.equal(total(oldView),10,'Old zero-opening mode retains the old profit formula.');
+ for(const override of [{workspaceId:'fiber-users'},{accountKey:'wrong-holder'},{through:'2026-11-04'},{cash:80.001},{total:101},{month:'2026-11'},{openingDate:'2026-10-31'},{mode:'none'},{mode:'all_time_bank'}])assert.throws(()=>total({...view(80,20,nov),monthOpening:{...nov,...override}}),/opening|scope/i);
+ const saved=proofs.get(db).get('2026-10'),corrupt=JSON.parse(saved);corrupt.all.closing.cash=81;db.run('UPDATE finance_months SET archive_json=? WHERE month=?',[JSON.stringify(corrupt),'2026-10']);assert.throws(()=>Opening.summary({db,...options}),/opening could not be verified/i);db.run('UPDATE finance_months SET archive_json=? WHERE month=?',[saved,'2026-10']);
+ const missingProof=proofs.get(db).get('2026-10');proofs.get(db).delete('2026-10');assert.throws(()=>Opening.summary({db,...options}),/opening could not be verified/i);proofs.get(db).set('2026-10',missingProof);
+ const duplicate=JSON.parse(saved);duplicate.all.closing.wallets.push(clone(duplicate.all.closing.wallets[0]));put('2026-10',duplicate);assert.throws(()=>Opening.summary({db,...options}),/opening could not be verified/i);
+ put('2026-10',archive('2026-10',closing(-5,2),{'holder-a':member(-5,2)}));const signed=Opening.summary({db,...options});assert.equal(signed.total,-3);assert.equal(total(view(-5,2,signed)),0,'Signed historical custody is preserved without inventing earnings.');
+ for(const through of ['2026-02-30','2026-11-03T12:00:00','bad'])assert.throws(()=>Opening.summary({db,...options,through}),/opening could not be verified/i);
+ assert(proofReads>0);console.log('Month closing finance QA passed: durable-archive-bound carried Cash/Whish opening, newest applicable prior month, same-month/future exclusion, legacy zero openings, signed values, absent/selected employee, Bank assets excluded, current deposits/withdrawals neutral, only new earnings recognized, report-based businesses unchanged, invalid/tampered/missing proof rejected, source DB read-only. Synthetic verifier boundary only.');
+}finally{db.close();Module._load=original;}})().catch(error=>{Module._load=original;console.error(error);process.exitCode=1;});

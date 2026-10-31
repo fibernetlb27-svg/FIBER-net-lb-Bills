@@ -1,0 +1,1017 @@
+{
+  "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
+  "version": "0.1.0",
+  "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
+  "files": [
+    {
+      "name": ".dockerignore",
+      "length": 335,
+      "sha256": "6b9bc0ad31acb2fae64ff0700d14de15222a7ccf35d15656b59fad0d893bbd55"
+    },
+    {
+      "name": ".gitattributes",
+      "length": 86,
+      "sha256": "f669a254eae32b53451e73e0149039315ab2ec9caa6e218b4379f805ac62b736"
+    },
+    {
+      "name": ".gitignore",
+      "length": 231,
+      "sha256": "98527f1f702a9191de8aeb00ed5abb44070db4d5823e0f2b899c5981302dc698"
+    },
+    {
+      "name": "DEPLOYMENT.md",
+      "length": 15431,
+      "sha256": "573841a3b88026036b1d4cd0fe11ae01447a0ba9d060dbc8d7f5fbac4cb7a9ca"
+    },
+    {
+      "name": "Dockerfile",
+      "length": 911,
+      "sha256": "41915e66c06c50c0e3ce124e92ee9a62541fb6f100a7e67badb363eff84565e6"
+    },
+    {
+      "name": "MIGRATION.md",
+      "length": 4399,
+      "sha256": "9b516049a996bb59e87e51442f22e98a9ad5d661a375e2538542bf84de01188d"
+    },
+    {
+      "name": "README.md",
+      "length": 3928,
+      "sha256": "97baafdf03c313c545f2192b4693c15b28582d37238b5ef0a387fb8c640b3230"
+    },
+    {
+      "name": "app/admin-catalog.cjs",
+      "length": 8480,
+      "sha256": "c5ca46b0aaa81bd562f2693d6686f48cd518d6c082dff11d03c2110fdad97c36"
+    },
+    {
+      "name": "app/admin-money-transfers.cjs",
+      "length": 28238,
+      "sha256": "3a91e8ff6f71d9c1a654c5bdc300c4a84a349689d804b27483ecaa650aaca4d2"
+    },
+    {
+      "name": "app/admin-receivables.cjs",
+      "length": 8307,
+      "sha256": "600acf856d9add9340fb3ebac645fd7a968cb0142a645daf5988721f3b487fc4"
+    },
+    {
+      "name": "app/admin-warehouse.cjs",
+      "length": 61269,
+      "sha256": "8f26236c37ce139f75878f504019fd464b31d09474d10006a0fe72239e100664"
+    },
+    {
+      "name": "app/backup-archive.cjs",
+      "length": 4048,
+      "sha256": "b1673a8681df3896a610e72ad0bbac71dfaa34f393294585cb81cec4f6748cb0"
+    },
+    {
+      "name": "app/backup-manager.cjs",
+      "length": 20364,
+      "sha256": "39d1c8fc249e4d9501b5a531a3be6a4eaeb6614b75c616b93a72890f01988434"
+    },
+    {
+      "name": "app/bandwidth-accounting.cjs",
+      "length": 31987,
+      "sha256": "5d8c29eba9fa22bd141b69394557339f5eaa8b677af6efb74978b64f6bc4e3b8"
+    },
+    {
+      "name": "app/bandwidth-payments.cjs",
+      "length": 18178,
+      "sha256": "40656f7c7a4d978c0b8ef7bc62d6336d95853ef65e6360098d2e560336af3194"
+    },
+    {
+      "name": "app/bandwidth-spending.cjs",
+      "length": 17612,
+      "sha256": "f570d2762dd89b30db3d6bb5f2c6c71b3f9daeb6cad8e72a9b267a66244696c1"
+    },
+    {
+      "name": "app/bank-accounts.cjs",
+      "length": 24583,
+      "sha256": "9ef985fb74117bc182f3c4c3755eec7a212ed03edb669d4d925cc5407c7d3ff8"
+    },
+    {
+      "name": "app/bill-reset.cjs",
+      "length": 14987,
+      "sha256": "029c1f9cc9d142b705831b16486755b640b781567b4e1f49c211ea85d42c168c"
+    },
+    {
+      "name": "app/build/DAISYUI-LICENSE.txt",
+      "length": 3366,
+      "sha256": "8d29a957a7631cdca9d48f717160a5627f148f30e775330c214d1eb0700d80e1"
+    },
+    {
+      "name": "app/build/icon.ico",
+      "length": 3435,
+      "sha256": "b15fa955a5c9d7b62c63322aa9f10a3585731793276b126175421c02b92c5ee6"
+    },
+    {
+      "name": "app/client-transport.cjs",
+      "length": 3910,
+      "sha256": "8a094c2e63d3c4ffb3b8d0e0b6a664b13974574b582eb2d7e8ccbeda7a1029d3"
+    },
+    {
+      "name": "app/company-debt-business.cjs",
+      "length": 28147,
+      "sha256": "c86cb3a9d1ac0defac4dc63edc3ab9e3f1d3f2c25792ef525a529b28a134fc36"
+    },
+    {
+      "name": "app/company-debt-spending.cjs",
+      "length": 13862,
+      "sha256": "fbd6bfe9b4cd7c1c2fe6d0db7d4657cef502d00ea374e8b034265b1984c0059c"
+    },
+    {
+      "name": "app/company-debts.cjs",
+      "length": 49248,
+      "sha256": "37e6352378435bee69017d841c680a3d2c7c8c8268333d7a793447f2368466d6"
+    },
+    {
+      "name": "app/consolidated-finance.cjs",
+      "length": 26309,
+      "sha256": "bd1eaa9778f0316980aa183e352aa48113810e9843ecac2aa8458556198d32e4"
+    },
+    {
+      "name": "app/core.cjs",
+      "length": 370940,
+      "sha256": "abb00fb189d2d3b700309626c8376451b7a022fbc416e0a8dc3f81d436248334"
+    },
+    {
+      "name": "app/customer-registration.cjs",
+      "length": 8491,
+      "sha256": "143c16d3ac7ee7f1f79e112d3316607ac2240b7993a96275e353c92500defbd8"
+    },
+    {
+      "name": "app/employee-dashboard.cjs",
+      "length": 4304,
+      "sha256": "23645e4dd9c2911b2d7fae481edc914c40a2b4134bc965be27385643a9d467c8"
+    },
+    {
+      "name": "app/expense-funding-months.cjs",
+      "length": 6732,
+      "sha256": "af1c0fd96a091f49e17aea89e70e83e53bb3b9b69367dfc93edca936b545ab3f"
+    },
+    {
+      "name": "app/expense-management.cjs",
+      "length": 8293,
+      "sha256": "d54475cb4fbd877471033e34ac5b2b8d5e1bf217ad7c76cd1a739f6fe4715999"
+    },
+    {
+      "name": "app/finance-ledger.cjs",
+      "length": 28050,
+      "sha256": "7c5b43bb4ae728560516d2089f81fef87f945f5e96fd600b5d7d90af9798a497"
+    },
+    {
+      "name": "app/fixed-monthly-categories.cjs",
+      "length": 22664,
+      "sha256": "ecfc32a44185b42c9ed9acfb9dfb27f968ab0dc80b6b64e711b04d16764e55cf"
+    },
+    {
+      "name": "app/fixed-monthly-dashboard.cjs",
+      "length": 9665,
+      "sha256": "0e0f694ebd9907e10efff15236a8ef09e6e4144ae92e66ed4060366008d4eba2"
+    },
+    {
+      "name": "app/fixed-monthly-payments.cjs",
+      "length": 67609,
+      "sha256": "5713ef57a64e3a4c73759041f6221c9bafdc57a5a396272aeda0e0c30478138c"
+    },
+    {
+      "name": "app/fixed-monthly-reversals.cjs",
+      "length": 24935,
+      "sha256": "381f64d2fcb381fe3a9a5cd0217632e2e7fce53f618622cb6762b4a0a7398473"
+    },
+    {
+      "name": "app/fixed-monthly-spending.cjs",
+      "length": 20168,
+      "sha256": "7181575ae845a7d311d2875f20894781d84d637d1f9dd20dc1b2732d4386537d"
+    },
+    {
+      "name": "app/free-renewals.cjs",
+      "length": 1977,
+      "sha256": "72a6230672b0b5e46dabe0c1c7a64fe607908b94d9e9dcd27f509e73723b082d"
+    },
+    {
+      "name": "app/funded-stock-purchases.cjs",
+      "length": 32491,
+      "sha256": "06c797d429d9fb8eef7a74955d8ed0767ac7cfd574bfc107849e1c004c890bc8"
+    },
+    {
+      "name": "app/internet-renewals.cjs",
+      "length": 27577,
+      "sha256": "5fbe3d0348e7c315fa225367b64b02abfea53f16165f7a07f60838687f3616e6"
+    },
+    {
+      "name": "app/invoice-voids.cjs",
+      "length": 39448,
+      "sha256": "9e1cd41331bc6abd16c6f5b76871d5bc45ef4c195c2d12e3248a38da58fe9c0b"
+    },
+    {
+      "name": "app/main-office-summary.cjs",
+      "length": 19847,
+      "sha256": "a4d8a422aef3f1d4d2518e85cea2b8999498a37834b9c956ba756f9c067bc40f"
+    },
+    {
+      "name": "app/maintenance-funding.cjs",
+      "length": 17114,
+      "sha256": "9d1e62dbb63b1751463bb74bc9ffe306355f1fc6a81d1b0b5d9c32e8263372ba"
+    },
+    {
+      "name": "app/month-closing-all.cjs",
+      "length": 14372,
+      "sha256": "2a6d9de9a29f8b0bbb1eadfe61cc401e864d2b92c8319a453ac717500ae5df94"
+    },
+    {
+      "name": "app/month-closing.cjs",
+      "length": 18598,
+      "sha256": "bd290630097935bcfb5ec7ecddcb91f3c06830ddd1d5abe20a6ea94d2e66114a"
+    },
+    {
+      "name": "app/month-opening-custody.cjs",
+      "length": 4738,
+      "sha256": "6ae1f4cddeae484817f922c3ed61099e62107eee1967dcc06bba236253ce2068"
+    },
+    {
+      "name": "app/optional-whish-fees.cjs",
+      "length": 7713,
+      "sha256": "3adf94965b00d985411963ad5373a81ab1bb77eeff592a5568163873d9ad56fb"
+    },
+    {
+      "name": "app/payment-ledger.cjs",
+      "length": 20115,
+      "sha256": "60df068ebbe903f3b471e7c0cba59629467d060ed66e261c11b60450087a7631"
+    },
+    {
+      "name": "app/plan-change-pricing.cjs",
+      "length": 3528,
+      "sha256": "ea98e1875a4b34f0740b588b3d392723739473c995781c59b09ae184d7fa7f8c"
+    },
+    {
+      "name": "app/portal-operations.cjs",
+      "length": 6696,
+      "sha256": "25ba6a5e97f3efdb396cdcaf85fa0f730c0e2621d2930facd4a181ffc19b730f"
+    },
+    {
+      "name": "app/profit-breakdown.cjs",
+      "length": 4635,
+      "sha256": "c280cd24004a049ab1d981a4c0e21a75166af4994d2b4adb9477ecc2b97bde4a"
+    },
+    {
+      "name": "app/proradius-api.cjs",
+      "length": 61483,
+      "sha256": "a7a3e6061b69579e10c900fc090c5f1e663d1987607a28e40dc29e3afc5ab56f"
+    },
+    {
+      "name": "app/receipt-printers.cjs",
+      "length": 6858,
+      "sha256": "e95098baaf8224c094790ddb27c1678139bc1bcaee5202ac0dd2a3172239febe"
+    },
+    {
+      "name": "app/receipt-sharing.cjs",
+      "length": 4015,
+      "sha256": "017227218b96142902959fb4c564f87f6af6bc938ec059536cf2df1c2ac5056f"
+    },
+    {
+      "name": "app/reseller-accounting.cjs",
+      "length": 23430,
+      "sha256": "5c41dda837093cd37dbd058f09efc1d2995825813a4fa6b3b9ada8babf0c17b2"
+    },
+    {
+      "name": "app/reseller-admin-wallet-corrections.cjs",
+      "length": 28796,
+      "sha256": "46a801616a72d0b9b880f8b9bd0903036c4d6c1d750ce7341c4d5275ba8245b0"
+    },
+    {
+      "name": "app/reseller-carry-custody.cjs",
+      "length": 19505,
+      "sha256": "d94c20414e1430c237c65d6df4ba3b9b66787a902d1f82642b1feca70a51ab80"
+    },
+    {
+      "name": "app/reseller-collected-revenue.cjs",
+      "length": 1394,
+      "sha256": "9562273f92a2ad4bcdadc941e74d3594511a614730120b06d7ee25d9792de4b3"
+    },
+    {
+      "name": "app/reseller-collections.cjs",
+      "length": 75094,
+      "sha256": "e18db5d3275405e8f8780c7236de4b345b992897f12782f4a930fdfae72906f8"
+    },
+    {
+      "name": "app/reseller-funding-service.cjs",
+      "length": 29736,
+      "sha256": "fe9bce9880b79f728e762fa5eb746f40b6b0f5380e238f57a590403b5df2fbb5"
+    },
+    {
+      "name": "app/reseller-transactions.cjs",
+      "length": 3870,
+      "sha256": "628e47141df2a0dd2ebddae689baa9545a49b7ee5a3b36c7cbf63b9d3a73f203"
+    },
+    {
+      "name": "app/reseller-wallet-reconciliation.cjs",
+      "length": 19309,
+      "sha256": "b8760cc439c45ebd79f5cb9799cf7bb25d6b8b903f5f60130008c2693929ec80"
+    },
+    {
+      "name": "app/resellers.cjs",
+      "length": 608,
+      "sha256": "fece266fd24cc0d6674adf99fe3b6532fe72e3510cba36864811891a60ee6b10"
+    },
+    {
+      "name": "app/section-access.cjs",
+      "length": 17604,
+      "sha256": "f6f816dc8488988db7edf070c5ce0c9f5923b8a2ead2d78bced4ea0db5a935b1"
+    },
+    {
+      "name": "app/shared-maintenance.cjs",
+      "length": 21673,
+      "sha256": "501eff491af2fa4a33087075bcbf21820718041da89b01e33d5626259a067b32"
+    },
+    {
+      "name": "app/src/action-feedback.css",
+      "length": 4128,
+      "sha256": "696638be045b3b92b6f99319be99fc9692adbe2506053ca7434411aebe9741ac"
+    },
+    {
+      "name": "app/src/action-feedback.js",
+      "length": 5981,
+      "sha256": "4887d20aa1221dd7168d7df36f16d6b40cc0ea04153c9366de3f40fb7063dea2"
+    },
+    {
+      "name": "app/src/admin-inventory.css",
+      "length": 1381,
+      "sha256": "de84e878025f020ae9cedb66522ba8a25aa7d4b870b1e1802d9f4c93ee52a0e5"
+    },
+    {
+      "name": "app/src/admin-money-transfers.css",
+      "length": 3678,
+      "sha256": "a2ea1c27eb6069a5dec110d8c2a52d9ac5d5dea70e08639a65a5f95d522afc70"
+    },
+    {
+      "name": "app/src/admin-money-transfers.js",
+      "length": 28407,
+      "sha256": "32987eca0604078f0397756de6803c4c9fd3aed79cb6e4cf996ef5e86cd9f4ab"
+    },
+    {
+      "name": "app/src/admin-payables.css",
+      "length": 5143,
+      "sha256": "d87523ad9bb209cfef9cb1ec6933a6bb65bed08d45c49125c8bfcbd381e63126"
+    },
+    {
+      "name": "app/src/admin-payables.js",
+      "length": 23538,
+      "sha256": "688b02cb02d174b47729cc49e1aee8e04ef3fb67b671dae992807b19ed4a984a"
+    },
+    {
+      "name": "app/src/admin-receivables.css",
+      "length": 3285,
+      "sha256": "bee6e241008c0df074afe20b0fe19490f78c73bae224a6c7bf1d083a41a716a6"
+    },
+    {
+      "name": "app/src/admin-receivables.js",
+      "length": 31937,
+      "sha256": "eff8b334221c4c86d11fa898c6e682f566c1fde2bf3209f594c4430b36747864"
+    },
+    {
+      "name": "app/src/admin-warehouse.css",
+      "length": 7935,
+      "sha256": "ed16df3d2d36b4d1cde22e5a315120b46b0322c4842dd5002654df6fad3220ff"
+    },
+    {
+      "name": "app/src/admin-warehouse.js",
+      "length": 121024,
+      "sha256": "d784de2b2c71bfb5df739768cca359aaa787fc1b07b935000f1dd969fc085e0b"
+    },
+    {
+      "name": "app/src/app.js",
+      "length": 332560,
+      "sha256": "72a9652d7a11d5e7a011b91f0060cd497080ba5ad14ecc9e04e3934c430c9988"
+    },
+    {
+      "name": "app/src/backups.js",
+      "length": 9146,
+      "sha256": "52a73a5702712eb6a35f6b603e78d1628d09c8623e0d365c85f2f54801fbb3cb"
+    },
+    {
+      "name": "app/src/bandwidth-accounting.css",
+      "length": 8302,
+      "sha256": "281a36c2b4fe3f7679b0960ea9f519816be2d25bcfa74f1af05b1a1f889f7723"
+    },
+    {
+      "name": "app/src/bandwidth-accounting.js",
+      "length": 39453,
+      "sha256": "dd058072563b5b162da8c00aff317d0367b0ed448549bc95c4156042d4b101ce"
+    },
+    {
+      "name": "app/src/bandwidth-window.css",
+      "length": 1653,
+      "sha256": "cf34fbaf6c9429eda2cb40423125cc78d24394367b187db7412d787cf9500f16"
+    },
+    {
+      "name": "app/src/bandwidth-window.js",
+      "length": 3176,
+      "sha256": "3e45c384d8e74057c5c74a24bd4ff8ccf4187851e336ffff91d1afcae40abb28"
+    },
+    {
+      "name": "app/src/bandwidth.html",
+      "length": 2053,
+      "sha256": "b4a6b06b61770d857564b1bf9d215ac715034428615cd6eaa79cb0463e655916"
+    },
+    {
+      "name": "app/src/bank.css",
+      "length": 7627,
+      "sha256": "3f952d70a97806600ec0dc1c84b3e6750f848c45a3cff75376da448c111c2cb7"
+    },
+    {
+      "name": "app/src/bank.js",
+      "length": 43413,
+      "sha256": "9d75973e5e72010e8eebded418e2166a35f950cf51e68f6c2883cb6c6757d229"
+    },
+    {
+      "name": "app/src/bill-plan.js",
+      "length": 1482,
+      "sha256": "1a1c55f0393cb71f1b2c86079380980386760cc0be1aa2037ccb5e43c94788ed"
+    },
+    {
+      "name": "app/src/browser-api.js",
+      "length": 10947,
+      "sha256": "68874392d482dd0298ec813a8a29d225be190c905ae9a74030951bda4ef07a79"
+    },
+    {
+      "name": "app/src/browser-contract.js",
+      "length": 15920,
+      "sha256": "d241ca15edf3c7a4f113e038b4c688dc0887a6c659c367586493bfc13f641145"
+    },
+    {
+      "name": "app/src/company-debts.css",
+      "length": 4456,
+      "sha256": "2ba2d97a4811eb18ddb20ac1d43a9dca7b0c8824913ad7e4dba1127f534e1329"
+    },
+    {
+      "name": "app/src/company-debts.js",
+      "length": 67900,
+      "sha256": "301d7b45d66dc50707c7a714f6f5296e9a0e4294bca7223ca765cd76dbb09ea8"
+    },
+    {
+      "name": "app/src/daisyui.css",
+      "length": 67599,
+      "sha256": "c3aa3d2fcdf7d64716c9bc330da3384c95e8f26b458535ba9dcf399f58cd9394"
+    },
+    {
+      "name": "app/src/design-system.css",
+      "length": 7095,
+      "sha256": "f89e0f9d44c3f6cc1d4c4854cfff125127a49640def2e886d16804039a76790e"
+    },
+    {
+      "name": "app/src/expense-funding.js",
+      "length": 5895,
+      "sha256": "632980035a0b2d02fe319a34e6cf964ee43f4a38607f2beda0efd68dfcb22904"
+    },
+    {
+      "name": "app/src/favicon.svg",
+      "length": 365,
+      "sha256": "0e8fd76837643ecbf3bb01744a816a74e61c9a5c4900637de82289243e1e6d58"
+    },
+    {
+      "name": "app/src/fibernetlb-logo-accent.png",
+      "length": 71843,
+      "sha256": "860f74985b18714b2cd4ccc12133891dc997e6c810dab958cbe1255a165659a8"
+    },
+    {
+      "name": "app/src/fibernetlb-logo-light.png",
+      "length": 29330,
+      "sha256": "b3953915f3707887e61d92a861c8fb89cab70bfb5006b92a1478447a9f66059c"
+    },
+    {
+      "name": "app/src/fibernetlb-logo.png",
+      "length": 110565,
+      "sha256": "49906001f074ecee3de7af4ab50a4d95a360785dc9eb812b7d517bf4e80ac824"
+    },
+    {
+      "name": "app/src/finance-dashboard.js",
+      "length": 64947,
+      "sha256": "7a899b77e6ee61d43ccd59b2ded5df6bc5db4358e972729f95a0e953c0465647"
+    },
+    {
+      "name": "app/src/finance-workspace.css",
+      "length": 6462,
+      "sha256": "d73e156816a126c51cb5d645777dd2efe3df23086eac5864ff8a650a97ffd849"
+    },
+    {
+      "name": "app/src/fixed-monthly-payments.css",
+      "length": 12350,
+      "sha256": "686478bcc3846eaa8d8c4e8c7cff3f922fd75c31239f932e9b35f85680b71b4e"
+    },
+    {
+      "name": "app/src/fixed-monthly-payments.js",
+      "length": 112622,
+      "sha256": "e6e26617ff191f02359f2d1dbcb245500820c3e06d2112888be3cda402a3193f"
+    },
+    {
+      "name": "app/src/index.html",
+      "length": 145162,
+      "sha256": "bb3d6dfa0a432362fde45701285dc8a1ac4fee8030c808a6cff0e28de6452bf6"
+    },
+    {
+      "name": "app/src/internet-pricing.js",
+      "length": 5548,
+      "sha256": "8f8cf7345056a773a68073599af89c362f855ac3482374cacbc198c9c73e910b"
+    },
+    {
+      "name": "app/src/invoice-voids.css",
+      "length": 2724,
+      "sha256": "6ad0ab67ac7c3dca845a626e242f0dd11e5c78121a631f71f21810e4061bdc31"
+    },
+    {
+      "name": "app/src/invoice-voids.js",
+      "length": 27653,
+      "sha256": "423cdd5c80c5f4fe35bce6cf7a677b0694ab423f45a31ce98e5bf0c0cd2d21e1"
+    },
+    {
+      "name": "app/src/logo.svg",
+      "length": 693,
+      "sha256": "8b3b99f94bdb4baf831fc4c08639eabd98e39cdff90952d1d3a5102d67413ba4"
+    },
+    {
+      "name": "app/src/month-closing-all.css",
+      "length": 5042,
+      "sha256": "037ccb6d204409a9278490e25352d0f35c1b80a98d8cc94d687403e5653b7f45"
+    },
+    {
+      "name": "app/src/month-closing-all.js",
+      "length": 31918,
+      "sha256": "da976da19f2692547c47f221d236bfe34556318c3d040f7e2a24493ea86c3627"
+    },
+    {
+      "name": "app/src/month-closing.css",
+      "length": 6048,
+      "sha256": "618d71fde8e41b817e6fa182625fa0a68d9890c59317df4a8c4a91706a72b04c"
+    },
+    {
+      "name": "app/src/month-closing.js",
+      "length": 29992,
+      "sha256": "63ab59457b9b59162ac0990bb618931e624c0b580eaf201ed4ef58f9eccbfb9d"
+    },
+    {
+      "name": "app/src/new-customer.js",
+      "length": 29666,
+      "sha256": "a838848131c5821f1bb910031bedc1549fc17c5620a902ecff3f3c8473b51144"
+    },
+    {
+      "name": "app/src/printing-pricing.js",
+      "length": 2390,
+      "sha256": "451aedc9f97a9b4588eccdff76b260ab8c97c9209fc1626bf4318268389f8cd9"
+    },
+    {
+      "name": "app/src/provider-alfa.png",
+      "length": 1583912,
+      "sha256": "d7de11cb72efb7674e92811ec7542cf75f2805a158ae5750e35bf9663f297c81"
+    },
+    {
+      "name": "app/src/provider-mtc.png",
+      "length": 1567334,
+      "sha256": "a692e90b44b2275056fd48d18b83246ad1edfea4f8943318b6e9df073fac9e18"
+    },
+    {
+      "name": "app/src/provider-ogero.png",
+      "length": 1653806,
+      "sha256": "2dcecd1ec1f5c820c9bea965240403f7ed4f8c8108e89c47a736c92b0cb661b7"
+    },
+    {
+      "name": "app/src/receipt-paper.css",
+      "length": 9925,
+      "sha256": "b57135222d9b07583fd6cbbc3f2cfaec61104b488c80ec86a257e21fe2f9fb57"
+    },
+    {
+      "name": "app/src/receipt-paper.js",
+      "length": 9213,
+      "sha256": "5c696218deea81242a608d0dc04c93629e1cc7915a1cc513403498b7370d8df5"
+    },
+    {
+      "name": "app/src/reseller-funding.js",
+      "length": 82348,
+      "sha256": "32375b5c066dad7be247f486021c47743a0040e0d27fcb50bdfc4859ce9bbe0b"
+    },
+    {
+      "name": "app/src/shared-maintenance.js",
+      "length": 27889,
+      "sha256": "246e428d78763afab719ae5d84975dd395f67613c603d009f993b86100353a6b"
+    },
+    {
+      "name": "app/src/staff-capabilities.js",
+      "length": 2567,
+      "sha256": "0d9cb6da4dcbfabff64636822fa93fbe0823eb2133401f7460b0c8f959020c74"
+    },
+    {
+      "name": "app/src/sticky-notes.css",
+      "length": 4121,
+      "sha256": "35054b584bb85bdea0b8b4aee79a88e35229dc0ff4f861cb08fd651a67cb62dc"
+    },
+    {
+      "name": "app/src/sticky-notes.js",
+      "length": 19000,
+      "sha256": "2bd6ecd5390a4679a35cecbf0f557f83cf682e07a6e52d423cae237b7ee97940"
+    },
+    {
+      "name": "app/src/styles.css",
+      "length": 118497,
+      "sha256": "42a85f28a641f7b230ff2b70475b9131f0b73061c118e67e4727258c4ee49184"
+    },
+    {
+      "name": "app/src/support-handover.js",
+      "length": 11736,
+      "sha256": "38ffb7b7369d7f03b10e668d69cf296920331138a2d171ab1f94ef79da6a9f6a"
+    },
+    {
+      "name": "app/src/theme-init.js",
+      "length": 198,
+      "sha256": "72f8366c2c4941ff04654c228400b4fe9ebe028f58bed7985593fe158f3e1598"
+    },
+    {
+      "name": "app/src/ui-enhancements.css",
+      "length": 16865,
+      "sha256": "65b5d78a7753c1b8fa066fbc6500c16d3430ef75c78388527d8c7e39acba94d9"
+    },
+    {
+      "name": "app/src/validity-mtc.png",
+      "length": 1230849,
+      "sha256": "3e990a3ab2132e240d270b0b93ff42d523c88a37ec408b7632300501f00e261b"
+    },
+    {
+      "name": "app/src/voucher-alfa.png",
+      "length": 1323777,
+      "sha256": "f8d80148af685d51185b7d23e10ba3a5687f4128133f929bcec9ea149aeb06bc"
+    },
+    {
+      "name": "app/src/voucher-mtc.png",
+      "length": 1310107,
+      "sha256": "f488fc2b019fe68f45890ef4095f75350467d1a773fcdda9b140a2e7de28dc0f"
+    },
+    {
+      "name": "app/src/website.css",
+      "length": 521,
+      "sha256": "f56fc9cc0decbf23389a9335ee153ba1af9bb01573637015a7a342cb75fd2b2b"
+    },
+    {
+      "name": "app/src/whish-payments.js",
+      "length": 15504,
+      "sha256": "c62230edba4cf576761a00d281ab97946951d54efedd30b4dab53617f0b5f81d"
+    },
+    {
+      "name": "app/staff-permissions.cjs",
+      "length": 2002,
+      "sha256": "0c2d7694e3c216d733550e2f57f704842ab7e87c346e9d29def1ddb77ce4a34b"
+    },
+    {
+      "name": "app/staff-role-schema.cjs",
+      "length": 2431,
+      "sha256": "02c99154cbfcc0eb83db10f08f3037072eed180a13cb552ed3fa0d7f70f8860b"
+    },
+    {
+      "name": "app/sticky-notes.cjs",
+      "length": 7215,
+      "sha256": "91bad6250008b1f1bd1659b6c6fc2a201421bbf0bf9d2f2eb36f4e31a247121e"
+    },
+    {
+      "name": "app/support-ledger.cjs",
+      "length": 8930,
+      "sha256": "f55a32bfd6e42674f4bf4d84461f7669ce5f18f4e09406342cbcadb83d4c4e27"
+    },
+    {
+      "name": "app/update-rollback.cjs",
+      "length": 1416,
+      "sha256": "5e6d10f7b48bca6fe517415bc84ead28a9cf0e49e178a38fd68e1138a9bbe961"
+    },
+    {
+      "name": "app/user-activity.cjs",
+      "length": 4707,
+      "sha256": "9da206fe0379ea520fdf93dac422506f36c32b514bd53fcbc52d8281f720d4bc"
+    },
+    {
+      "name": "app/warehouse-accounting.cjs",
+      "length": 38623,
+      "sha256": "a56ef5492bd482583a04a3c1f02fd7988423a2ac58491a93a5ec54529df62d43"
+    },
+    {
+      "name": "app/warehouse-bridge.cjs",
+      "length": 21777,
+      "sha256": "dd4d07e34b3930539a6fdef725910201bc594ac435cf61fa86c4d05a6046ef54"
+    },
+    {
+      "name": "app/whish-destinations.cjs",
+      "length": 3869,
+      "sha256": "30fbbdb652a1f087a2e5ace7b7a476f027483e7787ec2c2994af72e7653a8f94"
+    },
+    {
+      "name": "app/whish-receipt-fees.cjs",
+      "length": 23080,
+      "sha256": "17e40bd4ffa5f5c4007647de36e3e29d3c00cbdd72caa4694c77814b38a26271"
+    },
+    {
+      "name": "app/whish-wallet-gross.cjs",
+      "length": 22126,
+      "sha256": "e27857e6c64f98edb88dcbe2f9d83c5ea7c130c2761b772b2d3266f1f5ffd91e"
+    },
+    {
+      "name": "app/workspaces.cjs",
+      "length": 14925,
+      "sha256": "f183821154867581ce53b2f7c1317bb149ddb53df6ba4021d214f4ce8e83c24d"
+    },
+    {
+      "name": "deploy/Caddyfile",
+      "length": 326,
+      "sha256": "a7d1a91101dd090242a6e2d7f132885ae09b2ecfad4442b8f911fc0b55872d05"
+    },
+    {
+      "name": "deploy/compose.yaml",
+      "length": 1724,
+      "sha256": "9700a17d9e48041d7da7a3533f19eecbc00cb6d029a4a491d4c371cc3615d82b"
+    },
+    {
+      "name": "deploy/environment.example",
+      "length": 376,
+      "sha256": "c277daba289c1b4bc1eaaff6910c6621efa13337b18bb6c7518a4ef910925d70"
+    },
+    {
+      "name": "lib/rpc-channels.cjs",
+      "length": 3633,
+      "sha256": "1f319b4567d27d3ff2a3c68d58b651d73d6d1870fe90a346f580221e99e25480"
+    },
+    {
+      "name": "lib/secrets.cjs",
+      "length": 2733,
+      "sha256": "43dd991fce1a3f4042ecc240c8149e33f7a00a79ad2aeef1d8b6da011c0eb7f6"
+    },
+    {
+      "name": "lib/storage.cjs",
+      "length": 1654,
+      "sha256": "197f5511a24dcade448181a30ba544c5c062e60b8fe45dfad62c1759b367a954"
+    },
+    {
+      "name": "package-lock.json",
+      "length": 1370,
+      "sha256": "aed2e8b4f48926f1770facb59abd8bc3d8c6ed44138bf673cef7762de98908fb"
+    },
+    {
+      "name": "package.json",
+      "length": 509,
+      "sha256": "24c7d38f3784b11775de804446bd5ee3d88f160c883f36ac8d74c214642066d5"
+    },
+    {
+      "name": "server.cjs",
+      "length": 23537,
+      "sha256": "8f5ea72e7e17b3e5583fdc99e92d20d3f6cf627c38ee05ea9d6be8d91547e1c9"
+    },
+    {
+      "name": "test/browser-bridge.test.cjs",
+      "length": 9268,
+      "sha256": "fb60a0414407107969f0604fca9c1fb0b422a9049e773ecf79b53432241de09c"
+    },
+    {
+      "name": "test/browser-ui.test.cjs",
+      "length": 21306,
+      "sha256": "83db6833753fd8f964814a6c44b0dde524f408d99f55418b4c3e5c18935f42b6"
+    },
+    {
+      "name": "test/core-auth.test.cjs",
+      "length": 7042,
+      "sha256": "3e3685c08578433020fe80806e9953f2fb91e17b3c87fd1b07d9432f9eff2fba"
+    },
+    {
+      "name": "test/core-catalog.test.cjs",
+      "length": 3106,
+      "sha256": "f567eca4900a8c45b80a222903c0418c7862f2ecd2ad02a7a9c58bd6067cc636"
+    },
+    {
+      "name": "test/core.test.cjs",
+      "length": 8212,
+      "sha256": "3c5fa860d8cda9b346435c69f223127cc786cc226c7194189a194d9695ca8fef"
+    },
+    {
+      "name": "test/data-audit.test.cjs",
+      "length": 4535,
+      "sha256": "3d2c6599c5ad7d6e680c3c0baed9c4d0dbc296683bff390078a31bac19f2eb4c"
+    },
+    {
+      "name": "test/demo.test.cjs",
+      "length": 5321,
+      "sha256": "c27c60aba5c190229727fe78c9de27a2ff73993208a65e81ac4368f202b6c0f5"
+    },
+    {
+      "name": "test/deployment.test.cjs",
+      "length": 3268,
+      "sha256": "a16a0854a0aa3dd6861f98dacb04142df0f2fc1288f121af271499d0e42a460f"
+    },
+    {
+      "name": "test/financial-http.test.cjs",
+      "length": 5515,
+      "sha256": "262444ffbf76b7d6efedccc55291fecb9ac209a060628ccfb8365dad8682b795"
+    },
+    {
+      "name": "test/financial-regression.test.cjs",
+      "length": 817,
+      "sha256": "37d239a09359c25dfc37114abdc60a492fc07d39cad2a6a812ad477476cedfc8"
+    },
+    {
+      "name": "test/package-source.test.cjs",
+      "length": 1465,
+      "sha256": "7c23285b1255153cf1a41a4e5eacff50f5ca4dc3ee7149648b8b52f75bed946b"
+    },
+    {
+      "name": "test/retained/manifest.json",
+      "length": 14144,
+      "sha256": "9be305df8fdd9d26673c7e2b7e6205cb96120aadc46a9c01fe54ecc4af739656"
+    },
+    {
+      "name": "test/retained/qa-admin-money-transfers.cjs",
+      "length": 16592,
+      "sha256": "5d40b8e8b74425c4e2ecaecfe2886a06409f5f07a29b610f01c5afdff4ab998b"
+    },
+    {
+      "name": "test/retained/qa-admin-receivables.cjs",
+      "length": 8953,
+      "sha256": "7c542a2b1c8e22e2931e7e989849ab88d6da92c7574ec56c765dd00357d36605"
+    },
+    {
+      "name": "test/retained/qa-admin-transfer-finance.cjs",
+      "length": 5298,
+      "sha256": "a035ee2e0a50d3002d4d768624c82cfe1fd5036eede2d06a7ce646b4088263d7"
+    },
+    {
+      "name": "test/retained/qa-all-business-finance.cjs",
+      "length": 21325,
+      "sha256": "78d7170fe06909dd598e421e04983e6ba6de28d143e0a9c4bdbb888786517b05"
+    },
+    {
+      "name": "test/retained/qa-bank-accounts.cjs",
+      "length": 15373,
+      "sha256": "99c8cdfac4af8bd67c8ee0320f676dc421664957855e3155e664a8e9b671c175"
+    },
+    {
+      "name": "test/retained/qa-bank-business-balances.cjs",
+      "length": 11698,
+      "sha256": "ebb02addba18a49be578ec670cde8774f433b1e4239363843c896b42aaf9d05a"
+    },
+    {
+      "name": "test/retained/qa-bank-dashboard-presets.cjs",
+      "length": 5725,
+      "sha256": "1d250345754038ecf57767831ce49c639801e85261d029e3f53800ce8c42329f"
+    },
+    {
+      "name": "test/retained/qa-bank-finance.cjs",
+      "length": 5168,
+      "sha256": "ad37eb2b9c926e2418f69b7d8fe7022d906d7baa8ef7d80659f6207a43e44bc8"
+    },
+    {
+      "name": "test/retained/qa-business-dashboard-totals.cjs",
+      "length": 5060,
+      "sha256": "c4fd4357865283c0a76ecab691ca8184074464a2fd07a531e4850a0a07774ae5"
+    },
+    {
+      "name": "test/retained/qa-company-debt-paid-dashboard.cjs",
+      "length": 9527,
+      "sha256": "26d73f4af5c86e672ce8627961848882240c161b6f708408bad60bdc12250274"
+    },
+    {
+      "name": "test/retained/qa-custody-lookup-scale.cjs",
+      "length": 10723,
+      "sha256": "01b24c6ce21715b6858cbde2af940d1176d04c3aa89c8061d85000a99409b876"
+    },
+    {
+      "name": "test/retained/qa-employee-dashboard.cjs",
+      "length": 2437,
+      "sha256": "28ed41e02a6c5e04823be5d5f6c77cda9c9e2f350518f242eeb0357aed1fab34"
+    },
+    {
+      "name": "test/retained/qa-expense-funding-allocation.cjs",
+      "length": 5014,
+      "sha256": "b729aa463ff879fc0f91a1b6fc43b25e7e4357d67bdee2e28b70ab8dbd0a33c1"
+    },
+    {
+      "name": "test/retained/qa-expense-funding-months.cjs",
+      "length": 12916,
+      "sha256": "81d7e43ae8631fdb61419feae916c66fd72b74b6f2ee6e70db336fc5c2a91b17"
+    },
+    {
+      "name": "test/retained/qa-expense-management.cjs",
+      "length": 3461,
+      "sha256": "9ff1eff41c484e3d202a6301c5905552958474438cea6b5275d5a638d91fb02a"
+    },
+    {
+      "name": "test/retained/qa-fixed-monthly-dashboard.cjs",
+      "length": 18964,
+      "sha256": "fd5b2e225875f79a2d224c261e48183bf07429f352e610eafc12c64f4a46feb3"
+    },
+    {
+      "name": "test/retained/qa-invoice-void-projections.cjs",
+      "length": 19359,
+      "sha256": "f45f4e66e55db2bdc437bb5de1d28f184f0fe333ed1ea4d25df2c040cae5ff97"
+    },
+    {
+      "name": "test/retained/qa-invoice-voids.cjs",
+      "length": 28863,
+      "sha256": "8d93c7c22063be14d643d9ae00642ed3a036b3a666a46d5b2d24beb709448144"
+    },
+    {
+      "name": "test/retained/qa-month-closing-all.cjs",
+      "length": 18484,
+      "sha256": "a2a41740c5edfe568d4505a167154e12427657c83c354277040c86e3f0d2e863"
+    },
+    {
+      "name": "test/retained/qa-month-closing-finance.cjs",
+      "length": 7699,
+      "sha256": "d93103cd2f76c84df7588083c0450c41152ae2b2fa529668e625a4ab06b8466b"
+    },
+    {
+      "name": "test/retained/qa-month-closing.cjs",
+      "length": 14337,
+      "sha256": "36c339931459a3357deabd757a417f13c8bb356f1daf9cf50b5354203b85e470"
+    },
+    {
+      "name": "test/retained/qa-monthly-dashboard-totals.cjs",
+      "length": 8428,
+      "sha256": "084e061817b676509f50cddbed783730b91afb9b55c878b8b099898de271a3ac"
+    },
+    {
+      "name": "test/retained/qa-monthly-reversal-dashboard.cjs",
+      "length": 10369,
+      "sha256": "d0c1b15b7dda798eff1afa11d55467baef1524ec9a2d256f8babe6870e6b9910"
+    },
+    {
+      "name": "test/retained/qa-reseller-carry-custody.cjs",
+      "length": 21007,
+      "sha256": "bd40a6dc491f793dc601181690b9df655ed286c36fced0d38fc4712f61e64103"
+    },
+    {
+      "name": "test/retained/qa-reseller-collections.cjs",
+      "length": 21762,
+      "sha256": "8aee397065ee3af0701c2e0d1a22f58e1bf1f73aa1b2072ee948c93dab4e9370"
+    },
+    {
+      "name": "test/retained/qa-reseller-prepaid-collections.cjs",
+      "length": 13600,
+      "sha256": "641d9add9aba47e9182f3b62c2bba42e87a7bbf562472a18a14d03e9549005a7"
+    },
+    {
+      "name": "test/retained/qa-reseller-saved-bills.cjs",
+      "length": 21754,
+      "sha256": "1251fe5d6ac7d6b687b5b7a8d9d9e54758a1ddd0c10a18b0801be99a5c490cd9"
+    },
+    {
+      "name": "test/retained/qa-reseller-users-wallet-transfer.cjs",
+      "length": 20769,
+      "sha256": "a256e40dbe0a3443ded60b0350fe7ad292fdd4e52a20f864e8bcbea92f1ecc9f"
+    },
+    {
+      "name": "test/retained/qa-reseller-wallet-reconciliation.cjs",
+      "length": 15732,
+      "sha256": "d6e64315caf9b33c6e6f521d52c2ba311b37a16f2396895877afe3a1b156af4e"
+    },
+    {
+      "name": "test/retained/qa-sticky-notes.cjs",
+      "length": 3465,
+      "sha256": "eec0279d54e3b2b2fd6515cb312b5e53e39b52e535cf9a3f3074321abc001618"
+    },
+    {
+      "name": "test/server-core.test.cjs",
+      "length": 4682,
+      "sha256": "420b95841f54891ffd5fd927b7133044469d3b1944991b12dcf6d9620fda697d"
+    },
+    {
+      "name": "test/server.test.cjs",
+      "length": 15681,
+      "sha256": "280669149942edbeb6a0e6808868b713182d810ec580705073e6b9b7937a1c3f"
+    },
+    {
+      "name": "tools/check-source.cjs",
+      "length": 1378,
+      "sha256": "32b3b367e7266d93edc86260678a296384cfdae0fbd7104a1c9850bbe53b320a"
+    },
+    {
+      "name": "tools/container-smoke.cjs",
+      "length": 9777,
+      "sha256": "fc318d60c2dba2e1f3297ba96dc193c7c5cca36b381de7cc6da8d4c0f3b1b6ba"
+    },
+    {
+      "name": "tools/data-audit.cjs",
+      "length": 7472,
+      "sha256": "8f2363436014a808ebe0838293fef73a0c3a2e04d4871a02f8e088ebb1274970"
+    },
+    {
+      "name": "tools/demo.cjs",
+      "length": 9553,
+      "sha256": "77fe1ed53b9dd9a1af8e8eeea7bc4850a755bb98d461d2072e86497e46dfb3ab"
+    },
+    {
+      "name": "tools/package-source.cjs",
+      "length": 3738,
+      "sha256": "c5338921eb1bca17ef957026741b9ce0abe1d8660ae0b3d9a3173841680ec529"
+    },
+    {
+      "name": "tools/run-retained-tests.cjs",
+      "length": 3070,
+      "sha256": "17dfdbe11a3b5469a9c6d2833f4bbdb34a0172b9210b67ecacea649315ea3f57"
+    },
+    {
+      "name": "tools/verify-backup.cjs",
+      "length": 5325,
+      "sha256": "ec7382073735301d7fcfc92b3f5ef70b655b31ce7216e073608a9f98612ec296"
+    }
+  ]
+}

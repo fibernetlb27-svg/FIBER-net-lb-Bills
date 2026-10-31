@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict'),D=require('./employee-dashboard.cjs');
+const key='main:2',asOf='2026-10-23',record={kind:'sale',id:1,isDebt:true,isRefund:false,originalAmount:20,paidAmount:5,remainingAmount:15,amount:15};
+const proof=(workspaceId,rows=[record])=>D.customerDebts(rows,{workspaceId,accountKey:key,asOf});
+assert.deepEqual(proof('fiber-users'),{basis:'customer_receivables',workspaceId:'fiber-users',accountKey:key,amount:15,count:1,asOf,readOnly:true});
+assert.equal(proof('fiber-users',[{...record,paidAmount:20,remainingAmount:0,amount:0}]).count,0);
+for(const rows of [[record,record],[{...record,amount:14}],[{...record,remainingAmount:-1}],[{...record,paidAmount:5.001}],[{...record,isDebt:false}],[{...record,kind:'wholesale'}]])assert.throws(()=>proof('fiber-users',rows));
+const wallet={id:'fictional-wallet',label:'Fictional wallet',number:'03000000',active:1,balance:10,fees:900,gross:999};
+const source=id=>({workspaceId:id,accountKey:key,cash:10,wallets:[wallet],customerDebts:proof(id)}),options={workspaceIds:['fiber-users','fiber-resellers'],accountKey:key,asOf,employee:{accountKey:key,fullName:'Fictional Cashier',role:'cashier',active:true,username:'fictional'}};
+const dto=D.aggregate(options.workspaceIds.map(source),options);assert.equal(dto.staffTotals.cash,20);assert.equal(dto.staffTotals.wallets,20);assert.equal(dto.customerDebts.amount,30);assert.equal(dto.customerDebts.count,2);assert.equal(dto.wallets[0].fees,undefined);assert.equal(dto.wallets[0].gross,undefined);assert.equal(dto.report,undefined);assert.deepEqual(dto.recipients,[]);assert.deepEqual(dto.months,[]);
+for(const sources of [[source('fiber-users')],[source('fiber-users'),source('fiber-users')],[source('fiber-users'),{...source('fiber-resellers'),accountKey:'main:3'}],[source('fiber-users'),{...source('fiber-resellers'),cash:.001}],[source('fiber-users'),{...source('fiber-resellers'),customerDebts:{...proof('fiber-resellers'),asOf:'2026-10-22'}}]])assert.throws(()=>D.aggregate(sources,options));
+assert.equal(D.aggregate([{...source('fiber-users'),cash:-5,wallets:[{...wallet,balance:-3}]}],{...options,workspaceIds:['fiber-users']}).staffTotals.cash,-5);
+assert.throws(()=>D.sum([Number.MAX_SAFE_INTEGER,1]));
+console.log('Employee dashboard pure projection passed: exact cents, current customer debts, unique scopes, signed custody, stale/corrupt/overflow rejection and minimal staff DTO.');

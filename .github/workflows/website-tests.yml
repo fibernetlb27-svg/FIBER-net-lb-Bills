@@ -1,0 +1,54 @@
+# Repository layout: this workflow belongs at /.github/workflows/website-tests.yml;
+# the standalone application belongs at /web/. This file is prepared locally.
+name: Website checks
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["web/**", ".github/workflows/website-tests.yml"]
+  push:
+    paths: ["web/**", ".github/workflows/website-tests.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: website-checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ubuntu:
+    name: Node 24, Chrome, and isolated Docker persistence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    env:
+      CHROME_BIN: /usr/bin/google-chrome
+      # Only this disposable CI browser process uses this opt-in runner flag.
+      CHROME_TEST_NO_SANDBOX: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install the locked production dependencies
+        run: npm ci --omit=dev --ignore-scripts
+      - name: Verify source syntax and public-package boundaries
+        run: npm run check
+      - name: Check production dependency advisories
+        run: npm audit --omit=dev --audit-level=high
+      - name: Check fixture-only accounting, HTTP security, and genuine Chrome flows
+        run: npm test
+      - name: Validate the Compose template with fictional inputs
+        env:
+          APP_HOSTNAME: ci.invalid
+          PRIVATE_DATA_DIRECTORY: /tmp/fibernetlb-ci-fictional-data
+          SERVER_KEY_FILE: /tmp/fibernetlb-ci-fictional-key
+          PROVIDERS_ENABLED: "false"
+        run: docker compose -f deploy/compose.yaml config --quiet
+      - name: Build the production image without private data
+        run: docker build --tag fibernetlb-web-ci:fixture .
+      - name: Check non-root container startup, sessions, provider blocking, writer lock and restart persistence
+        run: node tools/container-smoke.cjs --image fibernetlb-web-ci:fixture

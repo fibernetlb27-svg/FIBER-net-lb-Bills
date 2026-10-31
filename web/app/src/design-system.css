@@ -1,0 +1,96 @@
+/* Shared desktop design system: all business pages, dialogs and both themes. */
+@media screen {
+ :root { --radius-panel: 18px; --radius-control: 10px; }
+ body { -webkit-font-smoothing: antialiased; }
+ h1,h2,h3 { text-wrap: balance; }
+ p,small,.field-note,.subtext { line-height: 1.6; }
+ .main-content { padding-inline: clamp(20px,2.6vw,42px); }
+ .topbar { padding-block: 18px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+ .top-actions { flex-wrap: wrap; justify-content: flex-end; }
+ .topbar h1 { font-weight: 750; font-size: clamp(1.6rem,2.2vw,2rem); }
+ .nav-item { min-height: 46px; }
+ .nav-item.active { font-weight: 750; }
+ .view > .section-intro { margin-bottom: 24px; }
+ .section-intro h2 { letter-spacing: -.035em; }
+ .panel { border-radius: var(--radius-panel); overflow: hidden; }
+ .panel-heading { gap: 18px; padding: 22px 24px; align-items: center; }
+ .panel-heading h2 { font-size: 1.12rem; letter-spacing: -.025em; }
+ .panel-heading h3 { margin: 0; font-size: 1rem; }
+ .panel-heading .subtext { margin-top: 7px; max-width: 74ch; }
+ .metric-grid { gap: 16px; }
+ .metric-card { min-width: 0; border-radius: var(--radius-panel); padding: 23px; justify-content: flex-start; }
+ .metric-card > span { line-height: 1.45; }
+ .metric-card > strong,.wallet-card > strong,.expense-total-card > strong { font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+ .metric-card > small { color: var(--muted); line-height: 1.55; }
+ .dark-card > small { color: #c3d2df; }
+ #internet-cost-card { border-color: color-mix(in srgb,var(--blue) 28%,var(--line)); }
+ #internet-cost-card .mini-action { display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; border-radius: 8px; background: color-mix(in srgb,var(--blue) 8%,var(--surface)); font-size: .78rem; }
+ .whish-fee-card { border-color: color-mix(in srgb,var(--warning) 30%,var(--line)); }
+ .finance-content { display: grid; gap: 16px; }
+ .finance-content > .field-note { margin: 0; }
+ #finance-dialog { width: min(720px,calc(100vw - 40px)); }
+ .finance-preview:empty,#finance-error:empty { display: none; }
+ #finance-form-fields > .field-note { margin: 0; padding: 14px 16px; background: color-mix(in srgb,var(--ice) 75%,var(--surface)); border: 1px solid var(--line); border-radius: 10px; }
+ #finance-correction-note:empty { display: none; }
+ #finance-correction-note:not(:empty) { padding: 14px 16px; border: 1px solid color-mix(in srgb,var(--warning) 40%,var(--line)); border-radius: 10px; background: color-mix(in srgb,var(--warning) 7%,var(--surface)); }
+ .wallet-card { padding: 19px 21px; gap: 7px; }
+ .wallet-card > small { color: var(--muted); }
+ .finance-history > summary { padding-block: 10px; }
+ .number,td strong,.cart-total,.portal-quote-values { font-variant-numeric: tabular-nums; }
+ table { width: 100%; border-collapse: separate; border-spacing: 0; }
+ th { color: var(--muted); font-weight: 750; font-size: .71rem; letter-spacing: .065em; padding: 14px 20px; background: color-mix(in srgb,var(--ice) 72%,var(--surface)); }
+ td { padding: 17px 20px; line-height: 1.5; vertical-align: top; }
+ tbody tr:last-child td { border-bottom: 0; }
+ tbody tr:nth-child(even) { background: color-mix(in srgb,var(--ice) 20%,var(--surface)); }
+ tbody tr:hover { background: color-mix(in srgb,var(--blue) 4%,var(--surface)); }
+ td small,td .user-cell > span { color: var(--muted); line-height: 1.55; }
+ td[colspan] { padding: 34px 24px; text-align: center; color: var(--muted); }
+ .table-wrap { max-width: 100%; scrollbar-gutter: stable; }
+ .row-actions { flex-wrap: nowrap; }
+ .status { padding: 5px 9px; border-radius: 7px; font-size: .7rem; }
+ .button { min-height: 42px; font-size: .82rem; border-radius: var(--radius-control); }
+ .button-primary { box-shadow: 0 4px 12px color-mix(in srgb,var(--blue) 18%,transparent); }
+ .button-secondary { background: var(--surface); color: var(--text); }
+ button:disabled { cursor: not-allowed; opacity: .55; transform: none !important; box-shadow: none; }
+ :is(button,input,select,textarea,summary,a):focus-visible { outline: 3px solid color-mix(in srgb,var(--blue) 55%,transparent); outline-offset: 3px; }
+ :is(input,select,textarea) { border-radius: var(--radius-control); min-width: 0; }
+ :is(input,select,textarea):disabled { opacity: .65; cursor: not-allowed; }
+ label { line-height: 1.45; }
+ .form-grid { gap: 18px 20px; }
+ .form-grid > label,.finance-panel label { font-size: .8rem; font-weight: 650; }
+ .field-note { font-size: .77rem; font-weight: 450; }
+ .search-box { background: var(--surface); min-height: 42px; }
+ .search-box input { min-width: 0; }
+ .date-controls { flex-wrap: wrap; align-items: flex-end; }
+ .date-controls label { font-size: .7rem; }
+ .date-controls input { min-height: 40px; }
+ .bill-filters { flex-wrap: wrap; }
+ .modal:not(#portal-confirm-dialog) { padding: 26px; border-radius: 20px; max-height: calc(100dvh - 36px); box-shadow: 0 24px 80px rgba(0,0,0,.2); }
+ .modal-heading { gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+ .modal-heading h2 { margin-top: 5px; font-size: 1.3rem; letter-spacing: -.03em; }
+ .modal-actions { padding-top: 20px; margin-top: 22px; border-top: 1px solid var(--line); gap: 10px; flex-wrap: wrap; }
+ .portal-customer-panel,.registration-help,.portal-quote,.finance-preview { border-radius: 12px; padding: 18px; }
+ .portal-search-results { scrollbar-gutter: stable; }
+ .portal-customer-choice { transition: border-color .15s,background .15s; }
+ .portal-customer-choice:focus-visible { border-color: var(--blue); }
+ .payment-choice { min-height: 48px; border-radius: 11px; }
+ .product-catalog,.bundle-catalog { gap: 14px; }
+ .product-card,.bundle-card,.pos-category-card { border-radius: 13px; }
+ .cart-panel { border-color: color-mix(in srgb,var(--blue) 22%,var(--line)); }
+ .cart-footer { padding-top: 20px; }
+ .cart-total { align-items: center; }
+ .purchase-line,.registration-equipment-line { border-radius: 11px; }
+ .expense-funding-grid { margin-bottom: 22px; }
+ .expense-total-card { border-radius: var(--radius-panel); padding: 24px; }
+ .attendance-scan-panel { border-radius: var(--radius-panel); }
+ .report-payment-section { margin-block: 28px; }
+ #view-reports > .panel { margin-block: 22px; }
+ .backup-extract-panel,.fresh-start-panel { gap: 20px; }
+ .empty-state { padding: 30px; min-height: 180px; }
+ .empty-state strong { margin-bottom: 8px; }
+ html[data-theme="fibernetlb"] .button-primary { color: #090909; }
+ html[data-theme="fibernetlb"] .dark-card > small { color: #c8b9ad; }
+ @media(max-width:1200px) { .panel-heading { flex-wrap: wrap; } .main-content { padding-inline: 22px; } .topbar { align-items: flex-start; } .top-actions .date-chip { display: none; } }
+ @media(max-width:760px) { .panel-heading { padding: 18px; } .modal:not(#portal-confirm-dialog) { padding: 20px; } .topbar { flex-wrap: wrap; } .top-actions { justify-content: flex-start; } td,th { padding-inline: 14px; } }
+ @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+}

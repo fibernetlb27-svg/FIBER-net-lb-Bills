@@ -1,0 +1,35 @@
+/* Main Admin shortcuts only; source business finance layouts are unchanged. */
+.admin-receivables-panel { margin:0 0 28px; }
+.admin-receivables-heading { display:flex; align-items:center; justify-content:space-between; gap:18px; margin:18px 0; }
+.admin-receivables-heading h2 { margin:0; font-size:22px; }
+.admin-receivables-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.admin-receivable-card { border-top:4px solid #2470df; min-height:250px; display:flex; align-items:flex-start; flex-direction:column; }
+.admin-receivable-resellers { border-top-color:#13a8aa; }
+.admin-receivable-card > strong { margin:10px 0; }
+.admin-receivable-card > .field-note { margin:8px 0 18px; }
+.admin-receivable-card > button { margin-top:auto; }
+.admin-receivables-note { margin:14px 2px 0; }
+.admin-receivables-modal { width:min(1240px,calc(100vw - 48px)); max-width:1240px; }
+.admin-receivables-toolbar { display:flex; align-items:center; gap:14px; justify-content:space-between; margin:12px 0 18px; }
+.admin-receivables-toolbar .search-box { flex:1; max-width:620px; }
+.admin-receivables-modal td { vertical-align:top; }
+.admin-receivables-modal .row-actions { flex-wrap:wrap; gap:8px; }
+.admin-receivables-modal .user-cell { min-width:140px; overflow-wrap:anywhere; }
+.admin-receivables-modal .table-wrap { border:1px solid var(--line); border-radius:12px; }
+.admin-receivable-warning { color:#a34b00 !important; font-weight:600; }
+.admin-receivable-bill-list { display:grid; gap:14px; margin:20px 0; }
+.admin-receivable-bill { display:flex; justify-content:space-between; gap:24px; border:1px solid var(--line); border-radius:14px; padding:20px; }
+.admin-receivable-bill > div:first-child { flex:1; min-width:0; overflow-wrap:anywhere; }
+.admin-receivable-bill p { margin:8px 0; }
+.admin-receivable-bill small { display:block; color:var(--muted); margin:6px 0; }
+.admin-receivable-bill-amount { display:flex; flex-direction:column; align-items:flex-end; gap:8px; min-width:185px; }
+.admin-receivable-bill-amount > strong { font-size:26px; }
+.admin-receivable-details { display:grid; gap:12px; margin:22px 0; }
+.admin-receivable-details > div { display:grid; grid-template-columns:minmax(130px,180px) minmax(0,1fr); gap:18px; border-bottom:1px solid var(--line); padding-bottom:12px; }
+.admin-receivable-details dt { color:var(--muted); }
+.admin-receivable-details dd { margin:0; overflow-wrap:anywhere; }
+[data-theme="fibernetlb"] .admin-receivable-card { border-top-color:#ff7900; }
+[data-theme="fibernetlb"] .admin-receivable-resellers { border-top-color:#13a8aa; }
+[data-theme="fibernetlb"] .admin-receivable-warning { color:#ffcd7a !important; }
+@media(max-width:800px) { .admin-receivables-grid { grid-template-columns:1fr; } .admin-receivables-modal { width:calc(100vw - 26px); padding:20px; } .admin-receivables-heading,.admin-receivables-toolbar { align-items:stretch; flex-direction:column; } .admin-receivables-toolbar .search-box { max-width:none; } .admin-receivable-bill { flex-direction:column; gap:18px; } .admin-receivable-bill-amount { align-items:flex-start; min-width:0; } .admin-receivable-details > div { grid-template-columns:1fr; gap:5px; } }
+@media print { .admin-receivables-panel,.admin-receivables-modal { display:none !important; } }

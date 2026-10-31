@@ -1,0 +1,21 @@
+{
+  "name": "fibernetlb-web",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "FIBER net lb browser website and headless accounting server",
+  "main": "server.cjs",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "node server.cjs",
+    "check": "node tools/check-source.cjs",
+    "test": "node --test --test-isolation=none test/*.test.cjs"
+  },
+  "dependencies": {
+    "sql.js": "1.14.2",
+    "nodemailer": "10.0.16",
+    "basic-ftp": "6.2.3"
+  }
+}

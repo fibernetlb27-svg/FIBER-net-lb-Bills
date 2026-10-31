@@ -1,0 +1,6 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),cp=require('node:child_process');
+test('30 unchanged accepted accounting fixtures pass against the website modules',()=>{
+ const root=path.resolve(__dirname,'..'),run=cp.spawnSync(process.execPath,[path.join(root,'tools/run-retained-tests.cjs')],{cwd:root,encoding:'utf8',windowsHide:true,timeout:180000,maxBuffer:4*1024*1024});
+ assert.equal(run.status,0,run.error?.message||run.stdout+run.stderr);const report=JSON.parse(fs.readFileSync(path.join(root,'validation/retained-financial.json'),'utf8'));assert.equal(report.tests,30);assert.equal(report.failed,0);assert.equal(report.passed,30);assert.equal(report.moduleCopiesUnchanged,true);assert.equal(report.testsUnchanged,true);
+});
