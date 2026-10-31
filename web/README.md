@@ -1,8 +1,8 @@
 # FIBER net lb website preview
 
-Version 0.1.0 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.1 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
-This is a tested deployment candidate. It has not been installed on the business server or connected to live data. The existing Main PC remains running. The website uses the seven existing SQLite database formats; a copied-data rehearsal and an agreed cutover are required before real use.
+This is a deployment candidate for isolated staging. The existing Main PC remains the accounting authority until an agreed cutover. The website uses the seven existing SQLite database formats; a copied-data rehearsal is required before real use. Fictional previews and their checks are separate from accepting live business data.
 
 ## Local fictional preview
 
@@ -20,7 +20,7 @@ The preview binds only to loopback, disables external providers, and creates ind
 ## Interface and browser behavior
 
 - Existing business modules, shared stock/POS, customer debts, supplier payments, fixed monthly payments, Company debts, Bank, funding carry-forward, monthly closing and sticky notes remain available according to each user's permissions.
-- The layout supports narrow phones, tablets and desktop screens. Large financial tables scroll inside their cards. Navigation, dialogs and the POS cart adapt to the available width.
+- Phones and smaller tablets use a compact header with a Menu button. Navigation opens as a vertical list and closes after choosing a destination, tapping outside or pressing Escape. Desktop screens retain the sidebar. Large financial tables scroll inside their cards; dialogs and the POS cart adapt to the available width.
 - Browser sessions use protected cookies, same-origin CSRF checks and separate business authorization per tab. An outdated tab must reload before submitting accounting changes. Financial requests are never automatically replayed after an uncertain response.
 - Receipts use the browser print dialog with A4, A5 and thermal layouts, including 58 mm, 80 mm and XP-235B. The browser cannot silently select a Windows printer or confirm physical print completion.
 - CSV export downloads a file. Native installers, Windows folders and live restore/reset are not browser operations. Admin backup settings/history and encrypted backup creation remain available; restoration is an operator task.

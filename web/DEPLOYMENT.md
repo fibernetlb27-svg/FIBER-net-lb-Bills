@@ -1,6 +1,6 @@
 # Ubuntu deployment preparation
 
-This package is prepared for a standalone website on Ubuntu Server with Node 24, Docker Compose and Caddy. **No host, domain, DNS, certificate, live database, Main PC, provider or production service has been changed.** The existing Main PC must keep running during development and staging. A hostname has not been selected. The templates deliberately refuse to run without one.
+This package supports a standalone website on Ubuntu Server with Node 24, Docker Compose and Caddy. It contains no host-specific configuration, live database, credentials or private backup. Keep the existing Main PC running during development and staging; record host installation and staging acceptance separately. The HTTPS deployment templates deliberately require an explicitly chosen hostname.
 
 Do not point this website at the running Main PC's files. Use fictional databases or an explicitly exported, complete seven-database snapshot in a separate private staging directory. Keep `PROVIDERS_ENABLED=false` during staging. The application is one accounting writer; a second replica, another website process or a desktop process must never write the same files or independent copies of the same active business at the same time.
 

@@ -13,21 +13,64 @@ async function connect(url){
  return {events,close:()=>socket.close(),send(method,params={}){const id=++next;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(Error('Browser command timed out: '+method));},20000);pending.set(id,{resolve,reject,timer});socket.send(JSON.stringify({id,method,params}));});}};
 }
 async function pageFor(debugPort,url){const response=await fetch('http://127.0.0.1:'+debugPort+'/json/new?'+encodeURIComponent(url),{method:'PUT'});const target=await response.json();const page=await connect(target.webSocketDebuggerUrl);await page.send('Runtime.enable');await page.send('Page.enable');return page;}
-async function evaluate(page,expression){const value=await page.send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true,userGesture:true});if(value.exceptionDetails)throw Error(value.exceptionDetails.exception?.description||value.exceptionDetails.text);return value.result.value;}
+async function evaluate(page,expression){let value;try{value=await page.send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true,userGesture:true});}catch(error){throw Error(error.message+' (expression: '+expression.slice(0,180)+')');}if(value.exceptionDetails)throw Error(value.exceptionDetails.exception?.description||value.exceptionDetails.text);return value.result.value;}
 async function waitFor(page,expression,label,timeout=20000){const start=Date.now();while(Date.now()-start<timeout){if(await evaluate(page,expression))return;await pause(100);}const detail=await evaluate(page,"({url:location.href,toasts:document.getElementById('toast-region')?.innerText,body:document.body.innerText.slice(0,1400)})");throw Error(label+' timed out: '+JSON.stringify(detail));}
 function pdfSize(bytes){const match=bytes.toString('latin1').match(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/);assert.ok(match,'PDF has a MediaBox');return match.slice(1).map(Number);}
 const viewports=[[320,700],[375,812],[390,844],[414,896],[430,932],[600,900],[768,1024],[1024,768],[1440,1000],[1920,1080],[844,390]];
 async function responsive(page,label){
+ await page.send('Page.bringToFront');
  for(const [width,height]of viewports){
   await page.send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<900});
   await evaluate(page,"new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
   const result=await evaluate(page,"(()=>{const width=innerWidth,dialog=document.querySelector('dialog[open]'),rect=dialog?.getBoundingClientRect();return {overflow:document.documentElement.scrollWidth-width,dialog:rect?{left:rect.left,right:rect.right,width:rect.width,height:rect.height}:null,culprits:[...document.querySelectorAll('body *')].filter(el=>el.offsetParent&&el.getBoundingClientRect().right>width+2&&!el.closest('.table-wrap, .sidebar')).slice(0,6).map(el=>({tag:el.tagName,id:el.id,class:el.className,text:el.innerText?.slice(0,50)}))};})()");
   assert.ok(result.overflow<=2,label+' at '+width+'x'+height+' has page overflow: '+JSON.stringify(result));
   if(result.dialog)assert.ok(result.dialog.left>=-1&&result.dialog.right<=width+1,label+' dialog fits '+width+'x'+height+': '+JSON.stringify(result.dialog));
+  if(width<=900){
+   const navigation=await evaluate(page,"(()=>{const shell=document.querySelector('#app-shell');if(!shell||shell.classList.contains('hidden'))return null;scrollTo(0,0);const sidebar=shell.querySelector('.sidebar'),toggle=document.querySelector('#website-navigation-toggle'),nav=document.querySelector('#website-navigation'),banner=document.querySelector('#website-preview-banner'),rect=toggle.getBoundingClientRect();return {sidebarHeight:sidebar.getBoundingClientRect().height,mainTop:document.querySelector('.main-content').getBoundingClientRect().top,bannerHeight:banner?.getBoundingClientRect().height||0,closed:toggle.getAttribute('aria-expanded')==='false'&&getComputedStyle(nav).display==='none',toggleWidth:rect.width,toggleHeight:rect.height};})()");
+   if(navigation){assert.ok(navigation.closed,label+' mobile navigation starts collapsed');assert.ok(navigation.sidebarHeight<=84,label+' mobile header stays compact: '+JSON.stringify(navigation));assert.ok(navigation.mainTop<=navigation.bannerHeight+90,label+' content starts below the compact header: '+JSON.stringify(navigation));assert.ok(navigation.toggleWidth>=44&&navigation.toggleHeight>=44,label+' menu has a usable touch target');}
+  }
  }
  await page.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
 }
+async function tap(page,selector){
+ await page.send('Page.bringToFront');
+ await evaluate(page,"new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+ const rect=await evaluate(page,`(()=>{const el=document.querySelector(${JSON.stringify(selector)});el.scrollIntoView({block:'nearest',inline:'nearest'});const r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,width:r.width,height:r.height};})()`);
+ assert.ok(rect.width>0&&rect.height>0,'Pointer target is visible: '+selector);
+ await page.send('Input.dispatchMouseEvent',{type:'mousePressed',x:rect.x,y:rect.y,button:'left',clickCount:1});
+ await page.send('Input.dispatchMouseEvent',{type:'mouseReleased',x:rect.x,y:rect.y,button:'left',clickCount:1});
+}
+async function navigationScreenshot(page,name){
+ const directory=path.resolve(__dirname,'../validation/navigation');fs.mkdirSync(directory,{recursive:true});
+ const screenshot=await page.send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false,fromSurface:true});
+ fs.writeFileSync(path.join(directory,name+'.png'),Buffer.from(screenshot.data,'base64'));
+}
+async function mobileNavigation(page){
+ await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+ await evaluate(page,'scrollTo(0,0)');
+ await tap(page,'#website-navigation-toggle');
+ await waitFor(page,"document.querySelector('#website-navigation-toggle').getAttribute('aria-expanded')==='true'",'Mobile menu opens by pointer');
+ assert.ok(await evaluate(page,"(()=>{const nav=document.querySelector('#website-navigation'),r=nav.getBoundingClientRect();return getComputedStyle(nav).display==='grid'&&r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight;})()"),'Expanded mobile navigation fits viewport and uses vertical rows');
+ const links=await evaluate(page,"[...document.querySelectorAll('#website-navigation .workspace-nav-button[data-workspace]')].filter(el=>!el.classList.contains('hidden')).map(el=>({id:el.dataset.workspace,width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height}))");
+ assert.equal(links.length,6,'Admin can reach all six businesses from Main');assert(links.every(link=>link.width>=200&&link.height>=44),'Every business is a full-width touch row');
+ await navigationScreenshot(page,'mobile-menu-open');
+ await page.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+ await page.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+ assert.equal(await evaluate(page,"document.querySelector('#website-navigation-toggle').getAttribute('aria-expanded')==='false'&&document.activeElement.id==='website-navigation-toggle'"),true,'Escape closes menu and returns keyboard focus');
+ await tap(page,'#website-navigation-toggle');await tap(page,'#website-navigation [data-view="products"]');
+ await waitFor(page,"state.currentView==='products'&&document.querySelector('#website-navigation-toggle').getAttribute('aria-expanded')==='false'",'Mobile section selection closes menu');
+ await tap(page,'#website-navigation-toggle');await tap(page,'#website-navigation [data-view="dashboard"]');
+ await waitFor(page,"state.currentView==='dashboard'&&document.querySelector('#website-navigation-toggle').getAttribute('aria-expanded')==='false'",'Mobile return to dashboard');
+ await tap(page,'#website-navigation-toggle');await tap(page,'#page-title');
+ assert.equal(await evaluate(page,"document.querySelector('#website-navigation-toggle').getAttribute('aria-expanded')"),'false','Outside click closes menu');
+ await evaluate(page,'scrollTo(0,0)');await navigationScreenshot(page,'mobile-menu-closed');
+ await page.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+ const desktop=await evaluate(page,"(()=>{const sidebar=document.querySelector('.sidebar'),nav=document.querySelector('#website-navigation'),banner=document.querySelector('#website-preview-banner');return {toggle:getComputedStyle(document.querySelector('#website-navigation-toggle')).display,nav:getComputedStyle(nav).display,sidebarTop:sidebar.getBoundingClientRect().top,bannerBottom:banner.getBoundingClientRect().bottom};})()");
+ assert.equal(desktop.toggle,'none');assert.notEqual(desktop.nav,'none');assert.ok(desktop.sidebarTop>=desktop.bannerBottom-1,'Preview banner does not obscure the desktop sidebar');
+ await evaluate(page,'scrollTo(0,0)');await navigationScreenshot(page,'desktop-sidebar');
+}
 async function enlargedText(page,label){
+ await page.send('Page.bringToFront');
  await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
  try{
   const scale=await evaluate(page,"(()=>{const rows=[...document.querySelectorAll('body *')].filter(el=>el.getClientRects().length&&(/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(el.tagName)||[...el.childNodes].some(node=>node.nodeType===3&&node.textContent.trim()))).map(el=>{const css=getComputedStyle(el);return {el,style:el.getAttribute('style'),font:parseFloat(css.fontSize),line:css.lineHeight};});window.__qaTextStyles=rows;for(const row of rows){row.el.style.setProperty('font-size',row.font*1.25+'px','important');if(row.line.endsWith('px'))row.el.style.setProperty('line-height',parseFloat(row.line)*1.25+'px','important');}const control=rows.find(row=>/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(row.el.tagName));return {count:rows.length,before:control?.font,after:control?parseFloat(getComputedStyle(control.el).fontSize):0};})()");
@@ -64,6 +107,9 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  const ownerLogin=await backend.request({channel:'auth:login',args:[{username:'browser.fixture.admin',password}],workspaceId:'main'});
  const viewer=await backend.request({channel:'users:create',args:[{username:'browser.fixture.viewer',fullName:'Fictional Browser Viewer',password,role:'viewer',allowedSections:['fiber-users']}],workspaceId:'main',token:ownerLogin.data.sessionToken});
  assert.equal(viewer.status,200);
+ for(const role of ['cashier','support']){
+  const created=await backend.request({channel:'users:create',args:[{username:'browser.fixture.'+role,fullName:'Fictional Browser '+role,password,role,allowedSections:['fiber-users','fiber-resellers']}],workspaceId:'main',token:ownerLogin.data.sessionToken});assert.equal(created.status,200);
+ }
  const port=await unusedPort(),origin='http://127.0.0.1:'+port;
  server=createServer({backend,origin,demo:true});await new Promise(resolve=>server.listen(port,'127.0.0.1',resolve));
  const debugUrl=await new Promise((resolve,reject)=>{
@@ -85,6 +131,7 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  await waitFor(page,"!document.querySelector('#app-shell').classList.contains('hidden')&&document.querySelector('#current-user-name').textContent==='Fictional Browser Admin'",'Administrator dashboard');
  await waitFor(page,"document.querySelector('#updates-button-label').textContent==='Website version'",'Website version controls');
  await responsive(page,'Main dashboard');
+ await mobileNavigation(page);
  assert.equal(await evaluate(page,"document.querySelector('#network-settings-button').classList.contains('website-only-hidden')"),true);
  assert.equal(await evaluate(page,"Boolean(window.posApi.printing)"),false);
  await evaluate(page,"window.__qaPending=0;window.__qaFailures=[];const qaFetch=window.fetch;window.fetch=async(...args)=>{window.__qaPending++;try{const response=await qaFetch(...args);if(!response.ok)window.__qaFailures.push({channel:args[1]?.body?JSON.parse(args[1].body).channel:String(args[0]),status:response.status});return response;}finally{window.__qaPending--;}};");
@@ -171,7 +218,28 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  assert.equal(await evaluate(page,"document.querySelector('[data-view=users]').classList.contains('hidden')&&document.querySelector('#add-product').classList.contains('hidden')"),true,'Viewer management controls are hidden');
  assert.equal(await evaluate(page,"posApi.backups.status().then(()=>false,error=>error.status===403)"),true,'Viewer cannot bypass backup authorization');
  assert.equal(await evaluate(page,"posApi.workspace.open('printer').then(()=>false,error=>error.status===403||error.status===400)"),true,'Viewer cannot open an unassigned business');
+ for(const role of ['cashier','support']){
+  await evaluate(page,"document.querySelector('#logout-button').click()");await waitFor(page,"document.querySelector('#app-shell').classList.contains('hidden')",role+' sign-in screen');
+  await evaluate(page,`document.querySelector('#login-username').value=${JSON.stringify('browser.fixture.'+role)};document.querySelector('#login-password').value=${JSON.stringify(password)};document.querySelector('#login-form').requestSubmit();`);
+  await waitFor(page,`!document.querySelector('#app-shell').classList.contains('hidden')&&document.querySelector('#current-user-name').textContent===${JSON.stringify('Fictional Browser '+role)}`,role+' session');
+  await page.send('Page.bringToFront');
+  if(await evaluate(page,"businessWorkspace.id!=='main'")){
+   await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await evaluate(page,"new Promise(resolve=>requestAnimationFrame(resolve))");
+   await tap(page,'#website-navigation-toggle');await tap(page,'#back-main-dashboard');await waitFor(page,"businessWorkspace.id==='main'&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' initial return to Main');
+  }
+  await responsive(page,role+' Main dashboard');await enlargedText(page,role+' Main dashboard');
+  await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await tap(page,'#website-navigation-toggle');
+  const assigned=await evaluate(page,"[...document.querySelectorAll('#website-navigation [data-workspace]')].map(el=>el.dataset.workspace)");assert.deepEqual(assigned,['fiber-users','fiber-resellers'],role+' menu contains only assigned businesses');
+  await tap(page,'#website-navigation [data-workspace="fiber-users"]');
+  await waitFor(page,"businessWorkspace.id==='fiber-users'&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' business navigation');
+  assert.equal(await evaluate(page,"document.querySelector('#website-navigation-toggle').getAttribute('aria-expanded')"),'false',role+' business navigation starts closed');
+  await responsive(page,role+' business dashboard');
+  await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await tap(page,'#website-navigation-toggle');
+  assert.equal(await evaluate(page,"(()=>{const r=document.querySelector('#website-navigation').getBoundingClientRect();return r.bottom<=innerHeight;})()"),true,role+' business menu fits with Return to Main');
+  await tap(page,'#back-main-dashboard');await waitFor(page,"businessWorkspace.id==='main'&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' return to Main');
+ }
  const exceptions=pages.flatMap(target=>target.events.filter(event=>event.method==='Runtime.exceptionThrown').map(event=>event.params.exceptionDetails.exception?.description||event.params.exceptionDetails.text));
  assert.deepEqual(exceptions,[],'Browser has no uncaught JavaScript exceptions');
- t.diagnostic('Real Node/core + Chrome: eleven phone/tablet/desktop viewport sizes,125% enlarged-text login and bank/product/expense forms, Main navigation, bank/debts/monthly/ledger, backups/provider settings, supplier route, all seven businesses, real financial receipt, A4/A5/80mm/58mm/XP-235B PDF, CSV download, cross-tab logout and Viewer permission isolation passed.');
+ t.diagnostic('Real Node/core + Chrome: eleven phone/tablet/desktop viewport sizes,compact mobile headers and visible main content, pointer-operated menu/selection/Escape/focus checks, assigned Cashier/Support mobile navigation,125% enlarged text, Main routes, financial forms, all seven businesses, actual receipt/PDF, CSV, cross-tab logout and Viewer authorization passed.');
 });

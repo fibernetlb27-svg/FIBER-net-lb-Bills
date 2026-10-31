@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -20,8 +20,8 @@
     },
     {
       "name": "DEPLOYMENT.md",
-      "length": 15966,
-      "sha256": "36a39ab78d86b9ae5b3dcfb8053a0ce632445228b71d54764ae06f13c1042a75"
+      "length": 15987,
+      "sha256": "f78a38457f37d92f044c003f2d30665ab166358851110cde5b18fab8149ad3d8"
     },
     {
       "name": "Dockerfile",
@@ -35,8 +35,8 @@
     },
     {
       "name": "README.md",
-      "length": 3928,
-      "sha256": "97baafdf03c313c545f2192b4693c15b28582d37238b5ef0a387fb8c640b3230"
+      "length": 4109,
+      "sha256": "52e4e0a24685a1195affaba050695ee9758ca483a79e7a6dad5ccfb1e2974a82"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -505,8 +505,8 @@
     },
     {
       "name": "app/src/index.html",
-      "length": 145162,
-      "sha256": "bb3d6dfa0a432362fde45701285dc8a1ac4fee8030c808a6cff0e28de6452bf6"
+      "length": 145516,
+      "sha256": "e8071975d8db7449cbe18296c3382ebe2a1ffb3812a6ae596bc3ea571818a8da"
     },
     {
       "name": "app/src/internet-pricing.js",
@@ -644,9 +644,14 @@
       "sha256": "f488fc2b019fe68f45890ef4095f75350467d1a773fcdda9b140a2e7de28dc0f"
     },
     {
+      "name": "app/src/website-navigation.js",
+      "length": 2494,
+      "sha256": "c6059227ce886678c8ce92ad37c652c563efad9090f04288998d38356b26eb46"
+    },
+    {
       "name": "app/src/website.css",
-      "length": 521,
-      "sha256": "f56fc9cc0decbf23389a9335ee153ba1af9bb01573637015a7a342cb75fd2b2b"
+      "length": 3266,
+      "sha256": "59d0bed7209222ff1291781ab24837f24ed974d9437420a825d8d50764d48080"
     },
     {
       "name": "app/src/whish-payments.js",
@@ -746,12 +751,12 @@
     {
       "name": "package-lock.json",
       "length": 1367,
-      "sha256": "5707b8bd4e13c21d43e15e00ebcb11802311fc5cd0d637e8dbcbbcf8cc5c8dc4"
+      "sha256": "c9cd8e24907f20cdd0b0e4edf5bffd89e21947760788759d35efecde90991384"
     },
     {
       "name": "package.json",
       "length": 508,
-      "sha256": "e81af107a6eca0c3abb854d09048af231a6631360742fcfea68d5985ac90ad2d"
+      "sha256": "dbb9bd1c40e62b14bcad433ae5ad5eb70282d485938660af0d0989a6cf000163"
     },
     {
       "name": "server.cjs",
@@ -765,8 +770,8 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 21306,
-      "sha256": "83db6833753fd8f964814a6c44b0dde524f408d99f55418b4c3e5c18935f42b6"
+      "length": 30357,
+      "sha256": "cef6451d70ba042642c64a1b087b0ca0080b242e7ddd59bf804b41c8573b2065"
     },
     {
       "name": "test/core-auth.test.cjs",

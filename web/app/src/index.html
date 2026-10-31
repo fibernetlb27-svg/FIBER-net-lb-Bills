@@ -130,8 +130,9 @@
     <div id="app-shell" class="app-shell hidden">
       <aside class="sidebar">
         <div class="brand"><img src="fibernetlb-logo-light.png" alt="FIBERNETLB" class="brand-logo" /></div>
+        <button id="website-navigation-toggle" class="website-navigation-toggle" type="button" aria-expanded="false" aria-controls="website-navigation"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Menu</span></button>
         <button id="back-main-dashboard" class="sidebar-main-return hidden" type="button" data-workspace="main" data-permission="dashboard.view" title="Return to the Main dashboard without signing out"><svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg><span>Back to Main dashboard</span></button>
-        <nav aria-label="Main navigation">
+        <nav id="website-navigation" aria-label="Main navigation">
           <button class="nav-item active" data-view="dashboard" data-permission="dashboard.view"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-dashboard"></use></svg>Dashboard</button>
           <details id="workspace-menu" class="workspace-menu" open><summary><svg class="ui-icon" aria-hidden="true"><use href="#icon-business"></use></svg>Business<span class="menu-chevron">⌄</span></summary><div id="workspace-nav-list"></div></details>
           <button id="fiber-bills-navigation" class="nav-item hidden" data-view="bills" data-permission-any="bills.view,bills.create,bills.manage"><svg class="ui-icon nav-icon" aria-hidden="true"><use href="#icon-receipt"></use></svg>FIBER net lb Bills</button>
@@ -666,6 +667,7 @@
     <script src="company-debts.js"></script>
     <script src="bank.js"></script>
     <script src="bandwidth-accounting.js"></script>
+    <script src="website-navigation.js"></script>
     <script src="app.js"></script>
     <script src="new-customer.js"></script>
   </body>

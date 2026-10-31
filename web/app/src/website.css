@@ -2,4 +2,87 @@
 .website-preview-banner[hidden] { display: none; }
 .website-capability-note { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted); line-height: 1.6; }
 .website-only-hidden { display: none !important; }
+.website-navigation-toggle { display: none; }
+/* The preview banner sits above the desktop's fixed sidebar, rather than covering its logo. */
+@media (min-width: 901px) {
+  body.website-preview-visible #app-shell .sidebar { top: var(--website-preview-offset, 40px); }
+}
+@media (max-width: 900px) {
+  html[data-ui="daisy"] #app-shell .sidebar {
+    position: sticky;
+    inset: auto;
+    top: 0;
+    z-index: 90;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0 12px;
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid #ffffff1a;
+  }
+  html[data-ui="daisy"] #app-shell .sidebar .brand { min-width: 0; padding: 0; }
+  html[data-ui="daisy"] #app-shell .sidebar .brand-logo { width: 142px; max-width: 100%; }
+  #app-shell .website-navigation-toggle {
+    min-width: 88px;
+    min-height: 44px;
+    padding: 9px 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid #ffffff35;
+    border-radius: 10px;
+    color: #fff;
+    background: #ffffff0b;
+    font: inherit;
+    font-size: .82rem;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  #app-shell .website-navigation-toggle:hover { background: #ffffff1a; }
+  #app-shell .website-navigation-toggle:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+  html[data-ui="daisy"] #app-shell .sidebar > nav,
+  html[data-ui="daisy"] #app-shell .sidebar-main-return,
+  html[data-ui="daisy"] #app-shell .sidebar-footer { display: none; }
+  html[data-ui="daisy"] #app-shell .sidebar.website-nav-open > nav {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-auto-rows: max-content;
+    align-content: start;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    margin-top: 12px;
+    max-height: calc(100vh - 200px);
+    max-height: calc(100dvh - 200px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  html[data-ui="daisy"] #app-shell .sidebar.website-nav-open .sidebar-main-return:not(.hidden) {
+    grid-column: 1 / -1;
+    display: flex;
+    width: 100%;
+    margin: 12px 0 0;
+    white-space: normal;
+  }
+  html[data-ui="daisy"] #app-shell .sidebar :is(.nav-item, .workspace-nav-button, .workspace-menu summary) {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    height: auto;
+    flex: none;
+    align-items: center;
+    white-space: normal;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+  html[data-ui="daisy"] #app-shell .sidebar .workspace-menu { min-width: 0; margin: 0; }
+  html[data-ui="daisy"] #app-shell .sidebar .ui-icon { flex-shrink: 0; }
+  html[data-ui="daisy"] #app-shell .sidebar .nav-icon { display: block; }
+}
 @media print { .website-preview-banner { display: none !important; } }
