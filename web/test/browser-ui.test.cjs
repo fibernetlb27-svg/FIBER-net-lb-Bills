@@ -225,19 +225,19 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
   await page.send('Page.bringToFront');
   if(await evaluate(page,"businessWorkspace.id!=='main'")){
    await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await evaluate(page,"new Promise(resolve=>requestAnimationFrame(resolve))");
-   await tap(page,'#website-navigation-toggle');await tap(page,'#back-main-dashboard');await waitFor(page,"businessWorkspace.id==='main'&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' initial return to Main');
+   await tap(page,'#website-navigation-toggle');await tap(page,'#back-main-dashboard');await waitFor(page,"typeof businessWorkspace!=='undefined'&&businessWorkspace.id==='main'&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' initial return to Main');
   }
   await responsive(page,role+' Main dashboard');await enlargedText(page,role+' Main dashboard');
   await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
   await tap(page,'#website-navigation-toggle');
   const assigned=await evaluate(page,"[...document.querySelectorAll('#website-navigation [data-workspace]')].map(el=>el.dataset.workspace)");assert.deepEqual(assigned,['fiber-users','fiber-resellers'],role+' menu contains only assigned businesses');
   await tap(page,'#website-navigation [data-workspace="fiber-users"]');
-  await waitFor(page,"businessWorkspace.id==='fiber-users'&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' business navigation');
+  await waitFor(page,"typeof businessWorkspace!=='undefined'&&businessWorkspace.id==='fiber-users'&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' business navigation');
   assert.equal(await evaluate(page,"document.querySelector('#website-navigation-toggle').getAttribute('aria-expanded')"),'false',role+' business navigation starts closed');
   await responsive(page,role+' business dashboard');
   await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await tap(page,'#website-navigation-toggle');
   assert.equal(await evaluate(page,"(()=>{const r=document.querySelector('#website-navigation').getBoundingClientRect();return r.bottom<=innerHeight;})()"),true,role+' business menu fits with Return to Main');
-  await tap(page,'#back-main-dashboard');await waitFor(page,"businessWorkspace.id==='main'&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' return to Main');
+  await tap(page,'#back-main-dashboard');await waitFor(page,"typeof businessWorkspace!=='undefined'&&businessWorkspace.id==='main'&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' return to Main');
  }
  const exceptions=pages.flatMap(target=>target.events.filter(event=>event.method==='Runtime.exceptionThrown').map(event=>event.params.exceptionDetails.exception?.description||event.params.exceptionDetails.text));
  assert.deepEqual(exceptions,[],'Browser has no uncaught JavaScript exceptions');

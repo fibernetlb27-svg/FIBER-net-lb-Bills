@@ -37,8 +37,10 @@ async function seedPreview(backend,credentials){
  await good('products:create',[{name:'Preview passport photo session',sku:'DEMO-PHOTO',category:'Photos and shooting',currency:'USD',cost:0,markup:0,price:12,quantity:0,reorderLevel:0}],tokens.studio,'studio');
  await good('companyDebts:create',[{requestId:crypto.randomUUID(),creditor:'Fictional equipment supplier',description:'Preview example only; no real obligation',amount:600,workspaceId:'studio'}],admin);
  await good('fixedMonthly:saveTemplate',[{requestId:crypto.randomUUID(),name:'Fictional office rent',recipient:'Preview landlord',description:'Preview monthly bill only',amount:180,dueDay:5,participants:[{workspaceId:'fiber-users',basisPoints:5000},{workspaceId:'fiber-resellers',basisPoints:2500}],profitBasisPoints:10000,active:true}],admin);
- const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Beirut',year:'numeric',month:'2-digit'}).formatToParts(new Date()).map(item=>[item.type,item.value]));
- await good('fixedMonthly:ensureMonth',[{requestId:crypto.randomUUID(),month:parts.year+'-'+parts.month}],admin);
+ // Seed the accounting backend's current period rather than a second calendar.
+ // Production uses Asia/Beirut; a disposable preview may run on a UTC host.
+ const monthly=await good('fixedMonthly:overview',[],admin);
+ await good('fixedMonthly:ensureMonth',[{requestId:crypto.randomUUID(),month:monthly.month}],admin);
  for(const [workspaceId,token]of Object.entries(tokens))await good('auth:logout',[],token,workspaceId);
 }
 async function createDemo({port=3810,host='127.0.0.1'}={}){

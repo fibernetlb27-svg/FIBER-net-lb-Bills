@@ -775,8 +775,8 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 30357,
-      "sha256": "cef6451d70ba042642c64a1b087b0ca0080b242e7ddd59bf804b41c8573b2065"
+      "length": 30591,
+      "sha256": "795360a00492fc598cd20d5e3aadc7555fadd0de09201570858db53335a8b0cd"
     },
     {
       "name": "test/core-auth.test.cjs",
@@ -810,8 +810,8 @@
     },
     {
       "name": "test/financial-http.test.cjs",
-      "length": 5515,
-      "sha256": "262444ffbf76b7d6efedccc55291fecb9ac209a060628ccfb8365dad8682b795"
+      "length": 5590,
+      "sha256": "889f3c5def86c34e22120b9acd7218406405af72f3852210968b439fcda30a9c"
     },
     {
       "name": "test/financial-regression.test.cjs",
@@ -1010,8 +1010,8 @@
     },
     {
       "name": "tools/demo.cjs",
-      "length": 9553,
-      "sha256": "77fe1ed53b9dd9a1af8e8eeea7bc4850a755bb98d461d2072e86497e46dfb3ab"
+      "length": 9575,
+      "sha256": "9760d4c93480beabb434eaa22cb7efdbe613894bbbf7aaa0106c85f4ff26a54a"
     },
     {
       "name": "tools/package-source.cjs",
