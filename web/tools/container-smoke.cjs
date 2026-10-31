@@ -3,14 +3,15 @@
 // The test network is internal, the HTTP port binds host loopback only, and
 // providers remain disabled. No existing directory or service is selected.
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), crypto = require('node:crypto'), http = require('node:http'), assert = require('node:assert/strict');
-const {execFileSync} = require('node:child_process');
+const {spawnSync} = require('node:child_process');
 const {createBackend} = require('../app/core.cjs');
 const {createSecretStorage} = require('../lib/secrets.cjs');
 const version = require('../package.json').version;
 
 function docker(args, {allowFailure = false} = {}) {
-  try { return execFileSync('docker', args, {encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe']}).trim(); }
-  catch (error) { if (allowFailure) return null; throw Error(`Docker fixture check failed during ${args[0] || 'command'}.`); }
+  const result = spawnSync('docker', args, {encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe']});
+  if (result.error || result.status !== 0) { if (allowFailure) return null; throw Error(`Docker fixture check failed during ${args[0] || 'command'}.`); }
+  return (String(result.stdout || '') + (args[0] === 'logs' ? String(result.stderr || '') : '')).trim();
 }
 function containerArguments({image, name, network, data, key, publish = true}) {
   return ['run', '--detach', '--name', name, '--network', network, ...(publish ? ['--publish', '127.0.0.1::3000'] : []), '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--tmpfs', '/tmp:rw,size=32m,mode=1777', '--mount', `type=bind,source=${data},target=/data`, '--mount', `type=bind,source=${key},target=/run/secrets/server-key,readonly`, '--env', 'APP_ORIGIN=https://ci.invalid', '--env', 'BIND_ADDRESS=0.0.0.0', '--env', 'DATA_DIRECTORY=/data', '--env', 'SECRETS_KEY_FILE=/run/secrets/server-key', '--env', 'PROVIDERS_ENABLED=false', image];
@@ -52,44 +53,68 @@ async function main(args) {
   const bytes = crypto.randomBytes(32); fs.writeFileSync(key, bytes, {mode: 0o600}); const secrets = createSecretStorage(bytes); bytes.fill(0);
   const suffix = crypto.randomBytes(8).toString('hex'), name = `fibernetlb-fixture-${suffix}`, conflict = `${name}-conflict`, missing = `${name}-missing`, network = `${name}-private`;
   const username = 'ci.fictional.owner', password = crypto.randomBytes(24).toString('hex');
-  let backend, ownerChanged = false, networkCreated = false;
+  let backend, ownerChanged = false, networkCreated = false, stage = 'initialize fictional accounting';
   try {
     backend = await createBackend({dataDirectory: data, initialize: true, providersEnabled: false, secrets, version});
     await backend.createOwner({username, password, fullName: 'Fictional CI Owner'});
     const login = await backend.request({channel: 'auth:login', args: [{username, password}], workspaceId: 'main'}); assert.equal(login.status, 200);
     const opening = await backend.request({channel: 'drawer:setBalance', args: [{balance: 17, note: 'Fictional CI opening'}], workspaceId: 'main', token: login.data.sessionToken}); assert.equal(opening.status, 200);
     await backend.close(); backend = null; secrets.destroy();
+    stage = 'assign fixture-only UID 10001 ownership';
     changeFixtureOwner(image, directory, 10001, 10001); ownerChanged = true;
+    stage = 'create isolated fixture network';
     docker(['network', 'create', '--internal', network]); networkCreated = true;
+    stage = 'launch production fixture image';
     docker(containerArguments({image, name, network, data, key}));
+    stage = 'inspect initial private port binding';
     const inspect = JSON.parse(docker(['inspect', name]))[0];
     assert.equal(inspect.HostConfig.ReadonlyRootfs, true);
     const binding = inspect.NetworkSettings.Ports['3000/tcp'][0]; assert.equal(binding.HostIp, '127.0.0.1');
     assert.equal(JSON.parse(docker(['network', 'inspect', network]))[0].Internal, true);
+    stage = 'verify non-root container identity';
     assert.equal(docker(['exec', name, 'node', '-e', 'process.stdout.write(String(process.getuid()))']), '10001');
+    stage = 'wait for initial HTTP readiness';
     const connection = client(Number(binding.HostPort)); await ready(connection);
     async function signIn(existingBootstrap) {
       const session = existingBootstrap || await connection.request('/api/session'); connection.jar.csrf = session.body.data.csrfToken;
       assert.match(session.headers['set-cookie'][0], /HttpOnly; SameSite=Strict; Secure/);
       const result = await connection.rpc('auth:login', [{username, password}]); assert.equal(result.status, 200); assert.equal(result.body.data.sessionToken, undefined);
     }
+    stage = 'verify protected fixture session and persisted balance';
     await signIn(); assert.equal((await connection.rpc('drawer:get')).body.data.balance, 17);
     assert.equal((await connection.request('/server.cjs')).status, 404);
+    stage = 'verify disabled provider behavior';
     const configured = await connection.rpc('portal:configure', [{username: 'fictional-provider', password: 'Fictional-provider-only-123'}]); assert.equal(configured.status, 200);
     assert((await connection.rpc('portal:test', ['fictional-only'])).status >= 400, 'real providers remain disabled');
+    stage = 'verify exclusive writer refusal';
     docker(containerArguments({image, name: conflict, network, data, key, publish: false}));
     assert.equal(docker(['wait', conflict]), '1', 'a second backend cannot acquire the same data directory');
+    stage = 'verify incomplete-data refusal';
     docker(containerArguments({image, name: missing, network, data: incomplete, key, publish: false}));
     assert.equal(docker(['wait', missing]), '1', 'missing seven-file storage fails closed');
+    stage = 'restart and rediscover loopback binding';
     docker(['stop', '--time', '60', name]); docker(['start', name]);
     // Docker may reallocate an ephemeral published host port on every start.
     const restarted = JSON.parse(docker(['inspect', name]))[0].NetworkSettings.Ports['3000/tcp'][0];
     assert.equal(restarted.HostIp, '127.0.0.1'); connection.rebind(Number(restarted.HostPort));
+    stage = 'verify restarted HTTP session and durable balance';
     await ready(connection);
     const afterRestart = await connection.request('/api/session'); assert.equal(afterRestart.body.data.user, null, 'restart clears website sessions');
     await signIn(afterRestart); assert.equal((await connection.rpc('drawer:get')).body.data.balance, 17, 'the same private persisted files survive restart');
     docker(['stop', '--time', '60', name]);
     process.stdout.write('PASS isolated Linux Docker: non-root/read-only container, loopback bind, internal network, protected sessions, providers disabled, exclusive writer, incomplete-data refusal and restart persistence.\n');
+  } catch (error) {
+    // Only these self-created fictional containers are inspected. Never log
+    // environment variables, mount contents, HTTP bodies, passwords or keys.
+    for (const target of [name, conflict, missing]) {
+      const raw = docker(['inspect', target], {allowFailure: true});
+      if (!raw) continue;
+      const value = JSON.parse(raw)[0];
+      process.stderr.write(JSON.stringify({fixture: target === name ? 'primary' : target === conflict ? 'conflict' : 'missing', state: value.State?.Status, exitCode: value.State?.ExitCode, user: value.Config?.User, published: value.NetworkSettings?.Ports, requestedBindings: value.HostConfig?.PortBindings}) + '\n');
+      const logs = docker(['logs', '--tail', '8', target], {allowFailure: true});
+      if (logs) process.stderr.write(logs.replaceAll(password, '[fictional credential omitted]').slice(-2000) + '\n');
+    }
+    throw Error(`Docker fixture failure at ${stage}: ${String(error.message).replaceAll(password, '[fictional credential omitted]').slice(0, 500)}`);
   } finally {
     await backend?.close(); secrets.destroy();
     for (const target of [name, conflict, missing]) docker(['rm', '--force', target], {allowFailure: true});
@@ -101,5 +126,5 @@ async function main(args) {
     fs.rmSync(resolved, {recursive: true, force: true});
   }
 }
-if (require.main === module) main(process.argv.slice(2)).catch(() => { process.stderr.write('Docker fixture smoke check failed; no live data, provider or deployment was selected.\n'); process.exitCode = 1; });
+if (require.main === module) main(process.argv.slice(2)).catch(error => { process.stderr.write(`${error.message}\nNo live data, provider or deployment was selected.\n`); process.exitCode = 1; });
 module.exports = {containerArguments, client};

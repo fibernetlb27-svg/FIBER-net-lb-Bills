@@ -985,8 +985,8 @@
     },
     {
       "name": "tools/container-smoke.cjs",
-      "length": 9777,
-      "sha256": "fc318d60c2dba2e1f3297ba96dc193c7c5cca36b381de7cc6da8d4c0f3b1b6ba"
+      "length": 11593,
+      "sha256": "4c9a345441f7ae8d722345305a71af939133b87a0b9fdb004e29505e1a95eb04"
     },
     {
       "name": "tools/data-audit.cjs",
