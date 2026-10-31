@@ -20,8 +20,8 @@
     },
     {
       "name": "DEPLOYMENT.md",
-      "length": 15431,
-      "sha256": "573841a3b88026036b1d4cd0fe11ae01447a0ba9d060dbc8d7f5fbac4cb7a9ca"
+      "length": 15966,
+      "sha256": "36a39ab78d86b9ae5b3dcfb8053a0ce632445228b71d54764ae06f13c1042a75"
     },
     {
       "name": "Dockerfile",
@@ -795,8 +795,8 @@
     },
     {
       "name": "test/deployment.test.cjs",
-      "length": 3268,
-      "sha256": "a16a0854a0aa3dd6861f98dacb04142df0f2fc1288f121af271499d0e42a460f"
+      "length": 3779,
+      "sha256": "b0225d865713686d6d775a60c2f050af031460d413106d5c495c0fa8f193f8b0"
     },
     {
       "name": "test/financial-http.test.cjs",
@@ -985,8 +985,8 @@
     },
     {
       "name": "tools/container-smoke.cjs",
-      "length": 11593,
-      "sha256": "4c9a345441f7ae8d722345305a71af939133b87a0b9fdb004e29505e1a95eb04"
+      "length": 13555,
+      "sha256": "607f56c47990c82b78770733587e4d885a54bd52c5565da4c970224a5305e15f"
     },
     {
       "name": "tools/data-audit.cjs",
