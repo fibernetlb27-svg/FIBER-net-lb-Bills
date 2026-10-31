@@ -38,7 +38,7 @@ jobs:
       - name: Verify source syntax and public-package boundaries
         run: npm run check
       - name: Check production dependency advisories
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=moderate
       - name: Check fixture-only accounting, HTTP security, and genuine Chrome flows
         run: npm test
       - name: Validate the Compose template with fictional inputs

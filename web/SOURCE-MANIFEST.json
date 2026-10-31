@@ -745,13 +745,13 @@
     },
     {
       "name": "package-lock.json",
-      "length": 1370,
-      "sha256": "aed2e8b4f48926f1770facb59abd8bc3d8c6ed44138bf673cef7762de98908fb"
+      "length": 1367,
+      "sha256": "5707b8bd4e13c21d43e15e00ebcb11802311fc5cd0d637e8dbcbbcf8cc5c8dc4"
     },
     {
       "name": "package.json",
-      "length": 509,
-      "sha256": "24c7d38f3784b11775de804446bd5ee3d88f160c883f36ac8d74c214642066d5"
+      "length": 508,
+      "sha256": "e81af107a6eca0c3abb854d09048af231a6631360742fcfea68d5985ac90ad2d"
     },
     {
       "name": "server.cjs",
@@ -807,6 +807,11 @@
       "name": "test/financial-regression.test.cjs",
       "length": 817,
       "sha256": "37d239a09359c25dfc37114abdc60a492fc07d39cad2a6a812ad477476cedfc8"
+    },
+    {
+      "name": "test/mail-dependency.test.cjs",
+      "length": 2911,
+      "sha256": "0465aa7a726e8b8955a430ce5d3015ccd06e45e71b2ab86f6cebb267fbc20210"
     },
     {
       "name": "test/package-source.test.cjs",

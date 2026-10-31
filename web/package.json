@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "sql.js": "1.14.2",
-    "nodemailer": "10.0.16",
+    "nodemailer": "10.3.1",
     "basic-ftp": "6.2.3"
   }
 }
