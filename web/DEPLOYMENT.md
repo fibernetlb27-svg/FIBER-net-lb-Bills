@@ -1,12 +1,14 @@
 # Ubuntu deployment preparation
 
-This package supports a standalone website on Ubuntu Server with Node 24, Docker Compose and Caddy. It contains no host-specific configuration, live database, credentials or private backup. Keep the existing Main PC running during development and staging; record host installation and staging acceptance separately. The HTTPS deployment templates deliberately require an explicitly chosen hostname.
+This package supports a standalone website on Ubuntu Server with Node 24, Docker Compose and Caddy. It contains no host-specific configuration, live database, credentials or private backup. Keep the current accounting authority running during development and staging; record host installation and staging acceptance separately. For an existing website upgrade, preserve that website as the sole writer. The HTTPS deployment templates deliberately require an explicitly chosen hostname.
 
 Do not point this website at the running Main PC's files. Use fictional databases or an explicitly exported, complete seven-database snapshot in a separate private staging directory. Keep `PROVIDERS_ENABLED=false` during staging. The application is one accounting writer; a second replica, another website process or a desktop process must never write the same files or independent copies of the same active business at the same time.
 
 ## Package and topology
 
 `server.cjs` runs the extracted accounting core without Electron or a Windows desktop. Caddy terminates HTTPS and forwards to one Node container. Only Caddy publishes ports 80/443. The Node port is private. Frontend assets come exclusively from the allowlisted files in `app/src`; databases, server modules, configurations, source archives and keys are never static resources.
+
+The standard web container sets `TZ=Asia/Beirut` for normal accounting timestamps. The automatic month-closing calendar explicitly uses the same IANA time zone, including its daylight-saving rules, rather than the host machine's local clock format. Keep the server clock synchronized.
 
 The Ubuntu starting estimate is 2 vCPU, 4 GB RAM and 60 GB SSD for this website, or 4 vCPU, 8 GB RAM and 100 GB SSD if sharing the machine with other services. These are planning estimates, not measured capacity. sql.js keeps all seven databases in memory and exports files, so actual database size, simultaneous staff, reports, backup size, disk latency and retained history must be measured using staging copies. The encrypted backup format currently limits the combined raw snapshot to 256 MiB.
 
@@ -75,6 +77,20 @@ Use isolated copies to verify logins and Admin/Cashier/Support/Viewer/Attendance
 Exercise refresh, multiple business tabs, expired sessions, lost responses, interrupted operations, provider-disabled failures and restart recovery. A timeout is not proof that a payment failed. Inspect the original saved request/status before considering another submission. Proxy timeouts allow up to 660 seconds; this allowance does not authorize replay. The request ID and original business must remain unchanged during recovery.
 
 Browser printing opens the user's print dialog and supports the supplied layouts. It does not enumerate Windows printers, select a physical device silently, or confirm physical print success. Verify A4/A5/58/80 mm output on the intended devices. CSV export is a browser download. Backup folder access/extraction and desktop installers/resets are not remotely callable browser operations.
+
+## Existing website upgrade to 0.1.4
+
+Keep one accounting writer. Before activating new code, stop the existing backend cleanly with its full shutdown grace period, preserve the seven latest databases and private settings, and rehearse startup against a separate copy. Retain the existing server encryption key, backup passphrase, HTTPS configuration and account settings. Never replace current business data with an older staging copy. A code rollback after new receipts have been recorded must preserve those receipts and reconcile any pending operations.
+
+Version 0.1.4 enables automatic End of Month at **23:59 on the last calendar day in Asia/Beirut**. The first startup creates a private `automatic-month-closing.json` in the data directory and fixes the first eligible month to that startup's business month. A first enablement in November 2026 starts with November 30, not an automatic October catch-up. Preserve this file during upgrades and restarts. It is owner-only, saved atomically and verified before use; a damaged journal is rejected rather than silently replaced.
+
+The scheduler checks every ten seconds while the server runs. It first blocks new accounting requests and drains already accepted requests and scheduled backups. It then requires an authorized active Main Admin and verifies existing pending-operation guards before closing each business with zero Bank allocations. It retains full cash/Whish custody, unpaid obligations and funding; it does not pay bills, renew services, or contact providers. During the brief closing operation new accounting actions and financial reads are rejected before execution; session status, sign-out and the authorized scheduling status remain available. Closed-month accounting writes remain locked for the rest of the final minute. Bank deposits and ordinary new-month writes resume after midnight.
+
+Pending or unconfirmed operations delay closing. Admin should inspect the Monthly ledger and original request's status, resolve its actual outcome, and let the scheduler retry. Do not submit a replacement payment, delete its journal or force an archive. A restart resumes the same first-enabled schedule and stable per-business close IDs; verified completed business archives are reused. Downtime catch-up runs months in order, at most twelve per check, and continues on subsequent checks. The scheduler's status is visible to Main Admin through the dashboard; errors contain no provider credentials or raw financial records.
+
+Verify the new business collection cards using isolated data: confirm current all-holder cash/Whish holdings, permitted exact deposit sources, a partial cash deposit, a partial Whish deposit and the resulting remainder. These cards follow current custody including carry-forward and later movements; they do not create a monthly receivable. Support custody may be included in a business total while remaining unavailable as an Admin deposit source until the normal handover.
+
+Newly created encrypted backups include the private scheduler journal when present. Verify a backup made after activation. An older backup without this optional file is still accepted; when it is restored without an independently preserved journal, the scheduler starts with the restore startup month. Existing closing archives and their financial proofs stay in the seven databases. Restoring any older financial snapshot still requires the separate reconciliation procedure below.
 
 ## Encrypted backup verification and restore preparation
 

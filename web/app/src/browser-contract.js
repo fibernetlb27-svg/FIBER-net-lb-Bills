@@ -3,7 +3,7 @@ window.buildBrowserPosApi = invoke => {
 const api = {
   adminTransfers:Object.fromEntries(['access','sources','preview','transfer','status','resume','pending','history'].map(method=>[method,(input={})=>invoke('adminTransfers:'+method,input)])),
   notes:Object.fromEntries(['list','save','remove','restore','status','resume'].map(method=>[method,(input={})=>invoke('notes:'+method,input)])),
-  bank:Object.fromEntries(['access','overview','sources','preview','transfer','status','resume','pending'].map(method=>[method,(input={})=>invoke('bank:'+method,input)])),
+  bank:Object.fromEntries(['access','overview','collectionOverview','sources','preview','transfer','status','resume','pending'].map(method=>[method,(input={})=>invoke('bank:'+method,input)])),
   mainOfficePayables:{overview:(...args)=>invoke('mainOfficePayables:overview',...args),details:(...args)=>invoke('mainOfficePayables:details',...args)},
   maintenance:Object.fromEntries(['list','save','checkoutOptions','checkout','status','pending','resume'].map(method=>[method,input=>invoke('maintenance:'+method,input)])),
   stockPurchases:Object.fromEntries(['options','preview','purchase','status','pending','resume','history'].map(method=>[method,(...args)=>invoke('stockPurchases:'+method,...args)])),
@@ -18,6 +18,7 @@ const api = {
   adminReceivables:{summary:()=>invoke('adminReceivables:summary'),debts:()=>invoke('adminReceivables:debts'),resellers:()=>invoke('adminReceivables:resellers'),debtReceipt:input=>invoke('adminReceivables:debtReceipt',input),collectionBills:input=>invoke('adminReceivables:collectionBills',input),collectionPreview:input=>invoke('adminReceivables:collectionPreview',input),payBill:input=>invoke('adminReceivables:payBill',input)},
   rollback:{status:()=>invoke('updates:rollbackStatus'),restore:input=>invoke('updates:rollback',input)},
   finance:{
+    autoMonthStatus:()=>invoke('finance:autoMonthStatus'),
     ledgerOverview:input=>invoke('finance:ledgerOverview',input),
     closeMonthsPreview:input=>invoke('finance:closeMonthsPreview',input),
     closeMonths:input=>invoke('finance:commitMonthsClose',input),

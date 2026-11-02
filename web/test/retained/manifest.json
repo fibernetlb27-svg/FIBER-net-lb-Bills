@@ -418,6 +418,18 @@
       "sourceSha256": "fe9bce9880b79f728e762fa5eb746f40b6b0f5380e238f57a590403b5df2fbb5",
       "sha256": "c82435549b717b40b7504ec170525f8c36ee9d054f36a3cf0e87f9f16e356dd7",
       "reason": "Current-month activity and all-time pending receipts have separate scopes; refund validation receives the business date and verified source wallets."
+    },
+    {
+      "file": "month-closing.cjs",
+      "sourceSha256": "bd290630097935bcfb5ec7ecddcb91f3c06830ddd1d5abe20a6ea94d2e66114a",
+      "sha256": "ad6f6dba17d607bafb085213c88b0cf289e388b1cb12544f927b79481b1649dc",
+      "reason": "A trusted server-only callback permits the approved last-day 23:59 closing; browser requests retain the completed-month guard and all existing exact financial proofs."
+    },
+    {
+      "file": "backup-archive.cjs",
+      "sourceSha256": "b1673a8681df3896a610e72ad0bbac71dfaa34f393294585cb81cec4f6748cb0",
+      "sha256": "bf2c17865e26515507932bd4164d9f58fc92306db48256769a11903577508a37",
+      "reason": "The optional automatic-month-closing journal is included in encrypted backup and verified recovery; old seven-database archives remain supported."
     }
   ],
   "helpers": [],

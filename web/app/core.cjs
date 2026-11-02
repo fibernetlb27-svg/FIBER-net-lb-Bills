@@ -8,7 +8,7 @@ const {promisify}=require('node:util');
 const derivePassword=promisify(require('node:crypto').scrypt);
 const activeDirectories=new Set();
 
-async function createBackend({dataDirectory,version='0.1.0',wasmPath,secrets,initialize=false,providersEnabled=false,sessionClock=Date.now}={}){
+async function createBackend({dataDirectory,version='0.1.0',wasmPath,secrets,initialize=false,providersEnabled=false,sessionClock=Date.now,monthCloseClock=()=>new Date(),automaticMonthClose=true}={}){
  if(typeof dataDirectory!=='string'||!pathForRuntime.isAbsolute(dataDirectory))throw Error('An explicit absolute private dataDirectory is required.');
  initialize=initialize===true;providersEnabled=providersEnabled===true;
  dataDirectory=pathForRuntime.resolve(dataDirectory);
@@ -48,6 +48,8 @@ const FixedMonthlyDashboard=require('./fixed-monthly-dashboard.cjs');
 const CompanyDebtService=require('./company-debts.cjs');
 const BankService=require('./bank-accounts.cjs');
 const MonthClosingService=require('./month-closing.cjs');
+const AutomaticMonthClosingService=require('./automatic-month-closing.cjs');
+const BankCollectionCards=require('./bank-collection-cards.cjs');
 const {MonthClosingAll}=require('./month-closing-all.cjs');
 const MonthOpeningCustody=require('./month-opening-custody.cjs');
 const AdminTransferService=require('./admin-money-transfers.cjs');
@@ -139,7 +141,7 @@ PORTAL_ASYNC_CHANNELS.push('bandwidth:pay','bandwidth:resume');
 PORTAL_ASYNC_CHANNELS.push(...['overview','ensureMonth','saveTemplate','freeze','sources','preview','pay','previewReversal','reverse','status','resume','pending'].map(name=>'fixedMonthly:'+name));
 PORTAL_ASYNC_CHANNELS.push(...['categoryOverview','saveCategory','assignCategory','categoryStatus','categoryResume','categoryPending'].map(name=>'fixedMonthly:'+name));
 PORTAL_ASYNC_CHANNELS.push(...['overview','create','assignBusiness','assignBusinesses','addMonthly','sources','preview','pay','status','resume','pending'].map(name=>'companyDebts:'+name));
-PORTAL_ASYNC_CHANNELS.push(...['overview','sources','preview','transfer','status','resume','pending'].map(name=>'bank:'+name));
+PORTAL_ASYNC_CHANNELS.push(...['overview','sources','preview','transfer','status','resume','pending','collectionOverview'].map(name=>'bank:'+name));
 PORTAL_ASYNC_CHANNELS.push(...MONTH_CLOSING_CHANNELS);
 PORTAL_ASYNC_CHANNELS.push(...['sources','preview','transfer','status','resume','pending','history'].map(method=>'adminTransfers:'+method));
 PORTAL_ASYNC_CHANNELS.push(...['list','save','remove','restore','status','resume'].map(method=>'notes:'+method));
@@ -1701,7 +1703,7 @@ function initializeBusinessSections(SQL) {
     backupAllSections('before-month-closing-carry-forward');
     for(const entry of workspaceDatabases.values()){entry.db.exec('BEGIN');try{MonthClosingService.initialize(entry.db);entry.db.exec('COMMIT');}catch(error){entry.db.exec('ROLLBACK');throw error;}saveSectionEntry(entry);}
   }
-  monthClosing=new MonthClosingService.MonthClosing({entries:workspaceDatabases,sections:WORKSPACES,authorize:monthClosingAdmin,holders:section=>moneyHolders(section,monthClosingAdmin),destinations:()=>Whish.listDestinations(workspaceDatabases.get('main').db,true),saveEntry:saveSectionEntry,now:localIso,backup:reason=>backupAllSections(reason),snapshot:monthClosingSnapshot,assertReady:section=>{bankAccounts?.assertIdle();assertCommerceIdle();assertInvoiceVoidIdle();assertWarehouseIdle();assertNoWalletReconciliationPending(section);assertNoBandwidthPending(section);assertNoFixedMonthlyPending(section);assertMonthClosingTransfersReady(section);}});
+  monthClosing=new MonthClosingService.MonthClosing({entries:workspaceDatabases,sections:WORKSPACES,authorize:monthClosingAdmin,holders:section=>moneyHolders(section,monthClosingAdmin),destinations:()=>Whish.listDestinations(workspaceDatabases.get('main').db,true),saveEntry:saveSectionEntry,now:()=>activeSession().automaticMonthClosing?AutomaticMonthClosingService.localTime(monthCloseClock()):localIso(),allowCurrentMonth:(month,at)=>activeSession().automaticMonthClosing===true&&AutomaticMonthClosingService.mayCloseCurrent(month,at),backup:reason=>backupAllSections(reason),snapshot:monthClosingSnapshot,assertReady:section=>{bankAccounts?.assertIdle();assertCommerceIdle();assertInvoiceVoidIdle();assertWarehouseIdle();assertNoWalletReconciliationPending(section);assertNoBandwidthPending(section);assertNoFixedMonthlyPending(section);assertMonthClosingTransfersReady(section);}});
   monthClosingAll=new MonthClosingAll({service:monthClosing});
   if([...workspaceDatabases].some(([id,entry])=>AdminTransferService.needsMigration(entry.db,{main:id==='main'}))){
     backupAllSections('before-admin-money-transfers');
@@ -2300,6 +2302,7 @@ function bankAdmin(sourceWorkspaceId='main'){
 }
 function registerBankHandlers(){
   registerHandler('bank:access',()=>({user:publicUser(bankAdmin())}));
+  registerHandler('bank:collectionOverview',(_event,input)=>{bankAdmin();return BankCollectionCards.overview(bankAccounts,input);});
   for(const method of ['overview','sources','preview','transfer','status','resume','pending'])registerHandler('bank:'+method,(_event,input)=>{bankAdmin();return bankAccounts[method](input);});
 }
 function adminTransferAdmin(workspaceId='main'){
@@ -2381,6 +2384,8 @@ function registerBandwidthHandlers(){
   registerHandler('bandwidth:resume',(_event,id)=>{bandwidthAdmin();return bandwidthPayments.resume(id);});
 }
 function registerFinanceHandlers(){
+  // This authorization-only read must remain available during a pending close.
+  localHandlers.set('finance:autoMonthStatus',()=>{monthClosingAdmin();return automaticMonthScheduler?.status()||{enabled:false};});
   // Undefined optional IPC arguments become null when a Client PC serializes them.
   // Accept either as an empty read request, never as a different employee scope.
   function financeReadInput(value){
@@ -3791,7 +3796,40 @@ async function authenticatePublic(input,workspaceId){
 function cleanBackupStatus(value){const {folder,...safe}=value;return {...safe,requiresMainRunning:false,requiresServerRunning:true};}
 function safeError(error){return String(error?.message||'The request could not be completed.').split(dataDirectory).join('[private data directory]');}
 const pendingRequests=new Set();
-let backupTimer=null,scheduledBackup=Promise.resolve();
+let backupTimer=null,scheduledBackup=Promise.resolve(),monthTimer=null,automaticMonthScheduler=null,scheduledMonthClose=Promise.resolve(),automaticMonthExclusive=false;
+async function executeAutomaticMonthClose({month,workspaces}){
+ if(closed||automaticMonthExclusive)throw Error('Automatic monthly closing is not currently available.');
+ automaticMonthExclusive=true;
+ try{
+  // The gate is set before waiting: no new request can enter while in-flight
+  // provider and financial requests drain, including their durable journals.
+  await Promise.allSettled([...pendingRequests,scheduledBackup]);if(closed)throw Error('The server is stopping. Automatic closing will retry after restart.');
+  const candidates=Finance.query(workspaceDatabases.get('main').db,"SELECT * FROM users WHERE active=1 AND role='admin' ORDER BY id"),actor=candidates.find(user=>{
+   try{return WORKSPACES.every(section=>{const member=sectionAccess.forWorkspace(user,section.id);return member.active&&member.role==='admin'&&!member.role_review_required&&sectionAccess.permitted(user,section.id);});}catch{return false;}
+  });
+  if(!actor)throw Error('Automatic closing needs an active Main administrator with access to every business.');
+  return await requestContext.run({workspaceId:'main',user:actor,automaticMonthClosing:true},async()=>{
+   adminMoneyTransfers?.assertIdle();bankAccounts?.assertIdle();
+   // Resume only exact original automatic requests after a save failure; never
+   // roll back a completed business or replace its saved archive/proof.
+   for(const row of MonthClosingService.pending(workspaceDatabases)){
+    const expected=workspaces.find(value=>value.workspaceId===row.workspaceId);
+    if(!expected||row.month!==month||row.requestId!==expected.requestId)throw Error('An unrelated month-close request requires review.');
+    const saved=monthClosing.read(row.workspaceId,row.requestId);if(!saved||saved.input.allocations.length)throw Error('The automatic closing proof is invalid.');
+    await monthClosing.resume({workspaceId:row.workspaceId,requestId:row.requestId});
+   }
+   // Verify every participating business before the first new atomic close.
+   for(const row of workspaces){monthClosing.ready(row.workspaceId);MonthClosingService.verifyArchive({db:workspaceDatabases.get(row.workspaceId).db,workspaceId:row.workspaceId,month});}
+   for(const row of workspaces){
+    const db=workspaceDatabases.get(row.workspaceId).db;
+    if(Finance.query(db,'SELECT month FROM finance_months WHERE month=?',[month]).length){MonthClosingService.verifyArchive({db,workspaceId:row.workspaceId,month});continue;}
+    const base={workspaceId:row.workspaceId,month,allocations:[]},review=monthClosing.preview(base);
+    await monthClosing.close({...base,requestId:row.requestId,token:review.token,confirmation:'CLOSE '+month});
+    MonthClosingService.verifyArchive({db,workspaceId:row.workspaceId,month});
+   }
+  });
+ }finally{automaticMonthExclusive=false;}
+}
 async function requestOperation({channel,args=[],workspaceId='main',token=''}={}){
  try{
   assertOpen();if(typeof channel!=='string'||!Array.isArray(args)||args.length>20)return {status:400,error:'Invalid application request.'};
@@ -3822,10 +3860,10 @@ function metadata(workspaceId='main'){
  assertOpen();const section=workspace(workspaceId);return requestContext.run({workspaceId:section.id},()=>({version,providersEnabled,section:{...section},sections:WORKSPACES.map(item=>({...item})),areas:MAIN_AREAS.map(item=>({...item})),needsSetup:Number(one('SELECT COUNT(*) AS count FROM users').count)===0}));
 }
 async function createOwner(input){assertOpen();return requestContext.run({workspaceId:'main',user:null},()=>localHandlers.get('auth:createOwner')(null,input));}
-function request(options){const pending=requestOperation(options??{}).catch(error=>({status:400,error:safeError(error)}));pendingRequests.add(pending);void pending.then(()=>pendingRequests.delete(pending));return pending;}
-releaseResources=()=>{clearInterval(backupTimer);backupManager?.stop();serverSessions.clear();for(const entry of workspaceDatabases.values())entry.db.close();if(workspaceDatabases.size===0&&database)database.close();workspaceDatabases.clear();releaseLock();activeDirectories.delete(dataKey);};
+function request(options){if(automaticMonthExclusive){if(['auth:status','auth:logout','finance:autoMonthStatus'].includes(options?.channel))return requestOperation(options).catch(error=>({status:400,error:safeError(error)}));return Promise.resolve({status:503,error:'The monthly ledger is closing automatically. Please wait a moment and retry; no new transaction was accepted.'});}const pending=requestOperation(options??{}).catch(error=>({status:400,error:safeError(error)}));pendingRequests.add(pending);void pending.then(()=>pendingRequests.delete(pending));return pending;}
+releaseResources=()=>{clearInterval(backupTimer);clearInterval(monthTimer);backupManager?.stop();serverSessions.clear();for(const entry of workspaceDatabases.values())entry.db.close();if(workspaceDatabases.size===0&&database)database.close();workspaceDatabases.clear();releaseLock();activeDirectories.delete(dataKey);};
 let closing;
-async function close(){if(closing)return closing;closed=true;clearInterval(backupTimer);closing=(async()=>{await Promise.allSettled([...pendingRequests,scheduledBackup]);releaseResources();})();return closing;}
+async function close(){if(closing)return closing;closed=true;clearInterval(backupTimer);clearInterval(monthTimer);closing=(async()=>{await Promise.allSettled([...pendingRequests,scheduledBackup,scheduledMonthClose]);releaseResources();})();return closing;}
 
 // Validate every existing file before the initializer can migrate or save any one.
 if(!initialize){
@@ -3835,10 +3873,12 @@ if(!initialize){
 await initializeDatabase();
 registerHandlers();registerWorkspaceHandlers();registerBackupHandlers();
 const blockedDelivery=()=>{throw Error('External backup delivery is disabled for this server.');};
-backupManager=new BackupManager({directory:dataDirectory,safeStorage,snapshot:backupSnapshot,version,canRun:()=>!closed&&workspaceDatabases.size===WORKSPACES.length,...providersEnabled?{}:{ftpFactory:blockedDelivery,mailFactory:blockedDelivery}});
+backupManager=new BackupManager({directory:dataDirectory,safeStorage,snapshot:backupSnapshot,version,canRun:()=>!closed&&!automaticMonthExclusive&&workspaceDatabases.size===WORKSPACES.length,...providersEnabled?{}:{ftpFactory:blockedDelivery,mailFactory:blockedDelivery}});
+if(automaticMonthClose!==false)automaticMonthScheduler=new AutomaticMonthClosingService.AutomaticMonthClosing({directory:dataDirectory,now:monthCloseClock,workspaces:WORKSPACES.map(section=>section.id),execute:executeAutomaticMonthClose});
 // Local encrypted snapshots remain scheduled even when provider access is off.
 {const tick=()=>{scheduledBackup=backupManager.tick().catch(()=>{});};tick();backupTimer=setInterval(tick,60000);backupTimer.unref?.();}
-return {request,metadata,createOwner,close};
+if(automaticMonthScheduler){const tick=()=>{if(!closed)scheduledMonthClose=automaticMonthScheduler.tick().catch(()=>{});return scheduledMonthClose;};monthTimer=setInterval(tick,10000);monthTimer.unref?.();void tick();}
+return {request,metadata,createOwner,close,tickAutomaticMonthClose:()=>{if(closed||!automaticMonthScheduler)return Promise.resolve(null);scheduledMonthClose=automaticMonthScheduler.tick();return scheduledMonthClose;}};
 }catch(error){try{releaseResources();}finally{releaseLock();activeDirectories.delete(dataKey);}throw error;}
 }
 module.exports={createBackend};

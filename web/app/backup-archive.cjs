@@ -2,7 +2,7 @@ const crypto=require('node:crypto'),zlib=require('node:zlib'),{promisify}=requir
 const derive=promisify(crypto.scrypt);
 const HEADER=Buffer.from('FIBERNETLB-BACKUP-1\n'),MAX_RAW=256*1024*1024,MAX_JSON=360*1024*1024;
 const DATABASES=['isp-desk.sqlite',...['fiber-users','fiber-resellers','iptv','printer','studio','mobile-ogero'].map(id=>'sections/'+id+'.sqlite')];
-const OPTIONAL=['network-config.json','internet-api-settings.json','update-settings.json'];
+const OPTIONAL=['network-config.json','internet-api-settings.json','update-settings.json','automatic-month-closing.json'];
 const ALLOWED=new Set([...DATABASES,...OPTIONAL]);
 const sha256=data=>crypto.createHash('sha256').update(data).digest('hex');
 function password(value){if(typeof value!=='string'||value.length<12||value.length>256)throw Error('Use a backup passphrase of 12–256 characters and keep a separate safe copy.');return value;}

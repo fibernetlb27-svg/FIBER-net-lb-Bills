@@ -202,6 +202,7 @@ window.FinanceDashboard=(()=>{
  }catch(error){if(session===ticket&&config===submitConfig)el('finance-error').textContent=error.message;}finally{saving=false;controls.forEach(([control,disabled])=>control.disabled=disabled);b.disabled=pendingInput?.kind==='handover'&&!preview;}}
  async function loadLedger(){
   if(!config||config.user.role!=='admin'||!api?.finance)return;
+  window.MonthCollections?.loadSchedule?.();
   const selected=el('ledger-business').value,generation=ticket,owner=config,request=++ledgerSequence,aggregate=selected==='all';
   if(aggregate?!allLedgerAllowed():!isRealLedgerBusiness(selected))throw Error('Select an authorized business for monthly ledger reports.');
   ledgerData=null;el('ledger-months').innerHTML='<tr><td colspan="4">Loading verified monthly archives…</td></tr>';

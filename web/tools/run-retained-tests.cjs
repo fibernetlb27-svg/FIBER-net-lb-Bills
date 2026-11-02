@@ -13,9 +13,9 @@ if(process.argv[2]==='--one'){
  const originalLoad=Module._load;Module._load=function(name,...args){assert.notEqual(name,'electron','The website financial tests must not load Electron.');return originalLoad.call(this,name,...args);};
  const virtual=path.join(app,name),testModule=new Module(virtual,module);testModule.filename=virtual;testModule.paths=Module._nodeModulePaths(app);process.argv=[process.execPath,virtual];testModule._compile(source.toString('utf8'),virtual);
 }else{
- const adaptations=new Map(),acceptedAdaptations=new Set(['backup-manager.cjs','reseller-accounting.cjs','reseller-collected-revenue.cjs','reseller-collections.cjs','reseller-funding-service.cjs']);
+ const adaptations=new Map(),acceptedAdaptations=new Set(['backup-manager.cjs','reseller-accounting.cjs','reseller-collected-revenue.cjs','reseller-collections.cjs','reseller-funding-service.cjs','month-closing.cjs','backup-archive.cjs']);
  for(const row of manifest.websiteAdaptations||[]){
-  assert(acceptedAdaptations.has(row.file),'Only the specifically reviewed website backup and reseller closing fixes are accepted.');
+  assert(acceptedAdaptations.has(row.file),'Only the specifically reviewed website backup, reseller accounting and automatic closing adaptations are accepted.');
   assert(!adaptations.has(row.file),'Duplicate website adaptation.');
   const original=manifest.modules.find(module=>module.file===row.file);
   assert(original&&original.sha256===row.sourceSha256,'Preserve the accepted desktop baseline for each adaptation.');

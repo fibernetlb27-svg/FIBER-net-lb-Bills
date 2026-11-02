@@ -67,6 +67,17 @@ test('lost financial response is uncertain and is never retried',async()=>{
   await assert.rejects(h.api.sales.create({requestId:'original-request'}),error=>error.uncertain===true&&/Nothing was automatically retried/.test(error.message));
   assert.equal(h.calls.filter(row=>row.route==='/api/rpc').length,1);
 });
+
+test('collection balances and automatic closing status are read-only browser requests',async()=>{
+  const h=harness({rpc:()=>{throw Error('offline read');}});
+  for(const read of [()=>h.api.bank.collectionOverview({workspaceId:'fiber-users'}),()=>h.api.finance.autoMonthStatus()]){
+    await assert.rejects(read(),error=>error.uncertain===false&&/could not be reached/.test(error.message));
+  }
+  assert.deepEqual(h.calls.filter(row=>row.route==='/api/rpc').map(row=>JSON.parse(row.options.body)),[
+    {channel:'bank:collectionOverview',args:[{workspaceId:'fiber-users'}],workspaceId:'main'},
+    {channel:'finance:autoMonthStatus',args:[],workspaceId:'main'}
+  ]);
+});
 test('logout clears local sign-in even on network failure and preserves pending request markers',async()=>{
   const marker='fiber-invoice-void-v1:existing-account:original';
   const h=harness({rpc:()=>{throw Error('offline');},initialStorage:{[marker]:'pending'}});

@@ -1,10 +1,14 @@
 # Old data transfer plan
 
-The Main PC stays running now. This document describes the later staging rehearsal and eventual cutover; it does not authorize stopping the PC, copying live customer data, changing providers or enabling two active accounting systems.
+This document describes an initial desktop-to-website staging rehearsal and eventual cutover; it does not authorize stopping the current accounting host, copying live customer data, changing providers or enabling two active accounting systems. For a website that has already migrated, upgrade its existing seven-database data volume and preserve it as the sole accounting authority. Do not reactivate a diverging old desktop copy.
 
 ## What must be preserved
 
 Move a complete, consistent set of all seven databases together, including Main Office and the six businesses. Preserve receipts, users and access rules, stock, unpaid customer/reseller/supplier obligations, Company debts and linked monthly bills, payment reversals, cash/Whish custody, Bank balances, monthly archives, prior-month expense funding, sticky notes and pending request journals. A new month does not cancel debts, pending collections or stored money.
+
+For websites using automatic monthly closing, also preserve the private `automatic-month-closing.json` scheduling journal. New encrypted backups include it when present. It records the first enabled month and completed schedule progress; financial closing archives and request proofs remain in each business database. Older supported backups can lack this optional file. If no preserved scheduler journal is supplied, first restored startup starts scheduling from its current Beirut business month and does not invent a past schedule.
+
+Version 0.1.4 closes eligible months automatically at 11:59 PM on the last day in Asia/Beirut, starting with the first enabled month. For example, a first November 2026 startup schedules November 30 and leaves October untouched. The server waits for accepted work to finish, rejects new actions during the close, and delays if unresolved financial operations need review. It keeps full carried cash/Whish balances rather than moving them automatically to Bank. The remaining minute is closed to that month's accounting writes; the next month opens at midnight. Partial Bank deposits made later reduce the existing custody balances once, and the current business collection cards show the remainder without creating another receivable.
 
 The supported source baseline is desktop 1.45.3. Other source versions require a separate rehearsal. Never copy only one business, omit a database, or use a collection of files captured at different times as the final authoritative snapshot. Existing passwords remain hashed; server-side provider and backup secrets encrypted by Windows must be entered again securely on Ubuntu.
 

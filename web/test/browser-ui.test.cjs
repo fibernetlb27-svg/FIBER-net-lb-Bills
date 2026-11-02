@@ -112,6 +112,8 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  }
  const supportLogin=await backend.request({channel:'auth:login',args:[{username:'browser.fixture.support',password}],workspaceId:'fiber-users'});assert.equal(supportLogin.status,200);
  assert.equal((await backend.request({channel:'drawer:setBalance',args:[{balance:17,note:'Fictional Support cash for read-only handover preview'}],workspaceId:'fiber-users',token:supportLogin.data.sessionToken})).status,200);
+ const usersOwner=await backend.request({channel:'auth:switch',args:['fiber-users'],workspaceId:'main',token:ownerLogin.data.sessionToken});assert.equal(usersOwner.status,200);
+ assert.equal((await backend.request({channel:'drawer:setBalance',args:[{balance:217,note:'Fictional business custody: Admin200 plus Support17 for a partial Bank deposit'}],workspaceId:'fiber-users',token:usersOwner.data.sessionToken})).status,200);
  const port=await unusedPort(),origin='http://127.0.0.1:'+port;
  server=createServer({backend,origin,demo:true});await new Promise(resolve=>server.listen(port,'127.0.0.1',resolve));
  const debugUrl=await new Promise((resolve,reject)=>{
@@ -137,6 +139,46 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  assert.equal(await evaluate(page,"document.querySelector('#network-settings-button').classList.contains('website-only-hidden')"),true);
  assert.equal(await evaluate(page,"Boolean(window.posApi.printing)"),false);
  await evaluate(page,"window.__qaPending=0;window.__qaFailures=[];const qaFetch=window.fetch;window.fetch=async(...args)=>{window.__qaPending++;try{const response=await qaFetch(...args);if(!response.ok)window.__qaFailures.push({channel:args[1]?.body?JSON.parse(args[1].body).channel:String(args[0]),status:response.status});return response;}finally{window.__qaPending--;}};");
+ await waitFor(page,"document.querySelectorAll('[data-collection-card]').length===7",'All business money-to-collect cards');
+ assert.equal(await evaluate(page,"document.querySelector('[data-collection-card=\"fiber-users\"] [data-collection-total]').textContent"),'$217.00','Collection card includes Support holdings without substituting Admin custody');
+ assert.equal(await evaluate(page,"document.querySelector('[data-collection-card=\"fiber-users\"] [data-collection-whish]').textContent"),'$0.00');
+ await evaluate(page,"document.querySelector('#finance-business').value='fiber-users';document.querySelector('#finance-business').dispatchEvent(new Event('change',{bubbles:true}))");
+ await waitFor(page,"document.querySelectorAll('[data-collection-card]').length===1&&document.querySelector('[data-collection-card=\"fiber-users\"]')",'Collection cards follow selected business');
+ await evaluate(page,"document.querySelector('[data-collection-business=\"fiber-users\"][data-collection-method=cash]').click()");
+ await waitFor(page,"document.querySelector('#bank-transfer-form')&&document.querySelector('#bank-transfer-business').value==='fiber-users'&&document.querySelector('#bank-holder').options.length>=2",'Collection card opens exact business Bank deposit');
+ assert.equal(await evaluate(page,"document.querySelector('#bank-business-cash').textContent"),'$217.00','Deposit dialog shows full business custody');
+ await responsive(page,'Collection-card Bank deposit');await enlargedText(page,'Collection-card Bank deposit');
+ await evaluate(page,"(()=>{const holder=document.querySelector('#bank-holder');holder.value=[...holder.options].find(option=>option.textContent.endsWith('· Admin')).value;holder.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#bank-amount').value='50';document.querySelector('#bank-note').value='Fictional partial month-end Bank deposit';document.querySelector('#bank-review').click();})()");
+ await waitFor(page,"!document.querySelector('#bank-impact').hidden&&!document.querySelector('#bank-ack-field').hidden",'Partial Bank deposit review');
+ assert.match(await evaluate(page,"document.querySelector('#bank-impact').textContent"),/Cash drawer after\$150\.00/,'Preview debits only the explicitly selected Admin drawer');
+ await evaluate(page,"document.querySelector('#bank-ack').checked=true;document.querySelector('#bank-ack').dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#bank-transfer-form').requestSubmit()");
+ await waitFor(page,"!document.querySelector('#bank-transfer-form')&&document.querySelector('[data-collection-card=\"fiber-users\"] [data-collection-total]')?.textContent==='$167.00'",'Partial Bank deposit updates real remaining collection');
+ assert.match(await evaluate(page,"document.querySelector('[data-collection-card=\"fiber-users\"] .month-collection-bank').textContent"),/\$50\.00/);
+ await evaluate(page,"(async()=>{window.__qaCollectionOriginal=posApi.bank.collectionOverview;window.__qaLateCollection=await posApi.bank.collectionOverview({workspaceId:'fiber-users'});posApi.bank.collectionOverview=input=>input.workspaceId==='fiber-users'?new Promise(resolve=>{window.__qaReleaseCollection=resolve;}):window.__qaCollectionOriginal(input);void MonthCollections.load(true);})()");
+ await waitFor(page,"typeof window.__qaReleaseCollection==='function'",'Retained delayed collection read');
+ await evaluate(page,"document.querySelector('#finance-business').value='all';document.querySelector('#finance-business').dispatchEvent(new Event('change',{bubbles:true}))");
+ await waitFor(page,"document.querySelectorAll('[data-collection-card]').length===7",'New collection scope loads before old response');
+ await evaluate(page,"window.__qaReleaseCollection(window.__qaLateCollection);posApi.bank.collectionOverview=window.__qaCollectionOriginal;delete window.__qaCollectionOriginal;delete window.__qaReleaseCollection;delete window.__qaLateCollection");
+ assert.equal(await evaluate(page,"document.querySelectorAll('[data-collection-card]').length"),7,'Late single-business response cannot replace all-business cards');
+ await evaluate(page,"document.querySelector('#finance-business').value='fiber-users';document.querySelector('#finance-business').dispatchEvent(new Event('change',{bubbles:true}))");
+ await waitFor(page,"document.querySelectorAll('[data-collection-card]').length===1",'Selected collection scope restored');
+ await evaluate(page,"(async()=>{window.__qaCollectionApi=posApi.bank.collectionOverview;const original=await posApi.bank.collectionOverview({workspaceId:'fiber-users'});posApi.bank.collectionOverview=async()=>({...original,totals:{...original.totals,total:999999}});await MonthCollections.load(true);})()");
+ await waitFor(page,"document.querySelector('#month-collections [role=alert]')&&!document.querySelector('[data-collection-card]')",'Unverified collection totals clear previous balances');
+ await evaluate(page,"posApi.bank.collectionOverview=window.__qaCollectionApi;delete window.__qaCollectionApi;void MonthCollections.load(true)");
+ await waitFor(page,"document.querySelector('[data-collection-card=\"fiber-users\"] [data-collection-total]')?.textContent==='$167.00'",'Verified collection totals recover safely');
+ await evaluate(page,"document.querySelector('#finance-business').value='all';document.querySelector('#finance-business').dispatchEvent(new Event('change',{bubbles:true}))");
+ await waitFor(page,"document.querySelectorAll('[data-collection-card]').length===7",'Return to all-business collection cards');
+ await evaluate(page,"(async()=>{window.__qaCollectionOriginal=posApi.bank.collectionOverview;window.__qaCollectionAdmin=state.currentUser;window.__qaLateCollection=await posApi.bank.collectionOverview({workspaceId:'all'});posApi.bank.collectionOverview=()=>new Promise(resolve=>{window.__qaReleaseCollection=resolve;});void MonthCollections.load(true);})()");
+ await waitFor(page,"typeof window.__qaReleaseCollection==='function'",'Retained collection read before permission revocation');
+ await evaluate(page,"state.currentUser={...state.currentUser,role:'viewer'};MonthCollections.updateUser(state.currentUser);window.__qaReleaseCollection(window.__qaLateCollection)");
+ assert.equal(await evaluate(page,"document.querySelector('#month-collections').hidden&&document.querySelector('#month-collections').textContent==='';"),true,'Permission revocation clears money and rejects a late response');
+ await evaluate(page,"posApi.bank.collectionOverview=window.__qaCollectionOriginal;state.currentUser=window.__qaCollectionAdmin;MonthCollections.updateUser(state.currentUser);delete window.__qaCollectionOriginal;delete window.__qaCollectionAdmin;delete window.__qaReleaseCollection;delete window.__qaLateCollection;void MonthCollections.load(true)");
+ await waitFor(page,"document.querySelectorAll('[data-collection-card]').length===7",'Collection cards reload only after Admin permission is restored');
+ await responsive(page,'Month-end collection cards');await enlargedText(page,'Month-end collection cards');
+ await waitFor(page,"document.querySelector('#toast-region').childElementCount===0",'Collection confirmation notification settles before guide screenshot');
+ await evaluate(page,"scrollTo(0,document.querySelector('#month-collections').getBoundingClientRect().top+scrollY-20)");await navigationScreenshot(page,'month-collections-desktop');
+ await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await evaluate(page,"scrollTo(0,document.querySelector('#month-collections').getBoundingClientRect().top+scrollY-115)");await navigationScreenshot(page,'month-collections-mobile');
+ await page.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
  const views=await evaluate(page,"[...document.querySelectorAll('.nav-item[data-view]')].filter(button=>button.offsetParent&&!['dashboard','backups'].includes(button.dataset.view)).map(button=>button.dataset.view)");
  for(const view of views){
   await evaluate(page,`document.querySelector('.nav-item[data-view="${view}"]').click()`);
@@ -144,6 +186,8 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
   assert.equal(await evaluate(page,`state.currentView===${JSON.stringify(view)}`),true,'Main '+view+' route is active');
   await responsive(page,'Main '+view);
   if(view==='ledger'){
+   await waitFor(page,"document.querySelector('#automatic-month-status')?.textContent.includes('11:59 PM')",'Verified automatic monthly closing schedule');
+   assert.match(await evaluate(page,"document.querySelector('#automatic-month-status').textContent"),/Beirut time/);
    await evaluate(page,"document.querySelector('#ledger-close-month').value='2026-01';document.querySelector('#ledger-close-button').click()");
    await waitFor(page,"Boolean(document.querySelector('dialog[open]'))",'Monthly close dialog');
    await responsive(page,'Monthly close dialog');await evaluate(page,"document.querySelector('dialog[open]').close()");
@@ -219,6 +263,8 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  await waitFor(page,"!document.querySelector('#app-shell').classList.contains('hidden')&&document.querySelector('#current-user-name').textContent==='Fictional Browser Viewer'",'Viewer session');
  assert.equal(await evaluate(page,"document.querySelector('[data-view=users]').classList.contains('hidden')&&document.querySelector('#add-product').classList.contains('hidden')"),true,'Viewer management controls are hidden');
  assert.equal(await evaluate(page,"posApi.backups.status().then(()=>false,error=>error.status===403)"),true,'Viewer cannot bypass backup authorization');
+ assert.equal(await evaluate(page,"Boolean(document.querySelector('#month-collections')?.textContent)"),false,'Viewer does not inherit Admin business collection cards');
+ assert.equal(await evaluate(page,"posApi.bank.collectionOverview({workspaceId:'all'}).then(()=>false,error=>error.status===400||error.status===403)"),true,'Viewer cannot bypass collection-card authorization');
  assert.equal(await evaluate(page,"posApi.workspace.open('printer').then(()=>false,error=>error.status===403||error.status===400)"),true,'Viewer cannot open an unassigned business');
  for(const role of ['cashier','support']){
   await evaluate(page,"document.querySelector('#logout-button').click()");await waitFor(page,"document.querySelector('#app-shell').classList.contains('hidden')",role+' sign-in screen');
@@ -230,6 +276,7 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
    await tap(page,'#website-navigation-toggle');await tap(page,'#back-main-dashboard');await waitFor(page,"typeof businessWorkspace!=='undefined'&&businessWorkspace.id==='main'&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' initial return to Main');
   }
   await responsive(page,role+' Main dashboard');await enlargedText(page,role+' Main dashboard');
+  assert.equal(await evaluate(page,"Boolean(document.querySelector('#month-collections')?.getClientRects().length)"),false,role+' cannot see Admin business collection cards');
   assert.equal(await evaluate(page,"Boolean(document.querySelector('#support-end-day')?.getClientRects().length)"),role==='support',role+' Main shows only the authorized Users handover shortcut');
   if(role==='support'){
    assert.equal(await evaluate(page,"document.querySelector('#support-end-day').textContent"),'Open Users End of day');
@@ -279,5 +326,5 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  assert.equal(await evaluate(page,"!document.querySelector('#support-end-day').getClientRects().length&&!document.querySelector('#support-end-dialog').open&&document.querySelector('#support-end-save').disabled"),true,'Logout clears the Support action and unfinished preview');
  const exceptions=pages.flatMap(target=>target.events.filter(event=>event.method==='Runtime.exceptionThrown').map(event=>event.params.exceptionDetails.exception?.description||event.params.exceptionDetails.text));
  assert.deepEqual(exceptions,[],'Browser has no uncaught JavaScript exceptions');
- t.diagnostic('Real Node/core + Chrome: eleven phone/tablet/desktop viewport sizes,compact mobile headers and visible main content, pointer-operated menu/selection/Escape/focus checks, assigned Cashier/Support mobile navigation, visible Users End of day and Main shortcut with read-only preview and stale-permission protection,125% enlarged text, Main routes, financial forms, all seven businesses, actual receipt/PDF, CSV, cross-tab logout and Viewer authorization passed.');
+ t.diagnostic('Real Node/core + Chrome: eleven phone/tablet/desktop viewport sizes,compact mobile navigation,125% enlarged text, all seven business collection cards, selected-business filtering, exact-Admin-source partial Bank deposit with live remainder, malformed-total denial and stale-scope/permission protection, verified11:59PM Beirut monthly schedule, visible Users End of day and Main shortcut, Main routes, financial forms, actual receipt/PDF, CSV, cross-tab logout and Viewer authorization passed.');
 });

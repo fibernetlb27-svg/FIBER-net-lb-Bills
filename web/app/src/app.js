@@ -602,6 +602,7 @@ function showAuth(mode) {
   window.AdminMoneyTransfers?.reset();
   window.StickyNotes?.reset();
   window.Bank?.reset();
+  window.MonthCollections?.reset();
   window.CompanyDebts?.reset();
   window.FixedMonthlyPayments?.reset();
   window.BandwidthAccounting?.reset();
@@ -650,6 +651,7 @@ async function startApp(user) {
   window.FixedMonthlyPayments?.init({container:'fixed-monthly-root',api:api.fixedMonthly,user,workspace:businessWorkspace,getUser:()=>state.currentUser,getWorkspace:()=>businessWorkspace,toast:showToast,onBack:()=>switchView('dashboard'),onCompanyDebt:id=>switchView('company-debts',{debtId:id}),refresh:async()=>{await Promise.all([loadDashboard(),has('drawer.view')?loadDrawer():Promise.resolve(),has('reports.view')&&state.currentView==='reports'?loadReport():Promise.resolve()]);}});
   window.BandwidthAccounting?.init({container:'dashboard-bandwidth-payment-root',paymentOnly:true,api:api.bandwidth,user,workspace:businessWorkspace,getUser:()=>state.currentUser,getWorkspace:()=>businessWorkspace,toast:showToast,refresh:async()=>{await Promise.all([loadDashboard(),has('drawer.view')?loadDrawer():Promise.resolve(),has('reports.view')&&state.currentView==='reports'?loadReport():Promise.resolve()]);}});
   window.FinanceDashboard?.init({api,user,workspace:businessWorkspace,sections:businessSections,has,reload:loadDashboard,toast:showToast});
+  window.MonthCollections?.init({api:api.bank,financeApi:api.finance,user,workspace:businessWorkspace,sections:businessSections,getUser:()=>state.currentUser,getWorkspace:()=>businessWorkspace,getBusiness:()=>$('#finance-business')?.value||'all',toast:showToast});
   window.SupportHandover?.init({api,user,workspace:businessWorkspace,has,reload:loadDashboard,toast:showToast});
   window.ResellerFunding?.init({api,user,workspace:businessWorkspace,toast:showToast,confirm:confirmPortalAction,reload:async()=>{await Promise.all([loadBills(),loadDashboard()]);}});
   window.AdminReceivables?.init({api,user,workspace:businessWorkspace,getUser:()=>state.currentUser,getWorkspace:()=>businessWorkspace,has,toast:showToast,confirm:confirmPortalAction,reload:loadDashboard,receipt:(type,record)=>showReceipt(type,record,true),clearReceipt:clearAdminReceivableReceipt});
@@ -712,6 +714,7 @@ async function synchronizeSharedData() {
     window.FixedMonthlyPayments?.updateUser?.(auth.user);
     window.CompanyDebts?.updateUser?.(auth.user);
     window.Bank?.updateUser?.(auth.user);
+    window.MonthCollections?.updateUser?.(auth.user);
     window.AdminMoneyTransfers?.updateUser?.(auth.user);
     window.StickyNotes?.updateUser?.(auth.user);
     window.BandwidthAccounting?.updateUser?.(auth.user);
@@ -868,6 +871,7 @@ async function loadDashboard() {
   window.AdminReceivables?.load();
   window.AdminPayables?.load();
   window.AdminWarehouse?.refreshDebts?.();
+  window.MonthCollections?.load();
   const generation = ++dashboardLoadVersion, identity = dashboardIdentity();
   $('#metric-bandwidth-cost').textContent='—';
   const current = () => generation === dashboardLoadVersion && identity === dashboardIdentity();

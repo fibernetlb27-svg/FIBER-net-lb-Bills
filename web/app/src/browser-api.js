@@ -14,7 +14,7 @@
   const fallback = () => ({version:'',section:{id:workspaceId,name:workspaceId === 'main' ? 'Main dashboard' : 'Business',kind:workspaceId === 'main' ? 'main' : 'unavailable'},sections:[],areas:[],needsSetup:false});
   const unwrap = value => value && Object.prototype.hasOwnProperty.call(value,'data') ? value.data : value;
   const readChannel = channel => /:(?:access|accounts|all|archive|categoryOverview|categoryPending|categoryStatus|checkoutOptions|collectionBills|collectionPreview|collectionSources|collections|csv|dashboard|debts|details|endDayPreview|endDayTargets|generateBarcode|get|history|importPreview|ledgerOverview|list|lookup|operations|options|overview|payBillPreview|paymentOptions|pending|planHistory|portalList|preview|previewReversal|quoteChange|receipt|receiptCopies|receiptCopy|receiptCredentials|reconciliationHistory|reconciliationPreview|renewalHistory|search|settings|sources|status|summary|test|walletCorrectionHistory|walletCorrectionPreview)$/.test(channel);
-  const financialMutation = channel => !channel.startsWith('auth:') && !readChannel(channel);
+  const financialMutation = channel => !channel.startsWith('auth:') && !['bank:collectionOverview','finance:autoMonthStatus'].includes(channel) && !readChannel(channel);
 
   async function request(route, options = {}, uncertain = false, timeoutMs = 90000) {
     const controller = new AbortController();
