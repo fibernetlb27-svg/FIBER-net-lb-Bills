@@ -1,0 +1,3 @@
+.month-auto-status { padding:16px 20px;border:1px solid var(--line);border-left:4px solid var(--success);border-radius:12px;background:var(--ice);font-size:.81rem;line-height:1.75;overflow-wrap:anywhere; }
+.month-auto-status.month-auto-waiting { border-left-color:var(--warning); }
+.month-auto-status[hidden] { display:none!important; }

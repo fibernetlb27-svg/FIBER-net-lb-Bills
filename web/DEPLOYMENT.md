@@ -78,9 +78,11 @@ Exercise refresh, multiple business tabs, expired sessions, lost responses, inte
 
 Browser printing opens the user's print dialog and supports the supplied layouts. It does not enumerate Windows printers, select a physical device silently, or confirm physical print success. Verify A4/A5/58/80 mm output on the intended devices. CSV export is a browser download. Backup folder access/extraction and desktop installers/resets are not remotely callable browser operations.
 
-## Existing website upgrade to 0.1.4
+## Existing website upgrade to 0.1.5
 
 Keep one accounting writer. Before activating new code, stop the existing backend cleanly with its full shutdown grace period, preserve the seven latest databases and private settings, and rehearse startup against a separate copy. Retain the existing server encryption key, backup passphrase, HTTPS configuration and account settings. Never replace current business data with an older staging copy. A code rollback after new receipts have been recorded must preserve those receipts and reconcile any pending operations.
+
+Version 0.1.5 places prior-month collection amounts inside the existing Bank account cards and removes the duplicate Main dashboard section. The projection reads verified previous-calendar-month closing proofs and current custody movements without rewriting historical reports or adding a debt. New-month income is excluded; outflows consume the carried portion first. Prior-month deposits include an optional reviewed `collectionMonth` and must pass both the normal exact-source balance check and the carried-source limit at commit. Existing ordinary Bank requests remain compatible. Verify these limits and the preserved automatic-closing journal against a stopped data copy before activation.
 
 Version 0.1.4 enables automatic End of Month at **23:59 on the last calendar day in Asia/Beirut**. The first startup creates a private `automatic-month-closing.json` in the data directory and fixes the first eligible month to that startup's business month. A first enablement in November 2026 starts with November 30, not an automatic October catch-up. Preserve this file during upgrades and restarts. It is owner-only, saved atomically and verified before use; a damaged journal is rejected rather than silently replaced.
 

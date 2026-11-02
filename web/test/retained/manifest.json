@@ -430,6 +430,12 @@
       "sourceSha256": "b1673a8681df3896a610e72ad0bbac71dfaa34f393294585cb81cec4f6748cb0",
       "sha256": "bf2c17865e26515507932bd4164d9f58fc92306db48256769a11903577508a37",
       "reason": "The optional automatic-month-closing journal is included in encrypted backup and verified recovery; old seven-database archives remain supported."
+    },
+    {
+      "file": "bank-accounts.cjs",
+      "sourceSha256": "9ef985fb74117bc182f3c4c3755eec7a212ed03edb669d4d925cc5407c7d3ff8",
+      "sha256": "a59e46e86f7d6fad19621190bb1adbb4ba9a8ba13a0e4d8bb3a0ceaa5b072862",
+      "reason": "Optional prior-month collection deposits retain the selected calendar month and exact-source residual proof, enforce the old-money cap again at commit, and preserve ordinary historical Bank inputs and atomic recovery."
     }
   ],
   "helpers": [],

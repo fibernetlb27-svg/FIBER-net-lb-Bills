@@ -19,6 +19,19 @@
 .bank-account-amount { font-size:2rem;line-height:1.2;letter-spacing:-.04em;font-weight:800;font-variant-numeric:tabular-nums;margin:21px 0 9px; }
 .bank-account .bank-actions { margin-top:18px; }
 .bank-account .button { padding:11px 14px;font-size:.75rem;min-height:42px; }
+.bank-prior-month { margin:19px 0 0;padding:18px 0 0;border-top:1px solid var(--line); }
+.bank-prior-month h4 { margin:0 0 15px;font-size:.83rem;line-height:1.6;overflow-wrap:anywhere; }
+.bank-prior-balances { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px; }
+.bank-prior-balances>div { display:grid;gap:9px;min-width:0; }
+.bank-prior-balances span,.bank-prior-total>span { color:var(--muted);font-size:.73rem;line-height:1.7; }
+.bank-prior-balances strong { font-size:1.15rem;line-height:1.5;overflow-wrap:anywhere;font-variant-numeric:tabular-nums; }
+.bank-prior-total { display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:16px 0 0;padding-top:13px;border-top:1px solid var(--line); }
+.bank-prior-total strong { font-size:1.23rem;overflow-wrap:anywhere;font-variant-numeric:tabular-nums; }
+.bank-prior-month .bank-actions { align-items:stretch; }
+.bank-prior-month .button { flex:1;white-space:normal;min-height:44px; }
+.bank-prior-limit { margin:22px 0;padding:19px 20px;border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:12px;background:var(--ice); }
+.bank-prior-limit h3 { margin:0 0 8px;font-size:1rem;line-height:1.6;overflow-wrap:anywhere; }
+.bank-prior-limit .bank-note { margin:10px 0; }
 .bank-status,.bank-recovery { margin:18px 0;padding:17px 20px;border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:12px;background:var(--surface);font-size:.84rem;line-height:1.75;overflow-wrap:anywhere; }
 .bank-status.bank-error { border-left-color:var(--danger); }
 .bank-recovery { border-left-color:var(--warning); }

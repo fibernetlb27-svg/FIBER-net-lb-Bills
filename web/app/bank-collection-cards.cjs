@@ -1,56 +1,89 @@
 'use strict';
-// A read-only view of money still held by each business. A month close carries
-// custody forward; it does not create another receivable or another balance.
-// Deposits use the existing reviewed, atomic Bank transfer and its journal.
-const Finance = require('./finance-ledger.cjs');
-const MonthClosing = require('./month-closing.cjs');
-const LIMIT = BigInt(Number.MAX_SAFE_INTEGER);
-function fail() { throw Error('The remaining business money could not be verified. Refresh before depositing to Bank.'); }
-function cents(value) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fail();
-  const amount = Math.round(value * 100);
-  if (!Number.isSafeInteger(amount) || Math.abs(value * 100 - amount) > 1e-6) return fail();
-  return amount;
+// Previous calendar-month custody only. Outflows use old money first. External
+// credits never replenish it; proven internal transfers preserve its ownership.
+const crypto=require('node:crypto'),Finance=require('./finance-ledger.cjs'),Closing=require('./month-closing.cjs');
+const q=Finance.query,LIMIT=BigInt(Number.MAX_SAFE_INTEGER),BASIS='prior_month_collection_custody';
+const hash=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex'),has=(db,name)=>q(db,'SELECT name FROM sqlite_master WHERE name=?',[name]).length>0;
+function fail(){throw Error('Last month’s remaining money could not be verified. No unverified amount can be deposited.');}
+function cents(v){if(typeof v!=='number'||!Number.isFinite(v))return fail();const n=Math.round(v*100);if(!Number.isSafeInteger(n)||Math.abs(v*100-n)>1e-6)return fail();return n;}
+function sum(values){const n=values.reduce((s,v)=>s+BigInt(v),0n);if(n>LIMIT||n< -LIMIT)return fail();return Number(n);}
+function day(v){if(typeof v!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(v)||!Number.isFinite(Date.parse(v+'T12:00:00Z'))||new Date(v+'T12:00:00Z').toISOString().slice(0,10)!==v)return fail();return v;}
+function previousMonth(v){day(v);return new Date(Date.UTC(Number(v.slice(0,4)),Number(v.slice(5,7))-2,1)).toISOString().slice(0,7);}
+const bucket=(owner,method,wallet='')=>JSON.stringify([owner,method,wallet]),ownerKey=v=>typeof v==='string'&&v.trim()?v:'__unassigned__';
+function parse(v){try{return JSON.parse(v);}catch{return fail();}}
+function movementRows(db,users,through){
+ const end=through+'T23:59:59',start=through.slice(0,7)+'-01T00:00:00',movements=[],knownOwners=new Set([...users.values()].map(u=>u.account_key).filter(Boolean));
+ const append=(id,owner,method,walletId,amount,at,table,ordinal,raw)=>{if(typeof at!=='string')return fail();if(at.slice(0,10)<start.slice(0,10)||at.slice(0,10)>through)return;if(!/^20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(at)||!Number.isFinite(Date.parse(at))||!Number.isSafeInteger(ordinal))return fail();if(at<start||at>end)return;owner=knownOwners.has(owner)?ownerKey(owner):'__unassigned__';movements.push({id,accountKey:owner,method,walletId,amount,bucket:bucket(owner,method,walletId),at,table,ordinal,raw});};
+ for(const row of q(db,'SELECT * FROM active_cash_drawer_transactions'))append('cash:'+row.id,users.get(row.user_id)?.account_key,'cash','',cents(row.amount),row.created_at,'cash',row.id,row);
+ const types={sale:['active_sales','created_at'],bill:['active_fibernetlb_bills','paid_at'],telecom:['active_telecom_payments','paid_at'],installation:['installation_payments','paid_at']};
+ for(const [kind,[table,date]]of Object.entries(types))for(const row of q(db,`SELECT p.record_key,p.snapshot_json,u.account_key,b.${date} AS at FROM payment_destinations p JOIN ${table} b ON CAST(b.id AS TEXT)=p.record_key LEFT JOIN users u ON u.id=b.user_id WHERE p.kind=? AND b.payment_method='Whish Money'`,[kind])){const snap=parse(row.snapshot_json);if(snap.id)append('receipt:'+kind+':'+row.record_key,row.account_key,'whish',snap.id,cents(Number(snap.walletAmount??snap.netCollected??0)),row.at,'receipt:'+kind,Number(row.record_key),null);}
+ for(const row of q(db,"SELECT p.record_key,p.snapshot_json,u.account_key,d.received_at AS at,d.kind,d.record_id FROM payment_destinations p JOIN debt_payments d ON d.id=p.record_key LEFT JOIN users u ON u.id=d.user_id WHERE p.kind='debt' AND d.payment_method='Whish Money'")){const type=types[row.kind];if(!type||!q(db,`SELECT id FROM ${type[0]} WHERE id=?`,[row.record_id]).length)continue;const snap=parse(row.snapshot_json);if(snap.id)append('receipt:debt:'+row.record_key,row.account_key,'whish',snap.id,cents(Number(snap.walletAmount??snap.netCollected??0)),row.at,'receipt:debt',Number(row.record_key),null);}
+ const excluded=new Set(has(db,'pos_invoice_void_wallet')?q(db,'SELECT event_id FROM pos_invoice_void_wallet').map(r=>r.event_id):[]);
+ const fee=has(db,'finance_receipt_fee_policy_audit')?new Set(q(db,'SELECT id FROM finance_receipt_fee_policy_audit').map(r=>r.id)):null,activeFee=fee?new Set(q(db,'SELECT id FROM active_whish_fee_migration_audit').map(r=>r.id)):null;
+ const gross=has(db,'finance_whish_gross_restorations')?new Set(q(db,'SELECT id FROM finance_whish_gross_restorations').map(r=>r.id)):null,activeGross=gross?new Set(q(db,'SELECT id FROM active_whish_wallet_gross_audit').map(r=>r.id)):null;
+ for(const row of q(db,'SELECT rowid AS sequence,* FROM finance_wallet_entries')){if(excluded.has(row.id)||fee?.has(row.event_id)&&!activeFee.has(row.event_id)||gross?.has(row.event_id)&&!activeGross.has(row.event_id))continue;if(!Number.isSafeInteger(row.amount_cents))return fail();append('wallet:'+row.id,row.account_key,'whish',row.wallet_id,row.amount_cents,row.effective_at,'wallet',row.sequence,row);}
+ return movements;
 }
-function sum(values) {
-  const amount = values.reduce((total, value) => total + BigInt(value), 0n);
-  if (amount > LIMIT || amount < -LIMIT) return fail();
-  return Number(amount);
+function internalPairs({entries,workspaceId,db,movements,through}){
+ const byId=new Map(movements.map(r=>[r.id,r])),assigned=new Map(),pairs=[],external=new Set();
+ const take=(id,owner,method,wallet,amount,at)=>{const row=byId.get(id);if(!row||row.accountKey!==owner||row.method!==method||row.walletId!==wallet||row.amount!==amount||row.at!==at||assigned.has(id))return fail();return row;};
+ const pair=(id,out,into,proof)=>{if(out.amount>=0||into.amount<=0||into.amount> -out.amount||out.at!==into.at||out.id===into.id)return fail();const group={id,at:out.at,out,into,proof};assigned.set(out.id,group);assigned.set(into.id,group);pairs.push(group);};
+ const cash=(e,key,type,amount)=>{const found=movements.filter(r=>r.method==='cash'&&r.accountKey===key&&r.raw?.transaction_type===type&&r.raw?.reference_type==='finance'&&String(r.raw.note).startsWith(e.id+' · '));if(found.length!==1)return fail();return take(found[0].id,key,'cash','',amount,e.effective_at);};
+ for(const e of has(db,'finance_events')?q(db,'SELECT rowid AS sequence,* FROM finance_events ORDER BY effective_at,rowid'):[]){
+  if(e.effective_at.slice(0,7)!==through.slice(0,7)||e.effective_at>through+'T23:59:59')continue;const input=parse(e.input_json),result=parse(e.result_json),amount=e.amount_cents;if(!Number.isSafeInteger(amount))return fail();if(result.resellerCollection)continue;
+  if(e.kind==='handover'){if(result.fromKey!==e.from_key||result.toKey!==e.to_key||result.id!==e.id||cents(result.amount)!==amount)return fail();pair('finance:'+e.id,cash(e,e.from_key,'handover_out',-amount),cash(e,e.to_key,'handover_in',amount),hash(e));}
+  else if(e.kind==='end_of_day'){if(result.fromKey!==e.from_key||result.toKey!==e.to_key||result.id!==e.id||cents(result.cash)!==amount||!Array.isArray(result.wallets))return fail();if(amount)pair('finance:'+e.id+':cash',cash(e,e.from_key,'end_day_out',-amount),cash(e,e.to_key,'end_day_in',amount),hash(e));for(const w of result.wallets){const n=cents(w.balance);if(n<=0)return fail();pair('finance:'+e.id+':'+w.id,take('wallet:'+e.id+'-'+w.id+'--1',e.from_key,'whish',w.id,-n,e.effective_at),take('wallet:'+e.id+'-'+w.id+'-1',e.to_key,'whish',w.id,n,e.effective_at),hash(e));}}
+  else if(e.kind==='wallet_transfer'){if(input.kind!=='wallet_transfer'||cents(result.amount)!==amount||amount<=0)return fail();pair('finance:'+e.id,take('wallet:'+e.id+'-from',e.from_key,'whish',input.fromWallet,-amount,e.effective_at),take('wallet:'+e.id+'-to',e.from_key,'whish',input.toWallet,amount,e.effective_at),hash(e));}
+  else if(e.kind==='wallet_cashout'){if(input.kind!=='wallet_cashout'||cents(result.amount)!==amount||cents(result.netCash)>amount||cents(result.netCash)<=0)return fail();pair('finance:'+e.id,take('wallet:'+e.id+'-from',e.from_key,'whish',input.fromWallet,-amount,e.effective_at),cash(e,e.to_key,'whish_cashout',cents(result.netCash)),hash(e));}
+ }
+ if(entries.get('main')&&has(entries.get('main').db,'admin_money_transfer_intents')){require('./admin-money-transfers.cjs').custodySummary({entries,workspaceId,through});for(const row of q(entries.get('main').db,"SELECT * FROM admin_money_transfer_intents WHERE state='completed'")){const p=parse(row.plan_json);if(p.createdAt.slice(0,7)!==through.slice(0,7)||p.createdAt>through+'T23:59:59')continue;const legs=q(db,'SELECT * FROM admin_money_transfer_legs WHERE request_id=?',[row.request_id]),kind=p.input.method==='cash'?'cash:':'wallet:';
+  if(p.from.workspaceId!==workspaceId||p.to.workspaceId!==workspaceId){for(const [name,side]of [['out',p.from],['in',p.to]])if(side.workspaceId===workspaceId){const leg=legs.find(r=>r.leg===name);if(!leg)return fail();const movement=take(kind+leg.source_entry_id,side.accountKey,p.input.method,side.walletId,name==='out'?-p.amountCents:p.amountCents,p.createdAt);external.add(movement.id);}continue;}
+  const out=legs.find(r=>r.leg==='out'),into=legs.find(r=>r.leg==='in');if(!out||!into)return fail();pair('admin:'+row.request_id,take(kind+out.source_entry_id,p.from.accountKey,p.input.method,p.from.walletId,-p.amountCents,p.createdAt),take(kind+into.source_entry_id,p.to.accountKey,p.input.method,p.to.walletId,p.amountCents,p.createdAt),row.plan_hash);}}
+ if(workspaceId==='fiber-resellers'&&has(db,'reseller_collections'))for(const row of q(db,"SELECT * FROM reseller_collections WHERE state='completed'")){
+  if(row.source_section!==workspaceId||row.created_at.slice(0,7)!==through.slice(0,7)||row.created_at>through+'T23:59:59')continue;const input=parse(row.input_json),result=parse(row.result_json),id='collection-'+row.request_id;
+  if(result.state!=='completed'||result.resellerCollection!==true||!['Cash','Whish Money'].includes(input.paymentMethod)||!Number.isSafeInteger(row.amount_cents)||!Number.isSafeInteger(row.net_cents)||row.net_cents<=0||row.net_cents>row.amount_cents)return fail();const method=input.paymentMethod==='Cash'?'cash':'whish',target=input.collectionRouteVersion===2?'whish':'cash',events=q(db,'SELECT * FROM finance_events WHERE id=?',[row.request_id]),expectedKind=target==='whish'?'wallet_transfer':method==='whish'?'wallet_cashout':'reseller_bill_collection';
+  if(events.length!==1||events[0].kind!==expectedKind||events[0].from_key!==row.source_key||events[0].to_key!==row.receiver_key||events[0].amount_cents!==row.amount_cents||events[0].effective_at!==row.created_at||events[0].created_at!==row.created_at||events[0].input_json!==row.input_json||events[0].result_json!==row.result_json)return fail();
+  const leg=(phase,key,kind,wallet,amount)=>{const journal=q(db,'SELECT * FROM reseller_money_journal WHERE id=?',[id+'-'+phase]),details={accountKey:key,value:amount,method:kind==='cash'?'Cash':'Whish Money',walletId:wallet,note:input.note};if(journal.length!==1||journal[0].state!=='complete'||journal[0].account_key!==key||journal[0].amount_cents!==amount||journal[0].payment_method!==details.method||journal[0].wallet_id!==wallet||journal[0].recorded_at!==row.created_at||journal[0].details_json!==JSON.stringify(details))return fail();if(kind==='whish'){const found=take('wallet:'+id+'-'+phase,key,kind,wallet,amount,row.created_at);if(found.raw.event_id!==id)return fail();return found;}const matches=movements.filter(r=>r.method==='cash'&&r.accountKey===key&&r.raw.transaction_type==='reseller_funding'&&r.raw.reference_type==='finance'&&r.raw.note===id+'-'+phase+' · '+input.note);if(matches.length!==1)return fail();return take(matches[0].id,key,kind,wallet,amount,row.created_at);};
+  pair('reseller:'+row.request_id,leg('reserve',row.source_key,method,method==='cash'?'':row.source_wallet,-row.amount_cents),leg('collection-credit',row.receiver_key,target,target==='cash'?'':input.targetWallet,row.net_cents),hash(row));
+ }
+ const knownCashTransfers=new Set(['handover_out','handover_in','end_day_out','end_day_in','whish_cashout','admin_transfer_out','admin_transfer_in']);for(const move of movements)if(move.method==='cash'&&knownCashTransfers.has(move.raw.transaction_type)&&!assigned.has(move.id)&&!external.has(move.id))return fail();
+ return {pairs,assigned};
 }
-function overview(bank, input = {}) {
-  if (!input || typeof input !== 'object' || Array.isArray(input) || ![Object.prototype, null].includes(Object.getPrototypeOf(input)) || Reflect.ownKeys(input).some(key => key !== 'workspaceId')) throw Error('Choose a valid business collection scope.');
-  bank.ctx();
-  const selected = input.workspaceId ?? 'all';
-  if (selected !== 'all') bank.section(selected);
-  bank.assertIdle();
-  const businesses = [];
-  let asOf = null;
-  for (const section of bank.sections.filter(row => selected === 'all' || row.id === selected)) {
-    bank.ready(section.id);
-    const source = bank.sources({workspaceId:section.id}), custody = source.businessBalances;
-    if (!custody || custody.basis !== 'business_custody' || custody.scope !== 'all_holders' || custody.workspaceId !== section.id || !Array.isArray(custody.wallets) || !/^20\d{2}-\d{2}-\d{2}$/.test(custody.asOf)) return fail();
-    if (asOf !== null && asOf !== custody.asOf) throw Error('The business balance date changed. Refresh the collection cards.');
-    asOf = custody.asOf;
-    const cash = cents(custody.cash), whish = cents(custody.whish);
-    if (sum(custody.wallets.map(row => cents(row.balance))) !== whish) return fail();
-    // All-holder custody is displayed even when some money is still held by
-    // Support. It never widens the Admin/Cashier sources accepted by Bank.
-    const permittedCash = sum(source.holders.map(row => Math.max(0, cents(row.cashBalance))));
-    const permittedWhish = sum(source.holders.flatMap(row => row.wallets.filter(wallet => wallet.active).map(wallet => Math.max(0, cents(wallet.balance)))));
-    const latest = Finance.months(bank.entries.get(section.id).db)[0] ?? null;
-    if (latest) MonthClosing.verifyArchive({db:bank.entries.get(section.id).db, workspaceId:section.id, month:latest.month});
-    businesses.push({
-      workspaceId:section.id, workspaceName:source.workspaceName,
-      cash:cash / 100, whish:whish / 100, total:sum([cash, whish]) / 100,
-      bankBalance:cents(source.bankBalance) / 100,
-      lastClosedMonth:latest?.month ?? null, closedAt:latest?.closedAt ?? null,
-      availableToDeposit:{cash:permittedCash / 100, whish:permittedWhish / 100, total:sum([permittedCash, permittedWhish]) / 100}
-    });
-  }
-  return {
-    basis:'business_collection_custody', scope:selected, asOf, businesses,
-    totals:Object.fromEntries(['cash', 'whish', 'total', 'bankBalance'].map(key => [key, sum(businesses.map(row => cents(row[key]))) / 100])),
-    currentHoldings:true, includesCarriedMoney:true, separateReceivable:false
-  };
+function replay(movements,pairs,assigned,initial,reversals=[]){
+ const nodes=new Map(),movementNode=new Map();for(const p of pairs){nodes.set(p.id,{...p,edges:new Set(),indegree:0});movementNode.set(p.out.id,p.id);movementNode.set(p.into.id,p.id);}for(const m of movements)if(!assigned.has(m.id)){const id='single:'+m.id;nodes.set(id,{id,at:m.at,single:m,edges:new Set(),indegree:0});movementNode.set(m.id,id);}
+ const byBucket=new Map();for(const m of movements){if(!byBucket.has(m.bucket))byBucket.set(m.bucket,[]);byBucket.get(m.bucket).push(m);}const link=(a,b)=>{if(a===b)return;const from=nodes.get(a),to=nodes.get(b);if(!from||!to)return fail();if(!from.edges.has(b)){from.edges.add(b);to.indegree++;}};
+ const reversed=new Set();for(const value of reversals){if(reversed.has(value.debitId)||!movementNode.has(value.debitId)||!movementNode.has(value.creditId))return fail();const credit=nodes.get(movementNode.get(value.creditId));if(!credit.single||credit.single.amount<=0||credit.reversal||credit.at!==value.at)return fail();credit.reversal=value;reversed.add(value.debitId);link(movementNode.get(value.debitId),credit.id);}
+ for(const rows of byBucket.values()){rows.sort((a,b)=>a.at.localeCompare(b.at)||a.table.localeCompare(b.table)||a.ordinal-b.ordinal);for(let i=0;i<rows.length;i++)for(let j=i+1;j<rows.length&&rows[j].at===rows[i].at;j++)if(rows[i].table!==rows[j].table&&(assigned.has(rows[i].id)||assigned.has(rows[j].id))&&rows[i].amount<0&&rows[j].amount<0)return fail();for(let i=1;i<rows.length;i++)link(movementNode.get(rows[i-1].id),movementNode.get(rows[i].id));}
+ const old=new Map([...initial].map(([key,v])=>[key,Math.max(0,v)])),consumed=new Map(),done=[],ready=[...nodes.values()].filter(n=>!n.indegree),consume=m=>{const n=Math.min(old.get(m.bucket)||0,-m.amount);old.set(m.bucket,(old.get(m.bucket)||0)-n);consumed.set(m.id,n);return n;};
+ while(ready.length){ready.sort((a,b)=>a.at.localeCompare(b.at)||a.id.localeCompare(b.id));const node=ready.shift();done.push(node.id);if(node.single){if(node.reversal){if(!consumed.has(node.reversal.debitId))return fail();old.set(node.single.bucket,sum([old.get(node.single.bucket)||0,Math.min(node.single.amount,consumed.get(node.reversal.debitId))]));}else if(node.single.amount<0)consume(node.single);}else{const used=consume(node.out),lost=-node.out.amount-node.into.amount,moved=Math.max(0,used-lost);old.set(node.into.bucket,sum([old.get(node.into.bucket)||0,moved]));}for(const id of node.edges){const n=nodes.get(id);n.indegree--;if(!n.indegree)ready.push(n);}}
+ if(done.length!==nodes.size)return fail();return old;
 }
-module.exports = {overview};
+function projection({entries,workspaceId,through,destinations=[]}={}){
+ day(through);const month=previousMonth(through),db=entries?.get(workspaceId)?.db;if(!db)return fail();const empty={basis:BASIS,workspaceId,month,asOf:through,available:false,state:'no_archive',reason:'The previous calendar month has no verified closed ledger.',cash:0,whish:0,total:0,opening:{cash:0,whish:0,total:0},sources:[]};const row=has(db,'finance_months')?q(db,'SELECT * FROM finance_months WHERE month=?',[month])[0]:null;if(!row)return {...empty,proofHash:hash(empty)};
+ const archive=Closing.verifyArchive({db,workspaceId,month});if(!archive){const value={...empty,state:'legacy_zero',reason:'This older close reset custody; no carried prior-month amount is eligible.'};return {...value,proofHash:hash(value)};}
+ const end=Finance.monthRange(month).end,usersList=q(db,'SELECT id,account_key,full_name FROM users'),users=new Map(usersList.map(u=>[u.id,u]));if(new Set(usersList.map(u=>u.account_key).filter(Boolean)).size!==usersList.filter(u=>u.account_key).length)return fail();const initial=new Map(),owners=new Map(usersList.filter(u=>u.account_key).map(u=>[u.account_key,u.full_name])),actualCurrent=new Map();owners.set('__unassigned__','Unassigned historical money');
+ const walletMap=wallets=>{if(!Array.isArray(wallets))return fail();const found=new Map();for(const w of wallets){if(typeof w.id!=='string'||!w.id||found.has(w.id))return fail();found.set(w.id,cents(w.balance));}return found;};
+ const allWallets=walletMap(archive.all.closing.wallets),historicalAll=walletMap(Finance.walletBalances(db,destinations,null,end));if(cents(archive.all.closing.cash)!==cents(Finance.drawerBalance(db,null,end)))return fail();for(const id of new Set([...allWallets.keys(),...historicalAll.keys()]))if((allWallets.get(id)||0)!==(historicalAll.get(id)||0))return fail();let ownedCash=0;const ownedWallets=new Map();
+ for(const u of usersList.filter(u=>u.account_key)){
+  const historicCash=cents(Finance.drawerBalance(db,u.id,end)),historic=walletMap(Finance.walletBalances(db,destinations,u.account_key,end));let saved=archive.employees[u.account_key]?.closing;
+  // A new staff account has no archived employee snapshot. Accept it only
+  // when its independently verified pre-month custody is exactly zero.
+  if(!saved){if(historicCash||[...historic.values()].some(v=>v))return fail();saved={mode:'carry_forward',cash:0,wallets:[]};}
+  const savedWallets=walletMap(saved.wallets);if(saved.mode!=='carry_forward'||cents(saved.cash)!==historicCash)return fail();for(const id of new Set([...savedWallets.keys(),...historic.keys()]))if((savedWallets.get(id)||0)!==(historic.get(id)||0))return fail();initial.set(bucket(u.account_key,'cash'),historicCash);ownedCash=sum([ownedCash,historicCash]);for(const [id,v]of savedWallets){initial.set(bucket(u.account_key,'whish',id),v);ownedWallets.set(id,sum([ownedWallets.get(id)||0,v]));}
+ }
+ initial.set(bucket('__unassigned__','cash'),sum([cents(archive.all.closing.cash),-ownedCash]));for(const [id,v]of allWallets)initial.set(bucket('__unassigned__','whish',id),sum([v,-(ownedWallets.get(id)||0)]));
+ // Negative historical sources cannot be clamped away to manufacture a
+ // positive cohort greater than the signed, proven business opening.
+ if([...initial.values()].some(v=>v<0)){const value={...empty,state:'negative_opening',reason:'The prior-month opening contains a negative source. Admin reconciliation is required before identifying remaining prior-month money.'};return {...value,proofHash:hash({value,archive:hash(row.archive_json)})};}
+ const movements=movementRows(db,users,through),internal=internalPairs({entries,workspaceId,db,movements,through}),reversals=require('./prior-month-reversal-proof.cjs').pairs({entries,workspaceId,through,movements}),old=replay(movements,internal.pairs,internal.assigned,initial,reversals);
+ const reconstructed=new Map(initial);for(const m of movements)reconstructed.set(m.bucket,sum([reconstructed.get(m.bucket)||0,m.amount]));for(const u of usersList.filter(u=>u.account_key)){actualCurrent.set(bucket(u.account_key,'cash'),cents(Finance.drawerBalance(db,u.id,through)));for(const w of Finance.walletBalances(db,destinations,u.account_key,through))actualCurrent.set(bucket(u.account_key,'whish',w.id),cents(w.balance));}
+ const currentAllCash=cents(Finance.drawerBalance(db,null,through)),currentAllWallets=walletMap(Finance.walletBalances(db,destinations,null,through));actualCurrent.set(bucket('__unassigned__','cash'),sum([currentAllCash,-sum([...actualCurrent].filter(([key])=>JSON.parse(key)[1]==='cash').map(([,v])=>v))]));for(const [id,v]of currentAllWallets)actualCurrent.set(bucket('__unassigned__','whish',id),sum([v,-sum([...actualCurrent].filter(([key])=>{const [owner,method,wallet]=JSON.parse(key);return owner!=='__unassigned__'&&method==='whish'&&wallet===id;}).map(([,n])=>n))]));for(const key of new Set([...reconstructed.keys(),...actualCurrent.keys()]))if((reconstructed.get(key)||0)!==(actualCurrent.get(key)||0))return fail();
+ const sources=[];for(const [key,v]of old){if(v<0||v>Math.max(0,actualCurrent.get(key)||0))return fail();if(!v)continue;const [holderAccountKey,method,walletId]=JSON.parse(key);sources.push({holderAccountKey,holderName:owners.get(holderAccountKey)||'Historical money holder',method,walletId,remaining:v/100});}sources.sort((a,b)=>JSON.stringify([a.holderAccountKey,a.method,a.walletId]).localeCompare(JSON.stringify([b.holderAccountKey,b.method,b.walletId])));
+ const cash=sum(sources.filter(r=>r.method==='cash').map(r=>cents(r.remaining)))/100,whish=sum(sources.filter(r=>r.method==='whish').map(r=>cents(r.remaining)))/100,openingCash=sum([...initial].filter(([key])=>JSON.parse(key)[1]==='cash').map(([,v])=>Math.max(0,v)))/100,openingWhish=sum([...initial].filter(([key])=>JSON.parse(key)[1]==='whish').map(([,v])=>Math.max(0,v)))/100;
+ const output={...empty,available:true,state:'ready',reason:'Prior-month money remaining after old-first spending, proven internal transfers and exact payment reversals; new receipts and Bank returns are excluded.',cash,whish,total:sum([cents(cash),cents(whish)])/100,opening:{cash:openingCash,whish:openingWhish,total:sum([cents(openingCash),cents(openingWhish)])/100},sources};return {...output,proofHash:hash({output,archive:hash(row.archive_json),movements:movements.map(({raw,...m})=>m),transfers:internal.pairs.map(p=>({id:p.id,proof:p.proof,out:p.out.id,into:p.into.id})),reversals})};
+}
+function sourceLimit(options){const value=projection(options);if(!value.available||options.month!==value.month)throw Error('Choose the verified previous calendar month before depositing its remaining money.');const source=value.sources.find(r=>r.holderAccountKey===options.holderAccountKey&&r.method===options.method&&r.walletId===(options.walletId||''));return {month:value.month,remaining:source?.remaining||0,proofHash:value.proofHash};}
+function overview(bank,input={}){if(!input||typeof input!=='object'||Array.isArray(input)||![Object.prototype,null].includes(Object.getPrototypeOf(input))||Reflect.ownKeys(input).some(key=>key!=='workspaceId'))throw Error('Choose a valid business collection scope.');bank.ctx();const scope=input.workspaceId??'all';if(scope!=='all')bank.section(scope);bank.assertIdle();const businesses=[];let asOf=null;
+ for(const section of bank.sections.filter(r=>scope==='all'||r.id===scope)){bank.ready(section.id);const sources=bank.sources({workspaceId:section.id}),today=sources.businessBalances.asOf;if(asOf&&asOf!==today)return fail();asOf=today;const value=projection({entries:bank.entries,workspaceId:section.id,through:today,destinations:bank.wallets()}),eligible=value.sources.filter(r=>sources.holders.some(h=>h.accountKey===r.holderAccountKey&&(r.method==='cash'||h.wallets.some(w=>w.id===r.walletId&&w.active))));const cash=sum(eligible.filter(r=>r.method==='cash').map(r=>cents(r.remaining)))/100,whish=sum(eligible.filter(r=>r.method==='whish').map(r=>cents(r.remaining)))/100;businesses.push({...value,workspaceName:sources.workspaceName,bankBalance:sources.bankBalance,availableToDeposit:{cash,whish,total:sum([cents(cash),cents(whish)])/100}});}
+ return {basis:BASIS,scope,month:asOf?previousMonth(asOf):null,asOf,businesses,totals:Object.fromEntries(['cash','whish','total','bankBalance'].map(key=>[key,sum(businesses.map(r=>cents(r[key])))/100])),currentHoldings:false,includesCarriedMoney:true,separateReceivable:false};}
+module.exports={overview,projection,sourceLimit,previousMonth};

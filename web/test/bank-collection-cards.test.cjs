@@ -1,125 +1,103 @@
 'use strict';
-const test = require('node:test'), assert = require('node:assert/strict');
-const Finance = require('../app/finance-ledger.cjs'), Whish = require('../app/whish-destinations.cjs');
-const Bank = require('../app/bank-accounts.cjs'), Cards = require('../app/bank-collection-cards.cjs');
-const sql = require('sql.js')(), q = Finance.query;
-async function fixture(t) {
-  const SQL = await sql, ids = ['main', 'fiber-users', 'fiber-resellers'];
-  const entries = new Map(ids.map(id => [id, {id, db:new SQL.Database()}]));
-  t.after(() => { for (const entry of entries.values()) entry.db.close(); });
-  for (const entry of entries.values()) {
-    entry.db.exec(`CREATE TABLE users(id INTEGER PRIMARY KEY,account_key TEXT,full_name TEXT,role TEXT,active INTEGER);
-      INSERT INTO users VALUES(1,'admin:1','Fictional Admin','admin',1),(2,'cashier:2','Fictional Cashier','cashier',1),(3,'support:3','Fictional Support','support',1);
-      CREATE TABLE finance_months(month TEXT PRIMARY KEY,closed_at TEXT,actor_name TEXT,actor_key TEXT,archive_json TEXT);
-      CREATE TABLE finance_wallet_entries(id TEXT PRIMARY KEY,event_id TEXT,wallet_id TEXT,account_key TEXT,amount_cents INTEGER,effective_at TEXT);
-      CREATE TABLE cash_drawer_transactions(id INTEGER PRIMARY KEY,amount REAL,transaction_type TEXT,reference_type TEXT,reference_id INTEGER,note TEXT,created_at TEXT,user_id INTEGER,user_name TEXT);
-      CREATE VIEW active_cash_drawer_transactions AS SELECT * FROM cash_drawer_transactions;
-      CREATE TABLE payment_destinations(kind TEXT,record_key TEXT,snapshot_json TEXT);
-      CREATE TABLE debt_payments(id INTEGER,kind TEXT,record_id INTEGER,payment_method TEXT,user_id INTEGER,received_at TEXT);
-      CREATE TABLE sales(id INTEGER PRIMARY KEY,user_id INTEGER,created_at TEXT,payment_method TEXT);
-      CREATE VIEW active_sales AS SELECT * FROM sales;
-      CREATE TABLE fibernetlb_bills(id INTEGER PRIMARY KEY,user_id INTEGER,paid_at TEXT,payment_method TEXT);
-      CREATE VIEW active_fibernetlb_bills AS SELECT * FROM fibernetlb_bills;
-      CREATE TABLE telecom_payments(id INTEGER PRIMARY KEY,user_id INTEGER,paid_at TEXT,payment_method TEXT);
-      CREATE VIEW active_telecom_payments AS SELECT * FROM telecom_payments;
-      CREATE TABLE installation_payments(id INTEGER PRIMARY KEY,user_id INTEGER,paid_at TEXT,payment_method TEXT);`);
-    Whish.initializeWhish(entry.db); Bank.initialize(entry.db);
-    for (const [id, key, cash, wallet] of [[1, 'admin:1', 300, 100], [2, 'cashier:2', 200, 50], [3, 'support:3', 75, 25]]) {
-      entry.db.run('INSERT INTO cash_drawer_transactions(amount,transaction_type,created_at,user_id,user_name) VALUES(?,?,?,?,?)', [cash, 'fictional-opening', '2026-10-30T12:00:00', id, key]);
-      entry.db.run('INSERT INTO finance_wallet_entries VALUES(?,?,?,?,?,?)', ['opening-' + key, 'fictional', 'wallet-a', key, wallet * 100, '2026-10-30T12:00:00']);
-    }
-  }
-  const db = id => entries.get(id).db;
-  Whish.saveDestination(db('main'), {label:'Fictional wallet', number:'03000001', active:true});
-  db('main').run("UPDATE whish_destinations SET id='wallet-a'");
-  let key = 'admin:1', blocked = false, at = '2026-11-01T12:00:00', failSave = false;
-  const actor = () => q(db('main'), 'SELECT * FROM users WHERE account_key=?', [key])[0];
-  const bank = new Bank.BankAccounts({entries, authorize:() => actor(), holders:id => q(db(id), 'SELECT * FROM users'), now:() => at,
-    assertReady() { if (blocked) throw Error('Fictional pending money operation'); },
-    saveEntry:async() => { if (failSave) throw Error('Fictional interrupted save'); }});
-  const base = extra => ({workspaceId:'fiber-users', holderAccountKey:'cashier:2', method:'cash', walletId:'', direction:'deposit', amount:80, note:'Fictional month savings', ...extra});
-  const transfer = (id, extra = {}) => { const input = base(extra); return bank.transfer({...input, requestId:id, token:bank.preview(input).token, confirmation:'TRANSFER BANK'}); };
-  return {bank, db, entries, transfer, set key(value) { key = value; }, set blocked(value) { blocked = value; }, set at(value) { at = value; }, set failSave(value) { failSave = value; }};
+const test=require('node:test'),assert=require('node:assert/strict');
+const Finance=require('../app/finance-ledger.cjs'),Whish=require('../app/whish-destinations.cjs'),Bank=require('../app/bank-accounts.cjs'),Closing=require('../app/month-closing.cjs'),Admin=require('../app/admin-money-transfers.cjs'),Cards=require('../app/bank-collection-cards.cjs');
+const sql=require('sql.js')(),q=Finance.query;
+async function fixture(t,{close=true}={}){
+ const SQL=await sql,ids=['main','fiber-users','fiber-resellers'],entries=new Map(ids.map(id=>[id,{id,db:new SQL.Database()}]));t.after(()=>{for(const entry of entries.values())entry.db.close();});
+ for(const [id,entry]of entries){entry.db.exec(`CREATE TABLE users(id INTEGER PRIMARY KEY,account_key TEXT,full_name TEXT,role TEXT,active INTEGER);
+ INSERT INTO users VALUES(1,'admin:1','Fictional Admin','admin',1),(2,'cashier:2','Fictional Cashier','cashier',1),(3,'support:3','Fictional Support','support',1);
+ CREATE TABLE finance_months(month TEXT PRIMARY KEY,closed_at TEXT,actor_key TEXT,actor_name TEXT,backup_path TEXT,archive_json TEXT);
+ CREATE TABLE finance_events(id TEXT PRIMARY KEY,kind TEXT,created_at TEXT,effective_at TEXT,actor_key TEXT,from_key TEXT,to_key TEXT,amount_cents INTEGER,note TEXT,input_json TEXT,result_json TEXT);
+ CREATE TABLE finance_wallet_entries(id TEXT PRIMARY KEY,event_id TEXT,wallet_id TEXT,account_key TEXT,amount_cents INTEGER,effective_at TEXT);
+ CREATE TABLE cash_drawer_transactions(id INTEGER PRIMARY KEY,amount REAL,transaction_type TEXT,reference_type TEXT,reference_id INTEGER,note TEXT,created_at TEXT,user_id INTEGER,user_name TEXT);
+ CREATE VIEW active_cash_drawer_transactions AS SELECT * FROM cash_drawer_transactions;
+ CREATE TABLE payment_destinations(kind TEXT,record_key TEXT,snapshot_json TEXT);
+ CREATE TABLE debt_payments(id INTEGER,kind TEXT,record_id INTEGER,payment_method TEXT,user_id INTEGER,received_at TEXT);
+ CREATE TABLE sales(id INTEGER PRIMARY KEY,user_id INTEGER,created_at TEXT,payment_method TEXT);CREATE VIEW active_sales AS SELECT * FROM sales;
+ CREATE TABLE fibernetlb_bills(id INTEGER PRIMARY KEY,user_id INTEGER,paid_at TEXT,payment_method TEXT);CREATE VIEW active_fibernetlb_bills AS SELECT * FROM fibernetlb_bills;
+ CREATE TABLE telecom_payments(id INTEGER PRIMARY KEY,user_id INTEGER,paid_at TEXT,payment_method TEXT);CREATE VIEW active_telecom_payments AS SELECT * FROM telecom_payments;
+ CREATE TABLE installation_payments(id INTEGER PRIMARY KEY,user_id INTEGER,paid_at TEXT,payment_method TEXT);`);
+ Whish.initializeWhish(entry.db);Bank.initialize(entry.db);Closing.initialize(entry.db);Admin.initialize(entry.db,{main:id==='main'});
+ for(const [user,key,cash,wallet]of [[1,'admin:1',300,100],[2,'cashier:2',200,50],[3,'support:3',75,25]]){entry.db.run('INSERT INTO cash_drawer_transactions(amount,transaction_type,created_at,user_id,user_name) VALUES(?,?,?,?,?)',[cash,'fictional-opening','2026-10-30T12:00:00',user,key]);entry.db.run('INSERT INTO finance_wallet_entries VALUES(?,?,?,?,?,?)',['opening-'+key,'fictional','wallet-a',key,wallet*100,'2026-10-30T12:00:00']);}}
+ const db=id=>entries.get(id).db;for(const [wallet,label]of [['wallet-a','Fictional A'],['wallet-b','Fictional B']]){Whish.saveDestination(db('main'),{label,number:wallet==='wallet-a'?'03000001':'03000002',active:true});db('main').run('UPDATE whish_destinations SET id=? WHERE label=?',[wallet,label]);}
+ let key='admin:1',blocked=false,at='2026-11-02T12:00:00',failSave=false;
+ const actor=()=>q(db('main'),'SELECT * FROM users WHERE account_key=?',[key])[0],context={entries,authorize:()=>actor(),holders:id=>q(db(id),'SELECT * FROM users'),now:()=>at,assertReady(){if(blocked)throw Error('Fictional pending money operation');},saveEntry:async()=>{if(failSave)throw Error('Fictional interrupted save');}};
+ const bank=new Bank.BankAccounts(context),closer=new Closing.MonthClosing({...context,backup:()=>'/fictional/verified-backup',snapshot:id=>({all:{report:{revenue:0},daily:[]},employees:Object.fromEntries(q(db(id),'SELECT account_key FROM users').map(u=>[u.account_key,{report:{revenue:0},daily:[]}]))})}),admin=new Admin.AdminMoneyTransfers(context);
+ async function closeMonth(id,month='2026-10',allocations=[]){const base={workspaceId:id,month,allocations},review=closer.preview(base);return closer.close({...base,requestId:'fictional-close-'+id+'-'+month,token:review.token,confirmation:'CLOSE '+month});}
+ if(close)for(const id of ids)await closeMonth(id);
+ const base=extra=>({workspaceId:'fiber-users',holderAccountKey:'cashier:2',method:'cash',walletId:'',direction:'deposit',amount:80,note:'Fictional month savings',...extra});
+ const bankInput=(id,extra={})=>{const input=base(extra);return {...input,requestId:id,token:bank.preview(input).token,confirmation:'TRANSFER BANK'};},transfer=(id,extra={})=>bank.transfer(bankInput(id,extra));
+ const cash=(value,owner=1,section='fiber-users',stamp=at)=>db(section).run("INSERT INTO cash_drawer_transactions(amount,transaction_type,created_at,user_id,user_name) VALUES(?,'fictional-change',?,?,?)",[value,stamp,owner,'Fictional source']);
+ const wallet=(id,value,owner='admin:1',section='fiber-users',walletId='wallet-a',stamp=at)=>db(section).run('INSERT INTO finance_wallet_entries VALUES(?,?,?,?,?,?)',[id,'fictional-change',walletId,owner,value*100,stamp]);
+ const row=(section='fiber-users')=>Cards.overview(bank,{workspaceId:section}).businesses[0];
+ return {bank,db,entries,context,closer,admin,closeMonth,base,bankInput,transfer,cash,wallet,row,set key(v){key=v;},set blocked(v){blocked=v;},set at(v){at=v;},set failSave(v){failSave=v;}};
 }
-test('collection cards display each business once and preserve signed all-holder custody without writing', async t => {
-  const f = await fixture(t), before = new Map([...f.entries].map(([id, row]) => [id, Buffer.from(row.db.export())]));
-  const shown = Cards.overview(f.bank);
-  assert.equal(shown.basis, 'business_collection_custody'); assert.equal(shown.scope, 'all'); assert.equal(shown.asOf, '2026-11-01');
-  assert.equal(shown.businesses.length, 3); assert.equal(shown.totals.total, 2250); assert.equal(shown.separateReceivable, false);
-  const users = shown.businesses.find(row => row.workspaceId === 'fiber-users'), resellers = shown.businesses.find(row => row.workspaceId === 'fiber-resellers');
-  assert.deepEqual([users.cash, users.whish, users.total], [575, 175, 750]);
-  assert.deepEqual(users.availableToDeposit, {cash:500, whish:150, total:650});
-  assert.deepEqual(resellers.availableToDeposit, {cash:300, whish:100, total:400});
-  for (const [id, entry] of f.entries) assert.ok(Buffer.from(entry.db.export()).equals(before.get(id)), 'Read-only cards changed a database');
+test('only verified previous calendar-month custody appears and new cash/Whish receipts cannot increase it',async t=>{
+ const f=await fixture(t);f.cash(1000);f.wallet('new-wallet-receipt',700);f.db('fiber-users').run("INSERT INTO sales VALUES(1,2,'2026-11-02T10:00:00','Whish Money')");f.db('fiber-users').run('INSERT INTO payment_destinations VALUES(?,?,?)',['sale','1',JSON.stringify({id:'wallet-a',walletAmount:300})]);
+ const before=new Map([...f.entries].map(([id,e])=>[id,Buffer.from(e.db.export())])),shown=Cards.overview(f.bank),row=f.row();
+ assert.equal(shown.basis,'prior_month_collection_custody');assert.equal(shown.month,'2026-10');assert.equal(shown.currentHoldings,false);assert.equal(shown.businesses.length,3);assert.equal(shown.separateReceivable,false);assert.deepEqual([row.cash,row.whish,row.total],[575,175,750]);assert.deepEqual(row.availableToDeposit,{cash:500,whish:150,total:650});assert.equal(row.opening.total,750);assert.match(row.proofHash,/^[a-f0-9]{64}$/);
+ for(const [id,e]of f.entries)assert.ok(Buffer.from(e.db.export()).equals(before.get(id)),'Projection changed a database');
 });
-test('partial cash and Whish deposits reduce the card remainder and increase only that business Bank', async t => {
-  const f = await fixture(t);
-  await f.transfer('card-cash-partial');
-  let row = Cards.overview(f.bank, {workspaceId:'fiber-users'}).businesses[0];
-  assert.deepEqual([row.cash, row.whish, row.total, row.bankBalance], [495, 175, 670, 80]);
-  await f.transfer('card-whish-partial', {method:'whish', walletId:'wallet-a', amount:20});
-  row = Cards.overview(f.bank, {workspaceId:'fiber-users'}).businesses[0];
-  assert.deepEqual([row.cash, row.whish, row.total, row.bankBalance], [495, 155, 650, 100]);
-  assert.equal(Cards.overview(f.bank, {workspaceId:'fiber-resellers'}).businesses[0].total, 750);
-  assert.equal(q(f.db('fiber-users'), 'SELECT * FROM sales').length, 0);
-  const history = f.bank.overview({workspaceId:'fiber-users'}).history;
-  assert.ok(history.every(row => row.noProfitChange && row.noRevenue && row.noExpense && row.noWhishFee));
+test('partial cash/Whish Bank deposits subtract the old pool once and source caps exclude new receipts',async t=>{
+ const f=await fixture(t);f.cash(1000,2);const input=f.bankInput('old-partial-bank',{collectionMonth:'2026-10'});await f.bank.transfer(input);await f.bank.transfer(input);assert.deepEqual([f.row().cash,f.row().whish,f.row().total,f.row().bankBalance],[495,175,670,80]);
+ await f.transfer('old-whish-bank',{method:'whish',walletId:'wallet-a',amount:20,collectionMonth:'2026-10'});assert.deepEqual([f.row().cash,f.row().whish,f.row().total],[495,155,650]);assert.equal(f.row('fiber-resellers').total,750);
+ const cap=Cards.sourceLimit({entries:f.entries,workspaceId:'fiber-users',through:'2026-11-02',destinations:f.bank.wallets(),holderAccountKey:'cashier:2',method:'cash',walletId:'',month:'2026-10'});assert.equal(cap.remaining,120);assert.throws(()=>f.bank.preview(f.base({amount:120.01,collectionMonth:'2026-10'})),/last month|Last month|remaining/i);
 });
-test('carried money is current custody rather than repeated monthly debt and a Bank return restores the remainder', async t => {
-  const f = await fixture(t), db = f.db('fiber-users');
-  const archive = {all:{closing:{cash:575, wallets:[{id:'wallet-a', balance:175}]}}, employees:{}};
-  db.run('INSERT INTO finance_months VALUES(?,?,?,?,?)', ['2026-10', '2026-11-01T00:00:01', 'Fictional Admin', 'admin:1', JSON.stringify(archive)]);
-  await f.transfer('carried-deposit-test', {amount:100});
-  assert.equal(Cards.overview(f.bank, {workspaceId:'fiber-users'}).businesses[0].total, 650);
-  f.at = '2026-12-01T12:00:00';
-  db.run('INSERT INTO finance_months VALUES(?,?,?,?,?)', ['2026-11', '2026-12-01T00:00:01', 'Fictional Admin', 'admin:1', JSON.stringify(archive)]);
-  let row = Cards.overview(f.bank, {workspaceId:'fiber-users'}).businesses[0];
-  assert.equal(row.total, 650); assert.equal(row.lastClosedMonth, '2026-11');
-  await f.transfer('carried-return-test', {direction:'withdraw', amount:40});
-  row = Cards.overview(f.bank, {workspaceId:'fiber-users'}).businesses[0];
-  assert.equal(row.total, 690); assert.equal(row.bankBalance, 60);
+test('expenses consume oldest money first and neither new receipts nor Bank returns replenish it',async t=>{
+ const f=await fixture(t);f.cash(-280);f.cash(1000);assert.equal(f.row().sources.find(r=>r.holderAccountKey==='admin:1'&&r.method==='cash').remaining,20);await f.transfer('normal-deposit-oldfirst',{holderAccountKey:'admin:1',amount:15});assert.equal(f.row().sources.find(r=>r.holderAccountKey==='admin:1'&&r.method==='cash').remaining,5);await f.transfer('normal-return-is-new',{holderAccountKey:'admin:1',amount:10,direction:'withdraw'});assert.equal(f.row().sources.find(r=>r.holderAccountKey==='admin:1'&&r.method==='cash').remaining,5);f.cash(-20);f.cash(999);assert.equal(f.row().sources.some(r=>r.holderAccountKey==='admin:1'&&r.method==='cash'),false);
 });
-test('negative historical balances stay visible and inactive wallets cannot inflate available deposits', async t => {
-  const f = await fixture(t), db = f.db('fiber-users');
-  db.run("INSERT INTO cash_drawer_transactions(amount,transaction_type,created_at,user_id,user_name) VALUES(-350,'fictional-correction','2026-11-01T10:00:00',1,'Fictional Admin')");
-  f.db('main').run("UPDATE whish_destinations SET active=0 WHERE id='wallet-a'");
-  const row = Cards.overview(f.bank, {workspaceId:'fiber-users'}).businesses[0];
-  assert.equal(row.cash, 225); assert.equal(row.whish, 175); assert.equal(row.total, 400);
-  assert.deepEqual(row.availableToDeposit, {cash:200, whish:0, total:200});
-  assert.throws(() => f.bank.preview({workspaceId:'fiber-users', holderAccountKey:'support:3', method:'cash', direction:'deposit', amount:10}), /active Cashier/);
+test('same-business handovers, wallet transfers and wallet cash-out retain old provenance in the exact receiving source',async t=>{
+ const f=await fixture(t),db=f.db('fiber-users'),from=q(db,'SELECT * FROM users WHERE id=2')[0],to=q(db,'SELECT * FROM users WHERE id=3')[0];
+ const review=Finance.handoverPreview(db,from,to,100);Finance.handover(db,{requestId:'fictional-handover',amount:100,note:'Fictional transfer',token:review.token,confirmation:'HAND OVER'},from,from,to,'2026-11-02T09:00:00');
+ Finance.walletMove(db,{requestId:'fictional-wallet-transfer',kind:'wallet_transfer',fromWallet:'wallet-a',toWallet:'wallet-b',amount:30,note:'Fictional transfer'},from,from,null,f.bank.wallets(),'2026-11-02T09:00:01');
+ Finance.walletMove(db,{requestId:'fictional-wallet-cashout',kind:'wallet_cashout',fromWallet:'wallet-b',amount:20,note:'Fictional cash-out'},from,from,to,f.bank.wallets(),'2026-11-02T09:00:02');
+ const row=f.row();assert.equal(row.total,750);assert.equal(row.cash,595);assert.equal(row.whish,155);assert.equal(row.sources.find(r=>r.holderAccountKey==='support:3'&&r.method==='cash').remaining,195);assert.equal(row.sources.find(r=>r.holderAccountKey==='cashier:2'&&r.walletId==='wallet-b').remaining,10);
+ f.cash(-100,3,'fiber-users','2026-11-02T09:00:03');assert.equal(f.row().total,650);
 });
-test('11:59 PM closing leaves the carried card visible and Bank waits for the open month', async t => {
-  const f = await fixture(t), db = f.db('fiber-users');
-  const archive = {all:{closing:{cash:575, wallets:[{id:'wallet-a', balance:175}]}}, employees:{}};
-  f.at = '2026-11-30T23:59:30';
-  db.run('INSERT INTO finance_months VALUES(?,?,?,?,?)', ['2026-11', '2026-11-30T23:59:01', 'Fictional Admin', 'admin:1', JSON.stringify(archive)]);
-  const before = Buffer.from(db.export()), card = Cards.overview(f.bank, {workspaceId:'fiber-users'}).businesses[0];
-  assert.equal(card.total, 750); assert.equal(card.lastClosedMonth, '2026-11');
-  assert.ok(Buffer.from(db.export()).equals(before));
-  assert.throws(() => f.transfer('closed-minute-bank'), /accounting month is closed/);
-  f.at = '2026-12-01T00:00:01'; await f.transfer('next-month-bank');
-  assert.equal(Cards.overview(f.bank, {workspaceId:'fiber-users'}).businesses[0].total, 670);
+test('same-second ledger order stops an internal transfer from claiming old money already spent',async t=>{
+ const f=await fixture(t),db=f.db('fiber-users'),from=q(db,'SELECT * FROM users WHERE id=2')[0],to=q(db,'SELECT * FROM users WHERE id=3')[0];f.cash(200,2,'fiber-users','2026-11-02T09:00:00');f.cash(-150,2,'fiber-users','2026-11-02T10:00:00');const review=Finance.handoverPreview(db,from,to,100);Finance.handover(db,{requestId:'fictional-same-second',amount:100,note:'Fictional same-second transfer',token:review.token,confirmation:'HAND OVER'},from,from,to,'2026-11-02T10:00:00');const row=f.row();assert.equal(row.sources.find(r=>r.holderAccountKey==='support:3'&&r.method==='cash').remaining,125);assert.equal(row.sources.some(r=>r.holderAccountKey==='cashier:2'&&r.method==='cash'),false);assert.equal(row.total,600);
 });
-test('collection scope and current Admin permission are enforced and pending money cannot appear verified', async t => {
-  const f = await fixture(t);
-  assert.throws(() => Cards.overview(f.bank, {workspaceId:'fictional-unknown'}), /valid Bank business/);
-  assert.throws(() => Cards.overview(f.bank, {amount:100}), /valid business collection scope/);
-  f.key = 'cashier:2'; assert.throws(() => Cards.overview(f.bank), /active Main administrator/);
-  f.key = 'admin:1'; f.blocked = true; assert.throws(() => Cards.overview(f.bank), /pending money operation/);
-  f.blocked = false; f.failSave = true;
-  await assert.rejects(f.transfer('card-unconfirmed-save'), /save could not be confirmed/);
-  assert.throws(() => Cards.overview(f.bank), /pending Bank transfer/);
-  f.failSave = false; await f.bank.resume({workspaceId:'fiber-users', requestId:'card-unconfirmed-save'});
-  assert.equal(Cards.overview(f.bank, {workspaceId:'fiber-users'}).businesses[0].bankBalance, 80);
-  f.db('fiber-users').exec("CREATE TABLE company_debt_partial_payment_intents(request_id TEXT,state TEXT,created_at TEXT);INSERT INTO company_debt_partial_payment_intents VALUES('fictional-partial-debt','saving','2026-11-01T12:00:00')");
-  assert.throws(() => Cards.overview(f.bank, {workspaceId:'fiber-users'}), /pending financial operations/);
+test('verified Admin internal transfers move old money while cross-business arrivals are new',async t=>{
+ const f=await fixture(t),base={fromWorkspaceId:'fiber-users',fromAccountKey:'admin:1',fromWalletId:'',toWorkspaceId:'fiber-users',toAccountKey:'cashier:2',toWalletId:'',method:'cash',amount:40,note:'Fictional Admin transfer'};
+ const move=async(id,input)=>f.admin.transfer({...input,requestId:id,token:f.admin.preview(input).token,confirmation:'TRANSFER MONEY'});await move('fictional-admin-internal',base);assert.equal(f.row().total,750);assert.equal(f.row().sources.find(r=>r.holderAccountKey==='cashier:2'&&r.method==='cash').remaining,240);
+ await move('fictional-admin-cross',{...base,toWorkspaceId:'fiber-resellers',toAccountKey:'admin:1',amount:60});assert.equal(f.row().total,690);assert.equal(f.row('fiber-resellers').total,750);
 });
-test('corrupt carried-close proofs and Bank source movements fail without replacing them', async t => {
-  const f = await fixture(t), db = f.db('fiber-users');
-  const archive = {mode:'carry_forward', all:{closing:{mode:'carry_forward', cash:575, wallets:[]}}, employees:{}};
-  db.run('INSERT INTO finance_months VALUES(?,?,?,?,?)', ['2026-10', '2026-11-01T00:00:01', 'Fictional Admin', 'admin:1', JSON.stringify(archive)]);
-  assert.throws(() => Cards.overview(f.bank, {workspaceId:'fiber-users'}), /could not be verified/);
-  db.run('DELETE FROM finance_months'); await f.transfer('card-corrupted-bank');
-  db.run("UPDATE cash_drawer_transactions SET amount=-79 WHERE transaction_type='bank_deposit'");
-  assert.throws(() => Cards.overview(f.bank, {workspaceId:'fiber-users'}), /could not be verified/);
+test('missing prior calendar month and legacy resets expose zero eligibility instead of using an older month',async t=>{
+ const f=await fixture(t,{close:false});await f.closeMonth('fiber-users','2026-09');let row=f.row();assert.equal(row.available,false);assert.equal(row.state,'no_archive');assert.equal(row.month,'2026-10');assert.equal(row.total,0);await f.transfer('normal-bank-no-archive');
+ f.db('fiber-users').run('INSERT INTO finance_months VALUES(?,?,?,?,?,?)',['2026-10','2026-11-01T00:00:00','admin:1','Fictional Admin','/fictional/backup',JSON.stringify({all:{closing:{cash:0,wallets:[]}},employees:{}})]);row=f.row();assert.equal(row.state,'legacy_zero');assert.equal(row.total,0);assert.throws(()=>Cards.sourceLimit({entries:f.entries,workspaceId:'fiber-users',through:'2026-11-02',destinations:f.bank.wallets(),holderAccountKey:'cashier:2',method:'cash',month:'2026-10'}),/verified previous/);
+});
+test('invalid prior proofs and later tampering fail closed without modifying the archive',async t=>{
+ const f=await fixture(t),db=f.db('fiber-users'),raw=q(db,"SELECT archive_json FROM finance_months WHERE month='2026-10'")[0].archive_json;db.run("UPDATE cash_drawer_transactions SET amount=301 WHERE user_id=1 AND created_at<'2026-11'");assert.throws(()=>f.row(),/could not be verified/);assert.equal(q(db,"SELECT archive_json FROM finance_months WHERE month='2026-10'")[0].archive_json,raw);
+});
+test('irrelevant historical SQLite space timestamps retain verified custody but malformed current timestamps fail closed',async t=>{
+ const f=await fixture(t,{close:false}),db=f.db('fiber-users');db.run("UPDATE cash_drawer_transactions SET created_at='2026-10-30 12:00:00'");db.run("UPDATE finance_wallet_entries SET effective_at='2026-10-30 12:00:00'");await f.closeMonth('fiber-users');
+ const archive=q(db,"SELECT archive_json FROM finance_months WHERE month='2026-10'")[0].archive_json;assert.equal(f.row().total,750);assert.equal(f.row().opening.total,750);assert.equal(q(db,"SELECT archive_json FROM finance_months WHERE month='2026-10'")[0].archive_json,archive);
+ f.cash(10,1,'fiber-users','2026-11-02 11:00:00');assert.throws(()=>f.row(),/could not be verified/);assert.equal(q(db,"SELECT archive_json FROM finance_months WHERE month='2026-10'")[0].archive_json,archive);
+});
+test('active custody filters exclude voided entries and inactive fee/gross rows from the old cohort replay',async t=>{
+ const f=await fixture(t),db=f.db('fiber-users');db.exec("CREATE TABLE pos_invoice_void_wallet(event_id TEXT);CREATE TABLE finance_receipt_fee_policy_audit(id TEXT);CREATE TABLE active_whish_fee_migration_audit(id TEXT);CREATE TABLE finance_whish_gross_restorations(id TEXT);CREATE TABLE active_whish_wallet_gross_audit(id TEXT)");
+ f.wallet('voided-negative',-90);db.run('INSERT INTO pos_invoice_void_wallet VALUES(?)',['voided-negative']);f.wallet('fee-negative',-50);db.run("UPDATE finance_wallet_entries SET event_id='fictional-inactive-fee' WHERE id='fee-negative'");db.run("INSERT INTO finance_receipt_fee_policy_audit VALUES('fictional-inactive-fee')");f.wallet('gross-negative',-40);db.run("UPDATE finance_wallet_entries SET event_id='fictional-inactive-gross' WHERE id='gross-negative'");db.run("INSERT INTO finance_whish_gross_restorations VALUES('fictional-inactive-gross')");assert.equal(f.row().total,750);
+});
+test('permissions and pending financial saves prevent unverified prior-month amounts',async t=>{
+ const f=await fixture(t);f.key='cashier:2';assert.throws(()=>f.row(),/active Main administrator/);f.key='admin:1';f.blocked=true;assert.throws(()=>f.row(),/pending money operation/);f.blocked=false;f.failSave=true;await assert.rejects(f.transfer('old-pending-bank-save'),/save could not be confirmed/);assert.throws(()=>f.row(),/pending Bank transfer/);f.failSave=false;await f.bank.resume({workspaceId:'fiber-users',requestId:'old-pending-bank-save'});assert.equal(f.row().total,670);
+});
+test('negative verified openings cannot be clamped into fabricated positive prior-month money',async t=>{
+ const f=await fixture(t,{close:false});f.cash(-400,1,'fiber-users','2026-10-31T12:00:00');await f.closeMonth('fiber-users');const row=f.row();assert.equal(row.available,false);assert.equal(row.state,'negative_opening');assert.equal(row.cash,0);assert.equal(row.whish,0);assert.equal(row.total,0);assert.equal(row.sources.length,0);assert.equal(row.availableToDeposit.total,0);assert.throws(()=>f.bank.preview(f.base({collectionMonth:'2026-10',amount:1})),/verified previous/);
+});
+test('new staff receipts do not block or enlarge the old pool and unassigned old cash remains visible but unauthorized',async t=>{
+ const f=await fixture(t,{close:false});f.cash(33,null,'fiber-users','2026-10-31T12:00:00');await f.closeMonth('fiber-users');const db=f.db('fiber-users');db.run("INSERT INTO users VALUES(4,'cashier:4','New Fictional Cashier','cashier',1)");f.cash(1000,4);f.wallet('new-staff-wallet',1000,'cashier:4');const row=f.row();assert.equal(row.total,783);assert.equal(row.opening.total,783);assert.equal(row.sources.find(r=>r.holderAccountKey==='__unassigned__').remaining,33);assert.equal(row.sources.some(r=>r.holderAccountKey==='cashier:4'),false);assert.equal(row.availableToDeposit.total,650);
+});
+test('genuine Support End of day moves the old portion while the current-month receipts remain new',async t=>{
+ const f=await fixture(t),db=f.db('fiber-users'),Support=require('../app/support-ledger.cjs');Support.initializeSupport(db);db.exec('CREATE TABLE finance_receipt_owners(kind TEXT,record_key TEXT,owner_key TEXT,original_user_id INTEGER,original_name TEXT,event_id TEXT,PRIMARY KEY(kind,record_key))');
+ f.cash(100,3,'fiber-users','2026-11-02T09:00:00');f.wallet('support-new-wallet',10,'support:3','fiber-users','wallet-a','2026-11-02T09:00:00');const from=q(db,'SELECT * FROM users WHERE id=3')[0],to=q(db,'SELECT * FROM users WHERE id=2')[0],review=Support.preview(db,from,to,f.bank.wallets());
+ Support.endDay(db,{requestId:'fictional-support-endday',token:review.token,confirmation:'END DAY',note:'Fictional Support handover'},from,from,to,f.bank.wallets(),'2026-11-02T10:00:00');const row=f.row();assert.equal(row.total,750);assert.equal(row.sources.some(r=>r.holderAccountKey==='support:3'),false);assert.equal(row.sources.find(r=>r.holderAccountKey==='cashier:2'&&r.method==='cash').remaining,275);assert.equal(row.sources.find(r=>r.holderAccountKey==='cashier:2'&&r.walletId==='wallet-a').remaining,75);assert.equal(row.availableToDeposit.total,750);
+});
+test('proven Reseller Pay bill changes holder or cash/Whish medium without treating old funds as new revenue',async t=>{
+ const f=await fixture(t),db=f.db('fiber-resellers'),A=require('../app/reseller-accounting.cjs'),C=require('../app/reseller-collections.cjs');A.initialize(db);C.initialize(db);const from=q(db,'SELECT * FROM users WHERE id=2')[0],to=q(db,'SELECT * FROM users WHERE id=1')[0];
+ function collect(request,method,amount,net,at){const id='collection-'+request,input={paymentMethod:method,note:'Fictional saved bill'},result={state:'completed',resellerCollection:true,kind:method==='Cash'?'reseller_bill_collection':'wallet_cashout'},encoded=JSON.stringify(input),saved=JSON.stringify(result);A.movement(db,id,'reserve',from,-amount*100,method,method==='Cash'?'':'wallet-a',at,input.note,'complete');A.movement(db,id,'collection-credit',to,net*100,'Cash','',at,input.note,'complete');db.run('INSERT INTO reseller_collections VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[request,'fictional-reseller','completed',amount*100,(amount-net)*100,net*100,'fiber-resellers',from.account_key,method==='Cash'?'':'wallet-a',to.account_key,to.full_name,to.account_key,at,encoded,'[]','fictional-proof',saved]);db.run('INSERT INTO finance_events VALUES(?,?,?,?,?,?,?,?,?,?,?)',[request,result.kind,at,at,to.account_key,from.account_key,to.account_key,amount*100,input.note,encoded,saved]);}
+ collect('fictional-cash-collection','Cash',80,80,'2026-11-02T10:00:00');let row=f.row('fiber-resellers');assert.equal(row.total,750);assert.equal(row.sources.find(r=>r.holderAccountKey==='admin:1'&&r.method==='cash').remaining,380);
+ collect('fictional-wallet-collection','Whish Money',40,40,'2026-11-02T10:00:01');row=f.row('fiber-resellers');assert.equal(row.cash,615);assert.equal(row.whish,135);assert.equal(row.total,750);assert.equal(row.sources.find(r=>r.holderAccountKey==='admin:1'&&r.method==='cash').remaining,420);
+});
+test('unproved transfer-looking cash legs do not silently destroy or recreate prior-month ownership',async t=>{
+ const f=await fixture(t),db=f.db('fiber-users');db.run("INSERT INTO cash_drawer_transactions(amount,transaction_type,reference_type,note,created_at,user_id,user_name) VALUES(-50,'handover_out','finance','fictional-missing-proof · lost','2026-11-02T10:00:00',2,'Fictional Cashier')");db.run("INSERT INTO cash_drawer_transactions(amount,transaction_type,reference_type,note,created_at,user_id,user_name) VALUES(50,'handover_in','finance','fictional-missing-proof · lost','2026-11-02T10:00:00',3,'Fictional Support')");assert.throws(()=>f.row(),/could not be verified/);
 });

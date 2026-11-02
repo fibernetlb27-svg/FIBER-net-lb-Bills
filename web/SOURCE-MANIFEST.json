@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -20,8 +20,8 @@
     },
     {
       "name": "DEPLOYMENT.md",
-      "length": 19908,
-      "sha256": "da04bf12d8ac51abf28b2bd9d8c47792b64ba85d6e2584f693784dac6a242e4d"
+      "length": 20605,
+      "sha256": "ec54e9e1107559f1bf399d3f3a394ba7e44fc9fa66678881bb6613773ee4e31e"
     },
     {
       "name": "Dockerfile",
@@ -30,13 +30,13 @@
     },
     {
       "name": "MIGRATION.md",
-      "length": 5868,
-      "sha256": "50276e69afeaee3d5e95b6e4a7d8611d32ed4c1dfbd563c947efedb52d8a6b47"
+      "length": 6042,
+      "sha256": "1241db5ea8da5cd1e4cbb406a8913aa96d88eebc831d16793d75c79c38f43450"
     },
     {
       "name": "README.md",
-      "length": 8790,
-      "sha256": "a781174a46058f5061421a3d89214fd369c8bba2561542711a1e778a36f3978d"
+      "length": 9434,
+      "sha256": "f40fe7cac836daf9922068c39773885d0c580d5cd506673c139ead355a8fa33b"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -90,13 +90,13 @@
     },
     {
       "name": "app/bank-accounts.cjs",
-      "length": 24583,
-      "sha256": "9ef985fb74117bc182f3c4c3755eec7a212ed03edb669d4d925cc5407c7d3ff8"
+      "length": 26816,
+      "sha256": "a59e46e86f7d6fad19621190bb1adbb4ba9a8ba13a0e4d8bb3a0ceaa5b072862"
     },
     {
       "name": "app/bank-collection-cards.cjs",
-      "length": 3570,
-      "sha256": "d8a8114b28b1a80fa57839c583e9d711f030b433e1f8463bf4c0d2d474978f67"
+      "length": 22980,
+      "sha256": "70c77388ac8ff6e4eb6037ba62c37c25793478915565b2b7609fe391408bb125"
     },
     {
       "name": "app/bill-reset.cjs",
@@ -259,6 +259,11 @@
       "sha256": "25ba6a5e97f3efdb396cdcaf85fa0f730c0e2621d2930facd4a181ffc19b730f"
     },
     {
+      "name": "app/prior-month-reversal-proof.cjs",
+      "length": 5869,
+      "sha256": "4fb44f9d4ec72976f31624098501b092f788c2611d2ab03399fd0e881dd2dffa"
+    },
+    {
       "name": "app/profit-breakdown.cjs",
       "length": 4635,
       "sha256": "c280cd24004a049ab1d981a4c0e21a75166af4994d2b4adb9477ecc2b97bde4a"
@@ -390,8 +395,8 @@
     },
     {
       "name": "app/src/app.js",
-      "length": 332950,
-      "sha256": "511d797283da516ddb9a6665fa42120e826c0932c9911c560b22cad97a7aa6d4"
+      "length": 332806,
+      "sha256": "01f04dc0cef817a28e264f3ec0556d56860a0ce241e562afaec2b88d6dd7ab8c"
     },
     {
       "name": "app/src/backups.js",
@@ -425,13 +430,13 @@
     },
     {
       "name": "app/src/bank.css",
-      "length": 7627,
-      "sha256": "3f952d70a97806600ec0dc1c84b3e6750f848c45a3cff75376da448c111c2cb7"
+      "length": 8893,
+      "sha256": "5c59b09b408692c319a2c758d30c56a801addf4442e5973fb8688e266d71952b"
     },
     {
       "name": "app/src/bank.js",
-      "length": 43413,
-      "sha256": "9d75973e5e72010e8eebded418e2166a35f950cf51e68f6c2883cb6c6757d229"
+      "length": 53205,
+      "sha256": "3605100ed8aea9f6333a7c676a4033bbd1c43a83b60d601be7f3f224d76de3d7"
     },
     {
       "name": "app/src/bill-plan.js",
@@ -495,8 +500,8 @@
     },
     {
       "name": "app/src/finance-dashboard.js",
-      "length": 65360,
-      "sha256": "9cb41c1f4d36589733a6a17abbafa2103b21ce99e5b42cd6f6bac621074fc12e"
+      "length": 65354,
+      "sha256": "5655b5a9766ed0c39352533acdc9172465ce3131ee16873da64f5123f630ee3c"
     },
     {
       "name": "app/src/finance-workspace.css",
@@ -515,8 +520,8 @@
     },
     {
       "name": "app/src/index.html",
-      "length": 145704,
-      "sha256": "4d811f6b6ee6079f83af580bfd98cbee863dbf1908e234f1db29516f74663666"
+      "length": 145706,
+      "sha256": "66ab780935513404e7639295a1aedd4f962e78634445c5a7ab94a45bf6e35137"
     },
     {
       "name": "app/src/internet-pricing.js",
@@ -539,6 +544,16 @@
       "sha256": "8b3b99f94bdb4baf831fc4c08639eabd98e39cdff90952d1d3a5102d67413ba4"
     },
     {
+      "name": "app/src/month-close-status.css",
+      "length": 337,
+      "sha256": "984a1cdce7aa65f2d34a4f81cbc99b46299d2b3ce151266884a4cf5271addce3"
+    },
+    {
+      "name": "app/src/month-close-status.js",
+      "length": 3676,
+      "sha256": "eafafb0e8a8bf6e1b6f1e2c1795b52c7ed4e9d36b9af92d710d38c37569a5c57"
+    },
+    {
       "name": "app/src/month-closing-all.css",
       "length": 5042,
       "sha256": "037ccb6d204409a9278490e25352d0f35c1b80a98d8cc94d687403e5653b7f45"
@@ -557,16 +572,6 @@
       "name": "app/src/month-closing.js",
       "length": 29992,
       "sha256": "63ab59457b9b59162ac0990bb618931e624c0b580eaf201ed4ef58f9eccbfb9d"
-    },
-    {
-      "name": "app/src/month-collections.css",
-      "length": 3017,
-      "sha256": "3f4a1df09ad24b9179862eeb382b26abe859bd4357e597e1a165a9b551ac38af"
-    },
-    {
-      "name": "app/src/month-collections.js",
-      "length": 12686,
-      "sha256": "d6e084ee389fbd93c4c1d5303e4534dc9d04374ef6fbd64fff8522e93947d6d8"
     },
     {
       "name": "app/src/new-customer.js",
@@ -771,12 +776,12 @@
     {
       "name": "package-lock.json",
       "length": 1367,
-      "sha256": "87fcab93af44316cf283e7d6d4c5e6ab930662d722529ba7c4d9897511817000"
+      "sha256": "11b4bb79e56a3d3448840362f994d0ae99e7c93e9a539166af966c15b2df1cbd"
     },
     {
       "name": "package.json",
       "length": 508,
-      "sha256": "dc8d8155c25be3a292c1f28f0aef68feb3ec3d0fe0563da832275b8f4a37f10e"
+      "sha256": "b247de68e8c0e56db19ef9d043169cce16b2bebc465c6e04f0868677fd5d1e62"
     },
     {
       "name": "server.cjs",
@@ -795,8 +800,13 @@
     },
     {
       "name": "test/bank-collection-cards.test.cjs",
-      "length": 11311,
-      "sha256": "bf3bf97b34e809e678f9fcf3738bb4e5b47b02b6ce1be3ac1b423d79a6113cd9"
+      "length": 20615,
+      "sha256": "5b972b6560849b812f823be787d5df2c29fae542abef0b8d0d1c8b5aa6f17b41"
+    },
+    {
+      "name": "test/bank-collection-deposit.test.cjs",
+      "length": 9422,
+      "sha256": "f69b50198cbfb6d9778a7997147b9e46e68232bf9f6e35956f0a689014689d70"
     },
     {
       "name": "test/browser-bridge.test.cjs",
@@ -805,8 +815,8 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 45791,
-      "sha256": "1b7c716540105595ff5072e4ac278e3e25923935d025da134df147be908ee5d1"
+      "length": 48576,
+      "sha256": "b00890b616f70946ce17dc0bb64e67168d109a687cdaad9ab04c5f40bf54717f"
     },
     {
       "name": "test/core-auth.test.cjs",
@@ -845,8 +855,8 @@
     },
     {
       "name": "test/financial-regression.test.cjs",
-      "length": 1141,
-      "sha256": "28bf6f509011c0d790dc836794735673d74f7e92f89539e541d25c969cf460cd"
+      "length": 1161,
+      "sha256": "fcac8208110e3c05fdecd245d4cfc6da6a01115d5f7aefafdcc86196d30740fd"
     },
     {
       "name": "test/mail-dependency.test.cjs",
@@ -857,6 +867,11 @@
       "name": "test/package-source.test.cjs",
       "length": 1465,
       "sha256": "7c23285b1255153cf1a41a4e5eacff50f5ca4dc3ee7149648b8b52f75bed946b"
+    },
+    {
+      "name": "test/prior-month-reversal-proof.test.cjs",
+      "length": 7432,
+      "sha256": "9cbe29408b9ad16ffbc2bc877bd37b82c21cee2100847dc0781996a25e2db80c"
     },
     {
       "name": "test/reseller-month-report.test.cjs",
@@ -875,8 +890,8 @@
     },
     {
       "name": "test/retained/manifest.json",
-      "length": 17013,
-      "sha256": "9a67c5576d2763cac8f40969ac95472d0741a761e13e6b5c5181d58cdf6e520f"
+      "length": 17471,
+      "sha256": "0ac86a3c70d00a5776215b7fcfb0ea22724e553edf2e883568fda976f7f3a92f"
     },
     {
       "name": "test/retained/qa-admin-money-transfers.cjs",
@@ -1065,8 +1080,8 @@
     },
     {
       "name": "tools/run-retained-tests.cjs",
-      "length": 4486,
-      "sha256": "3f3eedcad750c36e04f4a821d594d6a53e5b212d8e9af793e5b6f810e73050c3"
+      "length": 4524,
+      "sha256": "85b68495f7f409509cbe0bd8c677a84d4790cc2452d6641ccf44a36975957a32"
     },
     {
       "name": "tools/verify-backup.cjs",
