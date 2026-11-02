@@ -1,6 +1,6 @@
 # FIBER net lb website preview
 
-Version 0.1.5 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.6 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 Use isolated staging and a copied-data rehearsal before a new deployment or upgrade. The existing authorized accounting server remains the sole authority until an agreed cutover; an already migrated website must not resume recording on its old desktop copy. The website uses the seven existing SQLite database formats. Fictional previews and their checks are separate from accepting live business data.
 
@@ -25,6 +25,14 @@ The preview binds only to loopback, disables external providers, and creates ind
 - Receipts use the browser print dialog with A4, A5 and thermal layouts, including 58 mm, 80 mm and XP-235B. The browser cannot silently select a Windows printer or confirm physical print completion.
 - CSV export downloads a file. Native installers, Windows folders and live restore/reset are not browser operations. Admin backup settings/history and encrypted backup creation remain available; restoration is an operator task.
 - WhatsApp receipt sharing retains its normal browser sharing/link flow. This package does not activate or send API reminders.
+
+## Add a domain while keeping the IP address
+
+Version 0.1.6 accepts explicitly configured HTTPS address aliases for the same accounting server. Keep the existing HTTPS IP address in `APP_ORIGIN`; add the selected domain in the optional comma-separated `APP_ADDITIONAL_ORIGINS` setting. An empty setting leaves the current single-address behavior unchanged. A domain is not selected or activated by installing this source package.
+
+Both addresses use one backend, the same seven databases and the existing server key, backups and monthly-closing journal. Host and Origin must match the same configured address; allowing a domain does not enable cross-origin requests or shared logins between addresses. Sign in separately when opening the new address. Existing pending request references remain in the browser storage of the address where they were created: review them there before switching and never submit an uncertain payment again under a new request ID.
+
+Read [DOMAIN-SETUP.md](DOMAIN-SETUP.md) for the offline configuration-preparation tool and [DEPLOYMENT.md](DEPLOYMENT.md#add-a-domain-beside-an-existing-https-ip) for the application allowlist and acceptance checks. DNS, network routing and certificate issuance still require the exact domain and an operator-reviewed deployment. The current IP access and its trusted certificate authority can remain available.
 
 ## Support handover and Resellers monthly accounting
 

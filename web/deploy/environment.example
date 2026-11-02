@@ -1,6 +1,10 @@
 # Copy outside the source package to a private deployment env file, mode 0600.
-# A real business-controlled hostname is required; no domain has been selected.
+# Choose the primary HTTPS host explicitly (the existing IP or an approved DNS name).
 APP_HOSTNAME=
+# Optional comma-separated full HTTPS origins for this SAME accounting backend.
+# Leave empty to keep the existing single-address behavior. No domain is preselected.
+# Example only: https://accounts.example.com
+APP_ADDITIONAL_ORIGINS=
 PRIVATE_DATA_DIRECTORY=/srv/fibernetlb/private/data
 SERVER_KEY_FILE=/srv/fibernetlb/private/server-key
 # Keep false during staging and until the separately approved live cutover.

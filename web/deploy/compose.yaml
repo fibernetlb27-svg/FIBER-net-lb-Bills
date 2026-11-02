@@ -10,6 +10,7 @@ services:
     environment:
       TZ: Asia/Beirut
       APP_ORIGIN: https://${APP_HOSTNAME:?Set the website hostname in the private deployment environment}
+      APP_ADDITIONAL_ORIGINS: ${APP_ADDITIONAL_ORIGINS:-}
       DATA_DIRECTORY: /data
       SECRETS_KEY_FILE: /run/secrets/server-key
       BIND_ADDRESS: 0.0.0.0

@@ -1,6 +1,6 @@
 # Ubuntu deployment preparation
 
-This package supports a standalone website on Ubuntu Server with Node 24, Docker Compose and Caddy. It contains no host-specific configuration, live database, credentials or private backup. Keep the current accounting authority running during development and staging; record host installation and staging acceptance separately. For an existing website upgrade, preserve that website as the sole writer. The HTTPS deployment templates deliberately require an explicitly chosen hostname.
+This package supports a standalone website on Ubuntu Server with Node 24, Docker Compose and Caddy. It contains no host-specific configuration, live database, credentials or private backup. Keep the current accounting authority running during development and staging; record host installation and staging acceptance separately. For an existing website upgrade, preserve that website as the sole writer. The primary HTTPS origin must be chosen explicitly; adding a domain to an existing IP-based website is an address configuration change, not another accounting installation.
 
 Do not point this website at the running Main PC's files. Use fictional databases or an explicitly exported, complete seven-database snapshot in a separate private staging directory. Keep `PROVIDERS_ENABLED=false` during staging. The application is one accounting writer; a second replica, another website process or a desktop process must never write the same files or independent copies of the same active business at the same time.
 
@@ -18,7 +18,7 @@ HTML is always fetched fresh. Other renderer assets use SHA-256 ETags and mandat
 
 ## Required decisions before deployment
 
-- A business-controlled hostname and DNS access; public Internet or private/VPN access.
+- An explicit HTTPS address and public Internet or private/VPN access. Adding a public domain also needs control of that hostname and its DNS records.
 - The Ubuntu machine and whether ports 80/443 are available. If sharing a machine, integrate with its existing reverse proxy instead of binding a second proxy to those ports.
 - The agreed stopped-writes transfer time, operator, accepted downtime and verification baseline for the eventual cutover.
 - The desired future relationship to existing desktop/mobile clients. This website uses a same-origin cookie API; it does not expose the old desktop `/rpc` interface or claim compatibility with the mobile pilot.
@@ -66,9 +66,36 @@ docker compose --env-file /srv/fibernetlb/private/website.env -f deploy/compose.
 docker compose --env-file /srv/fibernetlb/private/website.env -f deploy/compose.yaml up -d
 ```
 
-These are future operator instructions, not actions already performed. Caddy requests a valid certificate for the configured hostname. Do not disable TLS checks, use self-signed production certificates, enable wildcard CORS, or expose the desktop LAN port to make login work. For a private hostname, configure the organization's trusted certificate/DNS method before enabling access.
+These are future operator instructions, not actions already performed. Caddy requests a valid certificate for a qualifying public hostname. Do not disable TLS checks, enable wildcard CORS, or expose the desktop LAN port to make login work. For a private IP or internal hostname, configure the organization's trusted certificate/DNS method before enabling access. Preserve an existing trusted internal CA and its persistent Caddy data when adding a public domain; a new domain does not require replacing the IP certificate authority.
 
 The direct Node alternative requires `APP_ORIGIN=https://<chosen-hostname>`, absolute `DATA_DIRECTORY`, absolute `SECRETS_KEY_FILE`, and a reverse proxy preserving Host. It binds loopback by default. `BIND_ADDRESS=0.0.0.0` is intended only for the isolated container network. HTTP cookies without Secure are supported only by the explicitly marked loopback demonstration, never by production startup.
+
+## Add a domain beside an existing HTTPS IP
+
+This is an address change for the existing website. Keep one backend, the same seven-database volume, server encryption key, provider settings, backup passphrase, private scheduling journal and persistent Caddy volumes. Do not initialize empty data, restore an old snapshot, start another accounting container or reactivate a desktop writer merely to add a domain.
+
+Keep the currently working HTTPS IP as `APP_ORIGIN`. Add exact full HTTPS origins in `APP_ADDITIONAL_ORIGINS`; the setting defaults to empty and accepts at most eight additional addresses separated by commas. This example uses only reserved documentation addresses:
+
+```dotenv
+APP_ORIGIN=https://192.0.2.40
+APP_ADDITIONAL_ORIGINS=https://accounts.example.com
+```
+
+In the bundled Compose template, `APP_ORIGIN` is derived from `https://${APP_HOSTNAME}`. Keep `APP_HOSTNAME` set to the existing IP in the private Compose environment file and add `APP_ADDITIONAL_ORIGINS` there; a direct Node deployment sets `APP_ORIGIN` itself. The candidate domain override changes only the additional-origin setting and the reviewed gateway configuration.
+
+Do not use these example addresses on the actual host. Origins contain only a scheme and host with an optional port. Wildcards, credentials, paths, queries, fragments, empty list entries and duplicate normalized origins are rejected. A trailing root slash is treated as the same origin, as are host-name case and the default HTTPS port. Malformed configuration is rejected before the accounting backend starts. The primary IP and every production alias require HTTPS.
+
+An incoming Host must match a configured address. Browser API Origin must match that same request address, not another allowed alias. The opaque session is pinned to its exact origin; copying a cookie or CSRF token from the IP address to the domain does not authorize a request there. Cookies remain host-only, Secure, HttpOnly and SameSite=Strict. Keep Host intact through the reverse proxy, without rewriting Origin, adding permissive CORS or retrying POST requests.
+
+The exact domain must be controlled by the business. Its DNS A record must reach the chosen server or approved public gateway, and any AAAA record must have a working IPv6 route. In the normal public-Caddy setup, inbound TCP 80 and 443 must reach the existing gateway and be available for Caddy; do not expose the Node application port. Keep the Caddy certificate data persistent. These are the documented [Caddy automatic HTTPS requirements](https://caddyserver.com/docs/automatic-https); a DNS entry alone is not proof of working TLS or an accepted deployment. A private-only domain needs the organization's approved DNS and certificate approach instead.
+
+Use [DOMAIN-SETUP.md](DOMAIN-SETUP.md) to prepare a new local candidate directory after the exact domain is known. Its offline tool creates a dual-address Caddy configuration, a Compose override and a manifest; it does not contact the server, edit DNS, open firewall ports or request certificates. `deploy/Caddyfile-domain.example` uses `APP_IP_ADDRESS` for the retained IP and `APP_DOMAIN` for the new domain. The IP block keeps internal TLS and the domain block uses normal public automatic HTTPS. Both proxy to the same `web:3000` service. Preserve the existing CA volumes and append the candidate override after **all** existing Compose files, using the same project name and private environment file. Do not run the candidate as a separate Compose project. If an earlier additional-origin allowlist already exists, review and preserve its approved entries when adding the new one.
+
+Review the resolved configuration privately before activation. Compose's [interpolation rules](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/) determine which environment values reach the containers; simply editing a public sample file does not configure a running service. An authorized activation should drain the sole writer using its full shutdown grace period, preserve the latest data and existing settings, then restart the same service with the reviewed address configuration. A restart signs users out.
+
+Verify each address independently: trusted TLS and the correct hostname/IP certificate; HTTP redirect to the same address over HTTPS; `/health`; login; one read-only business balance; denial of an unconfigured Host; and denial of an API Origin that belongs to the other configured address. Confirm the same seven databases, unchanged account identities, correct provider settings, local backups and monthly-closing journal. Do not create a sale, renewal or money transfer as a connectivity test. Record actual DNS/certificate/server acceptance separately from local tests and CI.
+
+Users sign in again at the new domain. Browser storage and pending request markers are separate for each origin. Review or resolve an uncertain request at its original address before changing addresses; preserve its request ID and do not submit a replacement. Before withdrawing an alias, resolve pending work while both addresses are available. An address rollback restores reviewed gateway/origin configuration, preserving the current data, key, CA and journals; it never restores an older financial database just to undo a URL change.
 
 ## Verify before any live cutover
 
@@ -78,7 +105,7 @@ Exercise refresh, multiple business tabs, expired sessions, lost responses, inte
 
 Browser printing opens the user's print dialog and supports the supplied layouts. It does not enumerate Windows printers, select a physical device silently, or confirm physical print success. Verify A4/A5/58/80 mm output on the intended devices. CSV export is a browser download. Backup folder access/extraction and desktop installers/resets are not remotely callable browser operations.
 
-## Existing website upgrade to 0.1.5
+## Existing website upgrade to 0.1.6
 
 Keep one accounting writer. Before activating new code, stop the existing backend cleanly with its full shutdown grace period, preserve the seven latest databases and private settings, and rehearse startup against a separate copy. Retain the existing server encryption key, backup passphrase, HTTPS configuration and account settings. Never replace current business data with an older staging copy. A code rollback after new receipts have been recorded must preserve those receipts and reconcile any pending operations.
 
@@ -88,9 +115,9 @@ Version 0.1.4 enables automatic End of Month at **23:59 on the last calendar day
 
 The scheduler checks every ten seconds while the server runs. It first blocks new accounting requests and drains already accepted requests and scheduled backups. It then requires an authorized active Main Admin and verifies existing pending-operation guards before closing each business with zero Bank allocations. It retains full cash/Whish custody, unpaid obligations and funding; it does not pay bills, renew services, or contact providers. During the brief closing operation new accounting actions and financial reads are rejected before execution; session status, sign-out and the authorized scheduling status remain available. Closed-month accounting writes remain locked for the rest of the final minute. Bank deposits and ordinary new-month writes resume after midnight.
 
-Pending or unconfirmed operations delay closing. Admin should inspect the Monthly ledger and original request's status, resolve its actual outcome, and let the scheduler retry. Do not submit a replacement payment, delete its journal or force an archive. A restart resumes the same first-enabled schedule and stable per-business close IDs; verified completed business archives are reused. Downtime catch-up runs months in order, at most twelve per check, and continues on subsequent checks. The scheduler's status is visible to Main Admin through the dashboard; errors contain no provider credentials or raw financial records.
+Pending or unconfirmed operations delay closing. Admin should inspect the Monthly ledger and original request's status, resolve its actual outcome, and let the scheduler retry. Do not submit a replacement payment, delete its journal or force an archive. A restart resumes the same first-enabled schedule and stable per-business close IDs; verified completed business archives are reused. Downtime catch-up runs months in order, at most twelve per check, and continues on subsequent checks. The scheduler's status is visible to Main Admin in Monthly ledger; errors contain no provider credentials or raw financial records.
 
-Verify the new business collection cards using isolated data: confirm current all-holder cash/Whish holdings, permitted exact deposit sources, a partial cash deposit, a partial Whish deposit and the resulting remainder. These cards follow current custody including carry-forward and later movements; they do not create a monthly receivable. Support custody may be included in a business total while remaining unavailable as an Admin deposit source until the normal handover.
+Verify prior-month amounts inside the existing Bank business cards using isolated data: compare the verified previous-month archive, confirm new receipts do not increase its remainder, and check partial cash and Whish deposits against their exact permitted sources. Outgoing payments consume the old portion first; verified same-business custody transfers preserve that portion, while ordinary Bank returns do not refill it. These amounts do not create another receivable. Support-held carried money still requires the normal authorized handover before becoming an Admin deposit source. The Main dashboard has no duplicate collection-card section.
 
 Newly created encrypted backups include the private scheduler journal when present. Verify a backup made after activation. An older backup without this optional file is still accepted; when it is restored without an independently preserved journal, the scheduler starts with the restore startup month. Existing closing archives and their financial proofs stay in the seven databases. Restoring any older financial snapshot still requires the separate reconciliation procedure below.
 

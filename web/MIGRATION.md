@@ -2,6 +2,14 @@
 
 This document describes an initial desktop-to-website staging rehearsal and eventual cutover; it does not authorize stopping the current accounting host, copying live customer data, changing providers or enabling two active accounting systems. For a website that has already migrated, upgrade its existing seven-database data volume and preserve it as the sole accounting authority. Do not reactivate a diverging old desktop copy.
 
+## Adding a domain to an existing website
+
+Version 0.1.6 can add an explicitly allowed HTTPS domain while retaining the working HTTPS IP. This changes the public address configuration of the same server; it does not require another data transfer. Keep the existing seven databases, server encryption key, private settings, backup passphrase, `automatic-month-closing.json` journal and persistent Caddy certificate volumes. Do not copy current data back from an older desktop or staging folder, generate a replacement key or run two accounting writers.
+
+Keep the working IP origin as `APP_ORIGIN` and add the exact reviewed HTTPS domain through `APP_ADDITIONAL_ORIGINS`. Use the offline candidate procedure in [DOMAIN-SETUP.md](DOMAIN-SETUP.md) and the checks in [DEPLOYMENT.md](DEPLOYMENT.md#add-a-domain-beside-an-existing-https-ip). The tool prepares files only; DNS, server routes, ports and certificate issuance remain separate operator tasks. A domain alias uses the existing service and data volume rather than a second backend.
+
+Changing addresses requires a separate sign-in because each configured origin has its own host-only session and browser storage. Pending local request references stay with the address where the operation was entered. Keep that address available, check the original saved outcome and resolve uncertain work before switching; do not repeat a payment, renewal or Bank transfer as a new request. Data and financial history remain on the server. Reverting an address change preserves all subsequent website activity and the current journals; it does not restore an older financial snapshot.
+
 ## What must be preserved
 
 Move a complete, consistent set of all seven databases together, including Main Office and the six businesses. Preserve receipts, users and access rules, stock, unpaid customer/reseller/supplier obligations, Company debts and linked monthly bills, payment reversals, cash/Whish custody, Bank balances, monthly archives, prior-month expense funding, sticky notes and pending request journals. A new month does not cancel debts, pending collections or stored money.

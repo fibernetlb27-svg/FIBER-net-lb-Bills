@@ -1,0 +1,30 @@
+# Candidate only. Supply the exact existing primary IP and new public DNS name.
+# Validate and review the complete deployment before replacing its gateway file.
+{
+    admin off
+    skip_install_trust
+    default_sni {$APP_IP_ADDRESS}
+}
+
+(accounting_backend) {
+    encode zstd gzip
+    # Host and Origin remain unchanged. No access/body logs or proxy retries.
+    reverse_proxy web:3000 {
+        transport http {
+            dial_timeout 5s
+            response_header_timeout 660s
+            read_timeout 660s
+            write_timeout 30s
+        }
+    }
+}
+
+https://{$APP_IP_ADDRESS} {
+    tls internal
+    import accounting_backend
+}
+
+https://{$APP_DOMAIN} {
+    # Public DNS name: Caddy obtains and renews its normal public certificate.
+    import accounting_backend
+}

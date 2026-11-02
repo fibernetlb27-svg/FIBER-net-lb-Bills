@@ -2,8 +2,8 @@
 // Explicit public-source export. Never recurse through runtime data or dependencies.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'..');
-const top=['package.json','package-lock.json','server.cjs','Dockerfile','.dockerignore','.gitignore','.gitattributes','README.md','DEPLOYMENT.md','MIGRATION.md'];
-const toolNames=['demo.cjs','data-audit.cjs','verify-backup.cjs','run-retained-tests.cjs','container-smoke.cjs','package-source.cjs','check-source.cjs'];
+const top=['package.json','package-lock.json','server.cjs','Dockerfile','.dockerignore','.gitignore','.gitattributes','README.md','DEPLOYMENT.md','MIGRATION.md','DOMAIN-SETUP.md'];
+const toolNames=['demo.cjs','data-audit.cjs','verify-backup.cjs','run-retained-tests.cjs','container-smoke.cjs','package-source.cjs','check-source.cjs','prepare-domain-config.cjs'];
 const safeAsset=/\.(?:js|css|html|svg|png|jpg|jpeg|ico|woff2?|ttf|txt)$/i;
 function filesUnder(relative,accept){
  const result=[];
@@ -11,7 +11,7 @@ function filesUnder(relative,accept){
  walk(relative);return result;
 }
 function sourceFiles(){
- const files=[...top,...fs.readdirSync(path.join(root,'app')).filter(name=>name.endsWith('.cjs')).map(name=>'app/'+name),...filesUnder('app/src',file=>safeAsset.test(file)),...['DAISYUI-LICENSE.txt','icon.ico'].map(name=>'app/build/'+name),...filesUnder('lib',file=>file.endsWith('.cjs')),...filesUnder('deploy',file=>/\/(?:Caddyfile|compose\.yaml|environment\.example)$/.test(file)),...toolNames.map(name=>'tools/'+name),...fs.readdirSync(path.join(root,'test')).filter(name=>name.endsWith('.test.cjs')).map(name=>'test/'+name),'test/retained/manifest.json'];
+ const files=[...top,...fs.readdirSync(path.join(root,'app')).filter(name=>name.endsWith('.cjs')).map(name=>'app/'+name),...filesUnder('app/src',file=>safeAsset.test(file)),...['DAISYUI-LICENSE.txt','icon.ico'].map(name=>'app/build/'+name),...filesUnder('lib',file=>file.endsWith('.cjs')),...filesUnder('deploy',file=>/\/(?:Caddyfile|Caddyfile-domain\.example|compose\.yaml|environment\.example)$/.test(file)),...toolNames.map(name=>'tools/'+name),...fs.readdirSync(path.join(root,'test')).filter(name=>name.endsWith('.test.cjs')).map(name=>'test/'+name),'test/retained/manifest.json'];
  const retained=JSON.parse(fs.readFileSync(path.join(root,'test/retained/manifest.json'),'utf8'));files.push(...retained.tests.map(row=>'test/retained/'+row.file));
  const unique=[...new Set(files)].sort();for(const name of unique){if(name.includes('..')||/\.(?:sqlite(?:-\w+)?|db|fnbak|key|pem|pfx|log)$/i.test(name)||/(?:^|\/)\.env/.test(name))throw Error('A private/runtime file was selected.');const info=fs.lstatSync(path.join(root,name));if(!info.isFile()||info.isSymbolicLink())throw Error('Public source entries must be regular files.');}return unique;
 }

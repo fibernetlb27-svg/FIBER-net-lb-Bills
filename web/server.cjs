@@ -15,9 +15,42 @@ const random = () => crypto.randomBytes(32).toString('hex');
 function publicOrigin(value, demo) {
   let url;
   try { url = new URL(value); } catch { throw Error('APP_ORIGIN must be an explicit HTTPS origin.'); }
-  if (url.username || url.password || url.pathname !== '/' || url.search || url.hash || !['https:', 'http:'].includes(url.protocol)) throw Error('APP_ORIGIN must contain only the website scheme and host.');
+  if (typeof value !== 'string' || value !== value.trim() || /[\s\\?#@*%]/.test(value) || !/^https?:\/\/[^/]+\/?$/i.test(value) || url.hostname.includes('*') || url.username || url.password || url.pathname !== '/' || url.search || url.hash || !['https:', 'http:'].includes(url.protocol)) throw Error('APP_ORIGIN must contain only the website scheme and host.');
   if (url.protocol !== 'https:' && !(demo && LOOPBACK.has(url.hostname))) throw Error('HTTPS is required except for an explicit loopback demonstration.');
   return url;
+}
+
+function parseAdditionalOrigins(value) {
+  if (value === undefined || value === '') return [];
+  if (typeof value !== 'string' || value.length > 8192) throw Error('APP_ADDITIONAL_ORIGINS must be a comma-separated list of explicit HTTPS origins.');
+  const values = value.split(',').map(item => item.trim());
+  if (values.some(item => !item) || values.length > 8) throw Error('APP_ADDITIONAL_ORIGINS requires one to eight nonempty explicit HTTPS origins.');
+  return values;
+}
+
+function originConfiguration(value, aliases = [], demo = false) {
+  const primary = publicOrigin(value, demo);
+  if (!Array.isArray(aliases) || aliases.length > 8) throw Error('APP_ADDITIONAL_ORIGINS requires at most eight explicit HTTPS origins.');
+  if (aliases.length && primary.protocol !== 'https:') throw Error('APP_ADDITIONAL_ORIGINS requires an HTTPS primary website.');
+  const hosts = new Map([[primary.host.toLowerCase(), primary]]), additional = [];
+  for (const value of aliases) {
+    let alias;
+    try { alias = publicOrigin(value, false); } catch { throw Error('APP_ADDITIONAL_ORIGINS accepts only explicit HTTPS origins without wildcards, credentials, paths, queries or fragments.'); }
+    if (alias.protocol !== primary.protocol || hosts.has(alias.host.toLowerCase())) throw Error('APP_ADDITIONAL_ORIGINS must contain distinct HTTPS origins and must not repeat APP_ORIGIN.');
+    hosts.set(alias.host.toLowerCase(), alias); additional.push(alias);
+  }
+  return {primary, additional, hosts};
+}
+
+function configuredRequestOrigin(host, origins) {
+  // Select only from the operator's exact allowlist. Forwarded Host/Proto and
+  // Origin never select the target website or authorize another alias.
+  if (typeof host !== 'string' || !host || /[\s\\/?#@,]/.test(host)) return null;
+  let selected;
+  try { selected = new URL(origins.primary.protocol + '//' + host); } catch { return null; }
+  const canonical = selected.host.toLowerCase(), raw = host.toLowerCase(), defaultPort = origins.primary.protocol === 'https:' ? '443' : '80';
+  if (raw !== canonical && raw !== canonical + ':' + defaultPort) return null;
+  return origins.hosts.get(selected.host.toLowerCase()) || null;
 }
 
 class WindowLimiter {
@@ -44,7 +77,7 @@ function safeMessage(error, status) {
 function createServer(options = {}) {
   const {backend, demo = false, now = Date.now} = options;
   if (!backend || typeof backend.request !== 'function' || typeof backend.metadata !== 'function') throw Error('A configured accounting backend is required.');
-  const origin = publicOrigin(options.origin, demo);
+  const origins = originConfiguration(options.origin, options.additionalOrigins, demo), origin = origins.primary;
   const secure = options.secureCookies === undefined ? origin.protocol === 'https:' : options.secureCookies;
   if (!secure && !(demo && origin.protocol === 'http:' && LOOPBACK.has(origin.hostname))) throw Error('Production sessions require Secure cookies.');
   const idleMs = options.idleMs ?? 30 * 60 * 1000;
@@ -112,15 +145,18 @@ function createServer(options = {}) {
     for (const [id, session] of sessions) if (expired(session, time)) { sessions.delete(id); void revoke(session); }
     for (const value of [requestLimit, globalLimit, staticAddress, staticGlobal, loginAddress, loginAccount, loginGlobal]) value.prune();
   }
-  function sessionFor(request, response, create = false) {
+  function sessionFor(request, response, create = false, requestOrigin = origin.origin) {
     const id = cookieId(request);
     let session = sessions.get(id);
+    // A copied cookie or a Domain-injected cookie cannot cross IP/domain/port
+    // origins. Do not revoke or touch the original origin's valid session.
+    if (session && session.origin !== requestOrigin) session = null;
     if (session && expired(session, now())) { sessions.delete(id); void revoke(session); session = null; }
     if (!session && create) {
       if (sessions.size >= maxSessions) prune();
       if (sessions.size >= maxSessions) return null;
       const time = now();
-      session = {id: random(), csrf: random(), createdAt: time, lastSeen: time, tokens: new Map(), authBusy: false};
+      session = {id: random(), origin: requestOrigin, csrf: random(), createdAt: time, lastSeen: time, tokens: new Map(), authBusy: false};
       sessions.set(session.id, session); cookie(response, session.id);
     }
     if (session) session.lastSeen = now();
@@ -176,7 +212,9 @@ function createServer(options = {}) {
 
   const server = http.createServer(async (request, response) => {
     headers(response);
-    if (String(request.headers.host || '').toLowerCase() !== origin.host.toLowerCase()) return fail(response, 421, 'This request does not match the configured website.');
+    if (request.rawHeaders.filter((name, index) => index % 2 === 0 && name.toLowerCase() === 'host').length !== 1) return fail(response, 421, 'This request does not match the configured website.');
+    const origin = configuredRequestOrigin(request.headers.host, origins);
+    if (!origin) return fail(response, 421, 'This request does not match the configured website.');
     if (!request.url?.startsWith('/') || request.url.startsWith('//')) return fail(response, 400, 'Invalid request address.');
     let url;
     try { url = new URL(request.url, origin); } catch { return fail(response, 400, 'Invalid request address.'); }
@@ -197,14 +235,14 @@ function createServer(options = {}) {
         if (!validWorkspace(workspaceId)) return fail(response, 400, 'Choose a valid business section.');
         if (request.method === 'GET' && url.pathname === '/api/meta') return json(response, 200, {data: await metadata(workspaceId)});
         if (request.method === 'GET' && url.pathname === '/api/session') {
-          const session = sessionFor(request, response, true);
+          const session = sessionFor(request, response, true, origin.origin);
           if (!session) return fail(response, 503, 'The server has reached its session limit. Try again later.');
           const [user, meta] = await Promise.all([currentUser(session, workspaceId), metadata(workspaceId)]);
           return json(response, 200, {data: {user, csrfToken: session.csrf, version: meta.version, workspaceId, needsSetup: meta.needsSetup, demo: Boolean(demo)}});
         }
         if (request.method !== 'POST' || url.pathname !== '/api/rpc') return fail(response, 404, 'Not found.');
         if (request.headers.origin !== origin.origin) return fail(response, 403, 'This request must come from the configured website.');
-        const session = sessionFor(request, response);
+        const session = sessionFor(request, response, false, origin.origin);
         if (!session || !csrfValid(request, session)) return fail(response, 403, 'Your website session changed. Refresh before continuing; check saved results before repeating a change.');
         const input = await body(request);
         if (Object.keys(input).some(key => !['channel', 'args', 'workspaceId'].includes(key)) || typeof input.channel !== 'string' || !PUBLIC_RPC_CHANNELS.has(input.channel) || !Array.isArray(input.args) || input.args.length > 20 || !validWorkspace(input.workspaceId)) return fail(response, 400, 'This browser request is not supported.');
@@ -287,7 +325,8 @@ async function startFromEnvironment(environment = process.env) {
   process.umask(0o077);
   const {assertCompleteDataDirectory} = require('./lib/storage.cjs');
   const {loadSecretStorage} = require('./lib/secrets.cjs');
-  const origin = publicOrigin(environment.APP_ORIGIN, false);
+  // Reject alias mistakes before loading a key or opening the accounting writer.
+  const origins = originConfiguration(environment.APP_ORIGIN, parseAdditionalOrigins(environment.APP_ADDITIONAL_ORIGINS), false), origin = origins.primary;
   const directory = assertCompleteDataDirectory(environment.DATA_DIRECTORY);
   const packageRoot = path.resolve(__dirname);
   const inside = (candidate, root) => { const relative = path.relative(root, candidate); return !relative || relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative); };
@@ -302,7 +341,7 @@ async function startFromEnvironment(environment = process.env) {
     backend = await createBackend({dataDirectory: directory, version: require('./package.json').version, secrets, initialize: false, providersEnabled: environment.PROVIDERS_ENABLED === 'true'});
     const trustedProxies = String(environment.TRUSTED_PROXY_ADDRESSES || '').split(',').map(value => value.trim()).filter(Boolean);
     if (trustedProxies.some(value => !net.isIP(value))) throw Error('Trusted proxy addresses must be explicit IP addresses.');
-    server = createServer({backend, origin: origin.origin, trustedProxies});
+    server = createServer({backend, origin: origin.origin, additionalOrigins: origins.additional.map(item => item.origin), trustedProxies});
     const port = Number(environment.PORT || 3000), host = environment.BIND_ADDRESS || '127.0.0.1';
     if (!Number.isSafeInteger(port) || port < 1 || port > 65535 || !net.isIP(host)) throw Error('Choose a valid bind address and port.');
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, resolve); });
@@ -328,4 +367,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = {createServer, startFromEnvironment, publicOrigin, safeMessage};
+module.exports = {createServer, startFromEnvironment, publicOrigin, parseAdditionalOrigins, originConfiguration, safeMessage};

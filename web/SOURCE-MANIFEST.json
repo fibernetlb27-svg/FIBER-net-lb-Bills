@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -20,8 +20,13 @@
     },
     {
       "name": "DEPLOYMENT.md",
-      "length": 20605,
-      "sha256": "ec54e9e1107559f1bf399d3f3a394ba7e44fc9fa66678881bb6613773ee4e31e"
+      "length": 26384,
+      "sha256": "239125f77c09b72ac57d315dfb840b8389e1818c5583374ed4a71389502d18a1"
+    },
+    {
+      "name": "DOMAIN-SETUP.md",
+      "length": 8241,
+      "sha256": "2dd7fcab29a0544a77155fe8a85435288b664cf04c6e8e024816fec7186402d0"
     },
     {
       "name": "Dockerfile",
@@ -30,13 +35,13 @@
     },
     {
       "name": "MIGRATION.md",
-      "length": 6042,
-      "sha256": "1241db5ea8da5cd1e4cbb406a8913aa96d88eebc831d16793d75c79c38f43450"
+      "length": 7665,
+      "sha256": "1acf224c6d90fa857287f36e246e261b5a62dadb3f90a055007f295b968a5c3d"
     },
     {
       "name": "README.md",
-      "length": 9434,
-      "sha256": "f40fe7cac836daf9922068c39773885d0c580d5cd506673c139ead355a8fa33b"
+      "length": 10808,
+      "sha256": "46526c69d218167c57fe27a4f83cfd146c7f4d40833d01ca4d43e4ce12d7cb10"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -749,14 +754,19 @@
       "sha256": "a7d1a91101dd090242a6e2d7f132885ae09b2ecfad4442b8f911fc0b55872d05"
     },
     {
+      "name": "deploy/Caddyfile-domain.example",
+      "length": 774,
+      "sha256": "2e13c7ba9ea355bce600a27548f0c2e1a0e56cc80e2ed69548bbb80ec6ad293d"
+    },
+    {
       "name": "deploy/compose.yaml",
-      "length": 1746,
-      "sha256": "18de50aaa8b034ecd47174b671f31686e7f367d48de5ddb6d89dbc5c408b3aa8"
+      "length": 1804,
+      "sha256": "b1286b00226b9b74a2ecc55ec90588e43148876b4d8efa0cb85c385a22cf4f17"
     },
     {
       "name": "deploy/environment.example",
-      "length": 376,
-      "sha256": "c277daba289c1b4bc1eaaff6910c6621efa13337b18bb6c7518a4ef910925d70"
+      "length": 617,
+      "sha256": "17d38552a862477fe3d04d0d34f8c4c83ac1facd648fe4f5f6951f6b278b032c"
     },
     {
       "name": "lib/rpc-channels.cjs",
@@ -776,17 +786,17 @@
     {
       "name": "package-lock.json",
       "length": 1367,
-      "sha256": "11b4bb79e56a3d3448840362f994d0ae99e7c93e9a539166af966c15b2df1cbd"
+      "sha256": "0f85abee9bcbf20ad18fb7df21e4b60162ae1726879a6ec1318b9f604dc03d79"
     },
     {
       "name": "package.json",
       "length": 508,
-      "sha256": "b247de68e8c0e56db19ef9d043169cce16b2bebc465c6e04f0868677fd5d1e62"
+      "sha256": "245601b8636c9a8a24ee83e8616f2f3564172436a708ef9653a82bf33cedd3ee"
     },
     {
       "name": "server.cjs",
-      "length": 23537,
-      "sha256": "8f5ea72e7e17b3e5583fdc99e92d20d3f6cf627c38ee05ea9d6be8d91547e1c9"
+      "length": 26727,
+      "sha256": "32629d836cf77075b5a2200c1bceb987dfed6e58604222e97825f9ee06bbd4d3"
     },
     {
       "name": "test/automatic-month-closing.test.cjs",
@@ -849,6 +859,11 @@
       "sha256": "b0225d865713686d6d775a60c2f050af031460d413106d5c495c0fa8f193f8b0"
     },
     {
+      "name": "test/domain-config.test.cjs",
+      "length": 6626,
+      "sha256": "6c7826050472d14d6c21d9d2128dffe4b6563cf95a2c8a361a4e87f9eba07532"
+    },
+    {
       "name": "test/financial-http.test.cjs",
       "length": 5590,
       "sha256": "889f3c5def86c34e22120b9acd7218406405af72f3852210968b439fcda30a9c"
@@ -862,6 +877,11 @@
       "name": "test/mail-dependency.test.cjs",
       "length": 2911,
       "sha256": "0465aa7a726e8b8955a430ce5d3015ccd06e45e71b2ab86f6cebb267fbc20210"
+    },
+    {
+      "name": "test/origin-aliases.test.cjs",
+      "length": 10533,
+      "sha256": "c852f7c31fc4d52756def658084f50801f36539d145f8d4a60e7f2b2f40594b6"
     },
     {
       "name": "test/package-source.test.cjs",
@@ -1045,8 +1065,8 @@
     },
     {
       "name": "test/server-core.test.cjs",
-      "length": 4682,
-      "sha256": "420b95841f54891ffd5fd927b7133044469d3b1944991b12dcf6d9620fda697d"
+      "length": 8561,
+      "sha256": "c014c1c14b927837494139fda9030513d918d5a213d5b25d25596118a56b930f"
     },
     {
       "name": "test/server.test.cjs",
@@ -1075,8 +1095,13 @@
     },
     {
       "name": "tools/package-source.cjs",
-      "length": 3738,
-      "sha256": "c5338921eb1bca17ef957026741b9ce0abe1d8660ae0b3d9a3173841680ec529"
+      "length": 3810,
+      "sha256": "94359dddf22c0918ca9381d6cc96fc98e8ba36372144771e0321333bcd5bf97d"
+    },
+    {
+      "name": "tools/prepare-domain-config.cjs",
+      "length": 7302,
+      "sha256": "5c0fa2d0d1d68b80e883a10be7a8e4b07e3f13b4d9a57f80f0e06e4554f2e463"
     },
     {
       "name": "tools/run-retained-tests.cjs",
