@@ -13,15 +13,16 @@ if(process.argv[2]==='--one'){
  const originalLoad=Module._load;Module._load=function(name,...args){assert.notEqual(name,'electron','The website financial tests must not load Electron.');return originalLoad.call(this,name,...args);};
  const virtual=path.join(app,name),testModule=new Module(virtual,module);testModule.filename=virtual;testModule.paths=Module._nodeModulePaths(app);process.argv=[process.execPath,virtual];testModule._compile(source.toString('utf8'),virtual);
 }else{
- const adaptations=new Map();
+ const adaptations=new Map(),acceptedAdaptations=new Set(['backup-manager.cjs','reseller-accounting.cjs','reseller-collected-revenue.cjs','reseller-collections.cjs','reseller-funding-service.cjs']);
  for(const row of manifest.websiteAdaptations||[]){
-  assert.equal(row.file,'backup-manager.cjs','Only the documented website backup adaptation is accepted.');
+  assert(acceptedAdaptations.has(row.file),'Only the specifically reviewed website backup and reseller closing fixes are accepted.');
   assert(!adaptations.has(row.file),'Duplicate website adaptation.');
   const original=manifest.modules.find(module=>module.file===row.file);
   assert(original&&original.sha256===row.sourceSha256,'Preserve the accepted desktop baseline for each adaptation.');
   assert(/^[a-f0-9]{64}$/.test(row.sha256)&&row.reason,'Record the exact website hash and reason.');
   adaptations.set(row.file,row);
  }
+ assert.deepEqual([...adaptations.keys()].sort(),[...acceptedAdaptations].sort(),'Record every reviewed website adaptation with its exact hash.');
  for(const row of manifest.modules){const adapted=adaptations.get(row.file);assert.equal(hash(fs.readFileSync(path.join(app,row.file))),adapted?.sha256||row.sha256,(adapted?'Reviewed website adaptation changed: ':'Accounting module changed from accepted desktop source: ')+row.file);}
  for(const row of manifest.tests)assert.equal(hash(fs.readFileSync(path.join(fixtures,row.file))),row.sha256,'Retained assertion source changed: '+row.file);
  const results=[];for(const row of manifest.tests){const started=Date.now(),run=cp.spawnSync(process.execPath,[__filename,'--one',row.file],{cwd:app,encoding:'utf8',windowsHide:true,timeout:180000,maxBuffer:4*1024*1024});const output=(run.stdout||'')+(run.stderr||'');results.push({test:row.file,ok:run.status===0&&!run.error,status:run.status,error:run.error?.message||null,durationMs:Date.now()-started,outputSha256:hash(output),output});console.log((results.at(-1).ok?'PASS ':'FAIL ')+row.file);if(!results.at(-1).ok)console.log(output);}

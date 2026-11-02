@@ -1,6 +1,6 @@
 # FIBER net lb website preview
 
-Version 0.1.2 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.3 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 This is a deployment candidate for isolated staging. The existing Main PC remains the accounting authority until an agreed cutover. The website uses the seven existing SQLite database formats; a copied-data rehearsal is required before real use. Fictional previews and their checks are separate from accepting live business data.
 
@@ -26,6 +26,14 @@ The preview binds only to loopback, disables external providers, and creates ind
 - CSV export downloads a file. Native installers, Windows folders and live restore/reset are not browser operations. Admin backup settings/history and encrypted backup creation remain available; restoration is an operator task.
 - WhatsApp receipt sharing retains its normal browser sharing/link flow. This package does not activate or send API reminders.
 
+## Support handover and Resellers monthly accounting
+
+Support sees **End of day** in the Users business dashboard, outside the retired summary cards. The Main dashboard shortcut opens that business using the same login. The existing Support role, business access, drawer permission, Cashier selection and reviewed handover remain required; the shortcut does not grant Main Office transfer authority.
+
+Reseller Bills activity defaults to the current business month. Earlier Add Money receipts remain available through **All saved history**. Outstanding amounts still include unpaid earlier receipts, and verified carried-forward funds remain protected and available for collection or refund. Legacy closes that reset balances retain their separate restrictions.
+
+The Resellers monthly ledger shows completed Admin collections on their actual collection dates, alongside recorded sales and the verified bandwidth purchase cost for that month. This includes unpaid bandwidth purchases. Existing fees and monthly deductions remain counted once. Earlier incomplete monthly reports receive a read-only presentation correction; the original closing archive and its audit proof are preserved. Company transaction reports retain their existing treatment of internal transfers so consolidating businesses does not count the same income or cost twice. Main dashboard Revenue retains its explicitly labelled all-recorded-dates collection view.
+
 ## Verification
 
 ```sh
@@ -33,7 +41,7 @@ node tools/check-source.cjs
 npm test
 ```
 
-Tests use fictional, temporary data. The suite covers the genuine headless core, real HTTP sessions, roles and business isolation, funding and monthly closing, copied-data preservation, and a real Chrome browser. Thirty unchanged accepted financial fixtures run against 65 unchanged accounting modules and one explicitly hashed website backup adaptation; original desktop and reviewed website hashes are recorded in `test/retained/manifest.json`. Dedicated backup tests verify local-only daily scheduling, seven-database recovery and blocked external delivery while providers are disabled.
+Tests use fictional, temporary data. The suite covers the genuine headless core, real HTTP sessions, roles and business isolation, funding and monthly closing, copied-data preservation, and a real Chrome browser. Thirty unchanged accepted financial fixtures run against 61 unchanged accounting modules and five explicitly hashed website adaptations for backups and reseller monthly reporting/carry-forward. Original desktop and reviewed website hashes are recorded in `test/retained/manifest.json`. Dedicated tests verify Support handover visibility and authorization, collection dates and monthly totals, immutable archive presentation, protected carried funds, local-only daily backups and blocked external delivery while providers are disabled.
 
 Chrome must be installed for the UI test. Set `CHROME_BIN` to its absolute path if needed. `CHROME_TEST_NO_SANDBOX=1` is reserved for disposable CI runners, not normal deployment. There is no TypeScript build or configured lint tool in this plain JavaScript project; the source check verifies JavaScript syntax and public-package boundaries. No coverage percentage is claimed.
 

@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -35,8 +35,8 @@
     },
     {
       "name": "README.md",
-      "length": 4336,
-      "sha256": "05b08946d53644feb6a9e2458b69a40e0919339ba21a24f914bafec2d2ccbc6d"
+      "length": 5927,
+      "sha256": "1aa422071a2cdb317e8e36484c1163d2d58b1e0b7900468cde18a42344c0b7e7"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -130,8 +130,8 @@
     },
     {
       "name": "app/core.cjs",
-      "length": 371000,
-      "sha256": "501fbb762e5aff013553190e5edadf8344e2c6640b7c7f461e786253fb788328"
+      "length": 372201,
+      "sha256": "ccaa002d6d07c9d0ddceaf3a2022b960035a15290c6383139c7d613010a2d8d5"
     },
     {
       "name": "app/customer-registration.cjs",
@@ -270,8 +270,8 @@
     },
     {
       "name": "app/reseller-accounting.cjs",
-      "length": 23430,
-      "sha256": "5c41dda837093cd37dbd058f09efc1d2995825813a4fa6b3b9ada8babf0c17b2"
+      "length": 24042,
+      "sha256": "6171f11d980cfb4eb1b9e384a800c58d0aef7ee6e6345bbb9289e48949ef5fdb"
     },
     {
       "name": "app/reseller-admin-wallet-corrections.cjs",
@@ -285,18 +285,18 @@
     },
     {
       "name": "app/reseller-collected-revenue.cjs",
-      "length": 1394,
-      "sha256": "9562273f92a2ad4bcdadc941e74d3594511a614730120b06d7ee25d9792de4b3"
+      "length": 9400,
+      "sha256": "63f31daa1851c81cf06cd670745be060b9700538b5723a9043c792e695596f3d"
     },
     {
       "name": "app/reseller-collections.cjs",
-      "length": 75094,
-      "sha256": "e18db5d3275405e8f8780c7236de4b345b992897f12782f4a930fdfae72906f8"
+      "length": 77668,
+      "sha256": "8f31a2a7d4f7bf60130680b495da8d711c48c46a5feae8d4463a22b836b05754"
     },
     {
       "name": "app/reseller-funding-service.cjs",
-      "length": 29736,
-      "sha256": "fe9bce9880b79f728e762fa5eb746f40b6b0f5380e238f57a590403b5df2fbb5"
+      "length": 30493,
+      "sha256": "c82435549b717b40b7504ec170525f8c36ee9d054f36a3cf0e87f9f16e356dd7"
     },
     {
       "name": "app/reseller-transactions.cjs",
@@ -485,8 +485,8 @@
     },
     {
       "name": "app/src/finance-dashboard.js",
-      "length": 64947,
-      "sha256": "7a899b77e6ee61d43ccd59b2ded5df6bc5db4358e972729f95a0e953c0465647"
+      "length": 65315,
+      "sha256": "6eea851600efa08fdd484bc19358da8e257d3bb2a0073904bda65ed84ac6355c"
     },
     {
       "name": "app/src/finance-workspace.css",
@@ -585,8 +585,8 @@
     },
     {
       "name": "app/src/reseller-funding.js",
-      "length": 82348,
-      "sha256": "32375b5c066dad7be247f486021c47743a0040e0d27fcb50bdfc4859ce9bbe0b"
+      "length": 83107,
+      "sha256": "856b29fc6b2aafcd0832337af33e983fc8436f8da069cf302b4c4cc0bce15fb5"
     },
     {
       "name": "app/src/shared-maintenance.js",
@@ -610,13 +610,13 @@
     },
     {
       "name": "app/src/styles.css",
-      "length": 118497,
-      "sha256": "42a85f28a641f7b230ff2b70475b9131f0b73061c118e67e4727258c4ee49184"
+      "length": 118570,
+      "sha256": "e08135fb97b0ddd3e24fe1118bfca23fecd7d9c4b2f267e5e70a5859df726ffe"
     },
     {
       "name": "app/src/support-handover.js",
-      "length": 11736,
-      "sha256": "38ffb7b7369d7f03b10e668d69cf296920331138a2d171ab1f94ef79da6a9f6a"
+      "length": 12812,
+      "sha256": "e32bfafec38489bcee3d9b63adc9c694287eac9c0a2dcfa7526b5283b16e867b"
     },
     {
       "name": "app/src/theme-init.js",
@@ -751,12 +751,12 @@
     {
       "name": "package-lock.json",
       "length": 1367,
-      "sha256": "1254b4be43897851bd923c8fd3a4846a476e7f08793341a8d9823b8f36e88dcf"
+      "sha256": "cb453cefba32a3ad5ca6080f9f31547667fb9bfd38d76223969c3ae0cc7a00b7"
     },
     {
       "name": "package.json",
       "length": 508,
-      "sha256": "d57e3df403d9194c54b1e9094e8ed3d4464e7a19badb3070e208c49fe74bd39f"
+      "sha256": "1e95dde1e6c3bb09d388006305b3bcf74e13d0f512ae1150703851d5e811a015"
     },
     {
       "name": "server.cjs",
@@ -775,8 +775,8 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 30591,
-      "sha256": "795360a00492fc598cd20d5e3aadc7555fadd0de09201570858db53335a8b0cd"
+      "length": 36683,
+      "sha256": "1fc2c2fe57d2ed7bff25ca85a15cc469857d5c5a67e10ec98dbedfe059bfa741"
     },
     {
       "name": "test/core-auth.test.cjs",
@@ -815,8 +815,8 @@
     },
     {
       "name": "test/financial-regression.test.cjs",
-      "length": 983,
-      "sha256": "c649d0d11c79068311ba6ebff3a52ac8afaae959240082a00cda426f25c0923c"
+      "length": 1100,
+      "sha256": "7bfd862d2d6e7f7b876d204e344ffbfafbe8c3d76bcd4e46092ecef879d14375"
     },
     {
       "name": "test/mail-dependency.test.cjs",
@@ -829,9 +829,24 @@
       "sha256": "7c23285b1255153cf1a41a4e5eacff50f5ca4dc3ee7149648b8b52f75bed946b"
     },
     {
+      "name": "test/reseller-month-report.test.cjs",
+      "length": 10522,
+      "sha256": "138bffa5ae9353e7a0a4bbc75ed83c54ee44b7db12e46070e172703762db7a73"
+    },
+    {
+      "name": "test/reseller-transaction-archive.test.cjs",
+      "length": 9479,
+      "sha256": "0029f372c17d9d89d2c597792c1ad495e9bcebe0fd4868cbb421fe2bc4e51e5b"
+    },
+    {
+      "name": "test/reseller-wallet-carry.test.cjs",
+      "length": 9326,
+      "sha256": "882198b396374be943b2fe3058b7ec88240fb5d10d18a3156d8df6b659469fe0"
+    },
+    {
       "name": "test/retained/manifest.json",
-      "length": 14651,
-      "sha256": "d805d1bd73a1c062aafbf0eb22f286c972b9dc2bdae1b5e8398d53edf883334e"
+      "length": 16219,
+      "sha256": "0ba62ac4a3b5319670cf92afd0054a4a961720bd7ed9e208488df61aaf186a1e"
     },
     {
       "name": "test/retained/qa-admin-money-transfers.cjs",
@@ -1020,8 +1035,8 @@
     },
     {
       "name": "tools/run-retained-tests.cjs",
-      "length": 4075,
-      "sha256": "4ca6634b3f643f16327152a56817634f5dde61f7a5d902a05356ecdad2397644"
+      "length": 4417,
+      "sha256": "23f39e2f4dacce70b225a3cb5e5aa7e4f9f5f3d9e73567bc4b08a9d8478385cd"
     },
     {
       "name": "tools/verify-backup.cjs",

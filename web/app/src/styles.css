@@ -403,6 +403,7 @@ select:focus, input:focus { border-color: #6fa6e9; box-shadow: 0 0 0 3px rgba(23
 #support-copy-paper th { width: 35%; text-align: left; }
 #support-end-preview ul { padding-left: 20px; }
 #support-end-dialog { width: min(740px, calc(100vw - 28px)); }
+#support-day-actions { justify-content: flex-end; margin-bottom: 20px; }
 #support-end-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
 #support-end-form > .auth-copy,#support-end-form > label:first-of-type,#support-end-preview,#support-end-error,#support-end-form > .modal-actions { grid-column: 1 / -1; }
 #support-end-form > label { display: grid; gap: 8px; font-weight: 600; }

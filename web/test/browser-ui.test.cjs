@@ -110,6 +110,8 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  for(const role of ['cashier','support']){
   const created=await backend.request({channel:'users:create',args:[{username:'browser.fixture.'+role,fullName:'Fictional Browser '+role,password,role,allowedSections:['fiber-users','fiber-resellers']}],workspaceId:'main',token:ownerLogin.data.sessionToken});assert.equal(created.status,200);
  }
+ const supportLogin=await backend.request({channel:'auth:login',args:[{username:'browser.fixture.support',password}],workspaceId:'fiber-users'});assert.equal(supportLogin.status,200);
+ assert.equal((await backend.request({channel:'drawer:setBalance',args:[{balance:17,note:'Fictional Support cash for read-only handover preview'}],workspaceId:'fiber-users',token:supportLogin.data.sessionToken})).status,200);
  const port=await unusedPort(),origin='http://127.0.0.1:'+port;
  server=createServer({backend,origin,demo:true});await new Promise(resolve=>server.listen(port,'127.0.0.1',resolve));
  const debugUrl=await new Promise((resolve,reject)=>{
@@ -228,18 +230,54 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
    await tap(page,'#website-navigation-toggle');await tap(page,'#back-main-dashboard');await waitFor(page,"typeof businessWorkspace!=='undefined'&&businessWorkspace.id==='main'&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' initial return to Main');
   }
   await responsive(page,role+' Main dashboard');await enlargedText(page,role+' Main dashboard');
+  assert.equal(await evaluate(page,"Boolean(document.querySelector('#support-end-day')?.getClientRects().length)"),role==='support',role+' Main shows only the authorized Users handover shortcut');
+  if(role==='support'){
+   assert.equal(await evaluate(page,"document.querySelector('#support-end-day').textContent"),'Open Users End of day');
+   assert.equal(await evaluate(page,"posApi.finance.endDayTargets().then(()=>false,error=>/FIBER net lb Users only/.test(error.message))"),true,'Main shortcut does not grant Main an End of day API');
+  }
   await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
   await tap(page,'#website-navigation-toggle');
   const assigned=await evaluate(page,"[...document.querySelectorAll('#website-navigation [data-workspace]')].map(el=>el.dataset.workspace)");assert.deepEqual(assigned,['fiber-users','fiber-resellers'],role+' menu contains only assigned businesses');
-  await tap(page,'#website-navigation [data-workspace="fiber-users"]');
+  if(role==='support'){await tap(page,'#website-navigation-toggle');await tap(page,'#support-end-day');}
+  else await tap(page,'#website-navigation [data-workspace="fiber-users"]');
   await waitFor(page,"typeof businessWorkspace!=='undefined'&&businessWorkspace.id==='fiber-users'&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' business navigation');
   assert.equal(await evaluate(page,"document.querySelector('#website-navigation-toggle').getAttribute('aria-expanded')"),'false',role+' business navigation starts closed');
   await responsive(page,role+' business dashboard');
+  assert.equal(await evaluate(page,"Boolean(document.querySelector('#support-end-day')?.getClientRects().length)"),role==='support',role+' Users action is visible despite retired headline cards');
+  if(role==='support'){
+   assert.equal(await evaluate(page,"getComputedStyle(document.querySelector('#view-dashboard > .metric-grid')).display"),'none','Legacy metric cards remain hidden');
+   assert.equal(await evaluate(page,"document.querySelector('#support-end-day').textContent"),'End of day');
+   await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await tap(page,'#support-end-day');
+   await waitFor(page,"document.querySelector('#support-end-dialog').open&&document.querySelector('#support-end-to').options.length===2",'Support receiving Cashier');
+   await responsive(page,'Support End of day dialog');await enlargedText(page,'Support End of day dialog');
+   await evaluate(page,"const select=document.querySelector('#support-end-to');select.value=select.options[1].value;select.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#support-end-preview-button').click()");
+   await waitFor(page,"!document.querySelector('#support-end-save').disabled",'Support read-only end-of-day preview');
+   assert.match(await evaluate(page,"document.querySelector('#support-end-preview').textContent"),/\$17\.00 cash/);
+   assert.equal(await evaluate(page,"posApi.drawer.get().then(value=>value.balance)"),17,'Review never transfers Support cash');
+   // A late preview must not reopen a handover after the staff permission changes.
+   await evaluate(page,"(async()=>{window.__qaSupportUser=state.currentUser;window.__qaOriginalPreview=posApi.finance.endDayPreview;window.__qaSupportPreview=await posApi.finance.endDayPreview({toKey:document.querySelector('#support-end-to').value});posApi.finance.endDayPreview=()=>new Promise(resolve=>{window.__qaReleaseSupportPreview=resolve;});document.querySelector('#support-end-preview-button').click();})()");
+   await evaluate(page,"(async()=>{state.currentUser={...state.currentUser,permissions:state.currentUser.permissions.filter(permission=>permission!=='drawer.manage')};SupportHandover.updateUser(state.currentUser);window.__qaReleaseSupportPreview(window.__qaSupportPreview);await Promise.resolve();await Promise.resolve();})()");
+   assert.equal(await evaluate(page,"!document.querySelector('#support-end-dialog').open&&!document.querySelector('#support-end-day').getClientRects().length&&document.querySelector('#support-end-save').disabled&&document.querySelector('#support-end-preview').textContent===''"),true,'Revocation hides the action, closes the dialog and ignores a late preview');
+   await evaluate(page,"posApi.finance.endDayPreview=window.__qaOriginalPreview;state.currentUser=window.__qaSupportUser;SupportHandover.updateUser(state.currentUser);delete window.__qaOriginalPreview;delete window.__qaSupportUser;delete window.__qaSupportPreview;delete window.__qaReleaseSupportPreview;");
+   assert.equal(await evaluate(page,"Boolean(document.querySelector('#support-end-day').getClientRects().length)"),true,'Authorized Support can reopen the action after permission refresh');
+  }else{
+   assert.equal(await evaluate(page,"posApi.finance.endDayTargets().then(()=>false,error=>/Support/.test(error.message))"),true,'Cashier cannot invoke Support End of day');
+  }
   await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await tap(page,'#website-navigation-toggle');
   assert.equal(await evaluate(page,"(()=>{const r=document.querySelector('#website-navigation').getBoundingClientRect();return r.bottom<=innerHeight;})()"),true,role+' business menu fits with Return to Main');
   await tap(page,'#back-main-dashboard');await waitFor(page,"typeof businessWorkspace!=='undefined'&&businessWorkspace.id==='main'&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",role+' return to Main');
+  if(role==='support'){
+   await tap(page,'#website-navigation-toggle');
+   await tap(page,'#website-navigation [data-workspace="fiber-resellers"]');await waitFor(page,"typeof businessWorkspace!=='undefined'&&businessWorkspace.id==='fiber-resellers'&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",'Support Resellers scope');
+   assert.equal(await evaluate(page,"Boolean(document.querySelector('#support-end-day')?.getClientRects().length)"),false,'Resellers does not expose Users handover');
+   assert.equal(await evaluate(page,"posApi.finance.endDayTargets().then(()=>false,error=>/FIBER net lb Users only/.test(error.message))"),true,'Resellers cannot invoke Users handover');
+   await tap(page,'#website-navigation-toggle');
+   await tap(page,'#back-main-dashboard');await waitFor(page,"typeof businessWorkspace!=='undefined'&&businessWorkspace.id==='main'&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",'Support returns from Resellers');
+  }
  }
+ await evaluate(page,"document.querySelector('#logout-button').click()");await waitFor(page,"document.querySelector('#app-shell').classList.contains('hidden')",'Final Support logout');
+ assert.equal(await evaluate(page,"!document.querySelector('#support-end-day').getClientRects().length&&!document.querySelector('#support-end-dialog').open&&document.querySelector('#support-end-save').disabled"),true,'Logout clears the Support action and unfinished preview');
  const exceptions=pages.flatMap(target=>target.events.filter(event=>event.method==='Runtime.exceptionThrown').map(event=>event.params.exceptionDetails.exception?.description||event.params.exceptionDetails.text));
  assert.deepEqual(exceptions,[],'Browser has no uncaught JavaScript exceptions');
- t.diagnostic('Real Node/core + Chrome: eleven phone/tablet/desktop viewport sizes,compact mobile headers and visible main content, pointer-operated menu/selection/Escape/focus checks, assigned Cashier/Support mobile navigation,125% enlarged text, Main routes, financial forms, all seven businesses, actual receipt/PDF, CSV, cross-tab logout and Viewer authorization passed.');
+ t.diagnostic('Real Node/core + Chrome: eleven phone/tablet/desktop viewport sizes,compact mobile headers and visible main content, pointer-operated menu/selection/Escape/focus checks, assigned Cashier/Support mobile navigation, visible Users End of day and Main shortcut with read-only preview and stale-permission protection,125% enlarged text, Main routes, financial forms, all seven businesses, actual receipt/PDF, CSV, cross-tab logout and Viewer authorization passed.');
 });

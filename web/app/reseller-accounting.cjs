@@ -12,15 +12,19 @@ function importPreview(db,result){const began=opening(db).startedAt;if(!began)th
  const ids=new Set(rows.map(r=>r.id));if(prior.some(r=>r.charge_date>=result.start&&r.charge_date<=result.end&&!ids.has(r.portal_id)))throw Error('A previously imported service charge is missing from the refreshed portal list. Review it; no costs were removed or imported.');
  const fresh=rows.filter(r=>!map.has(r.id));return {start:result.start,end:result.end,count:result.count,rows,newCount:fresh.length,chargeTotal:fresh.reduce((n,r)=>n+r.chargeCents,0)/100,verifiedAt:result.verifiedAt,token:crypto.createHash('sha256').update(JSON.stringify(rows)).digest('hex')};}
 function importCharges(db,result,token,actor,now){const p=importPreview(db,result);if(token!==p.token)throw Error('Portal transactions changed. Review the import again.');db.exec('BEGIN');try{for(const r of p.rows)db.run('INSERT OR IGNORE INTO reseller_charge_imports VALUES(?,?,?,?,?,?,?)',[r.id,r.username,r.chargeCents,r.date,r.type,r.description,now]);db.run('INSERT INTO reseller_import_runs VALUES(?,?,?,?,?,?)',[crypto.randomUUID(),p.start,p.end,now,p.count,actor.account_key]);db.exec('COMMIT');return p;}catch(e){db.exec('ROLLBACK');throw e;}}
-function fundingTotals(db,key=null){const rows=q(db,`SELECT username,
+function fundingTotals(db,key=null,period=null){
+ const filters=[],params=[];if(key){filters.push('actor_key=?');params.push(key);}
+ if(period){for(const value of [period.start,period.end])if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value)||!Number.isFinite(Date.parse(value+'T12:00:00Z'))||new Date(value+'T12:00:00Z').toISOString().slice(0,10)!==value)throw Error('Choose valid reseller funding dates.');if(period.start>period.end)throw Error('Choose valid reseller funding dates.');filters.push('substr(paid_at,1,10) BETWEEN ? AND ?');params.push(period.start,period.end);}
+ const where=filters.length?'WHERE '+filters.join(' AND '):'',and=filters.length?' AND '+filters.join(' AND '):'';
+ const rows=q(db,`SELECT username,
  SUM(CASE WHEN amount_cents>0 THEN amount_cents ELSE 0 END) AS added,
  SUM(CASE WHEN amount_cents<0 THEN -amount_cents ELSE 0 END) AS refunded,
  SUM(CASE WHEN amount_cents>0 AND payment_method='Cash' THEN amount_cents ELSE 0 END) AS cash,
  SUM(CASE WHEN amount_cents>0 AND payment_method='Whish Money' THEN amount_cents ELSE 0 END) AS whish,
  SUM(CASE WHEN amount_cents<0 AND payment_method='Cash' THEN -amount_cents ELSE 0 END) AS cash_refunded,
  SUM(CASE WHEN amount_cents<0 AND payment_method='Whish Money' THEN -amount_cents ELSE 0 END) AS whish_refunded
- FROM reseller_funds ${key?'WHERE actor_key=?':''} GROUP BY username`,key?[key]:[]);
- const feeRows=q(db,"SELECT username,amount_cents,input_json FROM reseller_funds WHERE amount_cents>0 AND payment_method='Whish Money'"+(key?' AND actor_key=?':''),key?[key]:[]),fees=new Map(),deductions=new Map();let totalFee=0,totalDeduction=0;
+ FROM reseller_funds ${where} GROUP BY username`,params);
+ const feeRows=q(db,"SELECT username,amount_cents,input_json FROM reseller_funds WHERE amount_cents>0 AND payment_method='Whish Money'"+and,params),fees=new Map(),deductions=new Map();let totalFee=0,totalDeduction=0;
  for(const r of feeRows){const input=JSON.parse(r.input_json),fee=cents(input.fee||0),deduction=[3,4,5,6].includes(input.accountingVersion)?cents(input.nativeDeduction||0):0,gross=cents(input.grossAmount??(r.amount_cents/100));if(fee<0||deduction<0||[3,6].includes(input.accountingVersion)&&fee!==0||gross!==r.amount_cents+deduction+(input.accountingVersion>=3?0:fee))throw Error('Funding fee snapshot does not match its receipt.');fees.set(r.username,(fees.get(r.username)||0)+fee);deductions.set(r.username,(deductions.get(r.username)||0)+deduction);totalFee+=fee;totalDeduction+=deduction;}
  if(!Number.isSafeInteger(totalFee))throw Error('Funding fee total exceeds the supported accounting range.');
  if(!Number.isSafeInteger(totalDeduction))throw Error('Funding deduction total exceeds the supported accounting range.');

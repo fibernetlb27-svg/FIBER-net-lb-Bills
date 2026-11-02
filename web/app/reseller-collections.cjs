@@ -48,10 +48,28 @@ function refundCustody(db,requestId,gross){const lot=lots(db).find(l=>l.fund.req
 // Older representative funding is a claim on money which never left Users.
 // A new transfer may use only the unencumbered remainder of that same wallet.
 // Follow exact saved End of day custody, never display names or guessed owners.
+function preservedClosedCustody(db,workspaceId,paidAt){
+ const first=paidAt.slice(0,7),last=Finance.latestMonth(db);if(first>last)return true;
+ // Old month markers have no carried-custody proof. Keep their established
+ // zero-opening/reconciliation behavior instead of reserving new money.
+ if(!q(db,'PRAGMA table_info(finance_months)').some(row=>row.name==='archive_json'))return false;
+ const closed=q(db,'SELECT month FROM finance_months WHERE month>=? AND month<=? ORDER BY month',[first,last]);let expected=first;
+ for(const row of closed){
+  const archive=require('./month-closing.cjs').verifyArchive({db,workspaceId,month:row.month});
+  // A legacy zero-opening close did not retain the original held wallet.
+  // Its reconciliation obligation must not be assigned to fresh-month money.
+  if(archive===null)return false;
+  if(row.month!==expected||archive.mode!=='carry_forward')throw Error('The older Users funding month carry-forward could not be verified. Reconcile its original wallet before a new transfer.');
+  expected=Finance.monthRange(row.month).opening.slice(0,7);
+ }
+ if(!closed.length||closed.at(-1).month!==last)throw Error('The older Users funding month carry-forward could not be verified. Reconcile its original wallet before a new transfer.');
+ return true;
+}
 function usersWalletEncumbrance(db,usersDb,accountKey,walletId){
  if(!accountKey||!walletId)throw Error('Choose an exact Users wallet owner and wallet.');
  if(pending(db).some(row=>row.sourceSection==='fiber-users'))throw Error('Finish or cancel pending Users-backed collections before transferring this wallet.');
- const closedMonth=Finance.latestMonth(usersDb),claims=lots(db).filter(l=>[3,4,5].includes(l.input.accountingVersion)&&!require('./reseller-wallet-reconciliation.cjs').overlay(db,l.fund.request_id)&&l.fund.username==='fibernetlb2'&&l.fund.payment_method==='Whish Money'&&l.fund.paid_at.slice(0,7)>closedMonth&&(l.remaining>0||l.reserved>0)),groups=new Map();let required=0;
+ const carriedMonths=new Map(),preserved=paidAt=>{const month=paidAt.slice(0,7);if(!carriedMonths.has(month))carriedMonths.set(month,preservedClosedCustody(usersDb,'fiber-users',paidAt));return carriedMonths.get(month);};
+ const claims=lots(db).filter(l=>[3,4,5].includes(l.input.accountingVersion)&&!require('./reseller-wallet-reconciliation.cjs').overlay(db,l.fund.request_id)&&l.fund.username==='fibernetlb2'&&l.fund.payment_method==='Whish Money'&&(l.remaining>0||l.reserved>0)&&preserved(l.fund.paid_at)),groups=new Map();let required=0;
  for(const lot of claims){
   const input=lot.input,wallet=String(input.sourceWallet||'');if(!wallet)throw Error('An older representative claim has no exact saved Users wallet. Admin must reconcile it before wallet transfers.');if(wallet!==walletId)continue;
   let owner=String(input.sourceKey||'');if(!owner)throw Error('An older representative claim has no exact Users owner. Admin must reconcile it before wallet transfers.');
@@ -67,12 +85,20 @@ function usersWalletEncumbrance(db,usersDb,accountKey,walletId){
  for(const group of groups.values())if(!Number.isSafeInteger(group.required)||group.required>group.transferred)throw Error('Older representative claims exceed their saved End of day transfer. Admin must reconcile them before using this wallet.');
  if(!Number.isSafeInteger(required)||required<0)throw Error('The preserved Users wallet claims are invalid.');return required;
 }
-function verifyUsersTransferCustody(db,usersDb,requestId){
+function verifyUsersTransferCustody(db,usersDb,requestId,{through=new Date().toISOString(),destinations}={}){
  const fund=q(db,'SELECT * FROM reseller_funds WHERE request_id=? AND amount_cents>0',[requestId])[0],input=fund?parse(fund):null;
  if(!fund||input.accountingVersion!==6||input.custodyOrigin!=='users_wallet_transfer'||input.sourceSection!=='fiber-users'||input.custodySection!=='fiber-resellers'||fund.username!=='fibernetlb2'||fund.payment_method!=='Whish Money'||!input.sourceKey||!input.custodianKey||!input.sourceWallet||input.sourceWallet!==input.targetWallet||fund.paid_at!==input.transferAt)throw Error('The original Users-to-Resellers funding route is incomplete.');
- if(fund.paid_at.slice(0,7)<=Finance.latestMonth(db))throw Error('The original Resellers funding month is closed and its custody opened at zero. Admin must reconcile that original money; a refund cannot consume new-month funds.');
+ const closed=fund.paid_at.slice(0,7)<=Finance.latestMonth(db);
+ if(closed&&!preservedClosedCustody(db,'fiber-resellers',fund.paid_at))throw Error('The original Resellers funding month is closed and its custody opened at zero. Admin must reconcile that original money; a refund cannot consume new-month funds.');
  const gross=cents(input.walletAmount),debit=q(usersDb,"SELECT * FROM reseller_money_journal WHERE request_id=? AND phase='reserve'",[requestId]),credit=q(db,"SELECT * FROM reseller_money_journal WHERE request_id=? AND phase='credit'",[requestId]);
  for(const [rows,entry,owner,value]of [[debit,usersDb,input.sourceKey,-gross],[credit,db,input.custodianKey,gross]]){const j=rows[0],m=j?q(entry,'SELECT * FROM finance_wallet_entries WHERE id=?',[j.id])[0]:null;if(rows.length!==1||!j||j.state!=='complete'||j.account_key!==owner||j.amount_cents!==value||j.payment_method!=='Whish Money'||j.wallet_id!==input.sourceWallet||j.recorded_at!==input.transferAt||!m||m.event_id!==requestId||m.account_key!==owner||m.amount_cents!==value||m.wallet_id!==input.sourceWallet||m.effective_at!==input.transferAt)throw Error('The original funding has no exact completed Users debit and Resellers holding credit. Finish or reconcile its original transfer first.');}
+ if(closed){
+  if(!Array.isArray(destinations))throw Error('Verify the current original Whish wallet before refunding closed-month funding.');
+  const entries=new Map([['fiber-resellers',{id:'fiber-resellers',db}],['fiber-users',{id:'fiber-users',db:usersDb}]]),context={reseller:entries.get('fiber-resellers'),destinations,carryReadCache:new Map()};
+  const service=new ResellerCollections({entries,now:()=>through,member:(key,section)=>q(entries.get(section).db,'SELECT * FROM users WHERE account_key=?',[key])[0]});
+  const lot=service.readLots(context).find(row=>row.fund.request_id===requestId),source=lot&&service.savedSource(lot,context);
+  if(!source||source.section!=='fiber-resellers'||source.user.account_key!==input.custodianKey||source.wallet!==input.sourceWallet||source.proof.kind!=='users_wallet_transfer'||!source.proof.carryForward)throw Error('The original closed-month funding custody could not be proved. Reconcile its original held wallet before refunding.');
+ }
  return {fund,input};
 }
 function summary(db,key=null){

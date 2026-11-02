@@ -2140,6 +2140,14 @@ function consolidatedFinanceOverview(input){
   return {...combined,...customerDebts?{customerDebts}:{},bandwidthCost,dashboard:{...combined.dashboard,bandwidthCost}};
 }
 function financeReport(start,end){return localHandlers.get('reports:summary')(null,start,end);}
+function resellerMonthSnapshot(value,month,accountKey=null){
+  if(activeWorkspace().id!=='fiber-resellers')return value;
+  const range=Finance.monthRange(month),bandwidth=BandwidthSpending.purchaseSummary({entries:workspaceDatabases,start:range.start,end:range.end,accountKey});
+  // purchaseSummary verified each original purchase, audit and linked expense.
+  // Group those same immutable purchase dates, never supplier payment dates.
+  const daily=Finance.query(workspaceDatabases.get('main').db,'SELECT purchase_date AS day,SUM(cost_cents) AS cents FROM bandwidth_purchases WHERE purchase_date BETWEEN ? AND ?'+(accountKey?' AND actor_key=?':'')+' GROUP BY purchase_date ORDER BY purchase_date',[range.start,range.end,...accountKey?[accountKey]:[]]).map(row=>({day:row.day,incurredCost:row.cents/100}));
+  return ResellerCollectedRevenue.presentSnapshot(workspaceDatabases.get('fiber-resellers').db,value,month,accountKey,{...bandwidth,daily});
+}
 function fixedMonthlySummary(start,end,accountKey=currentUser()?.role==='admin'?null:currentUser()?.account_key,workspaceId=activeWorkspace().id){
   const entry=workspaceDatabases.get(workspaceId),last=entry?Finance.latestMonth(entry.db):'',custodyStart=last?Finance.monthRange(last).opening.slice(0,10):'2000-01-01';
   return FixedMonthlySpending.summary({entries:workspaceDatabases,workspaceId,start,end,accountKey,custodyStart});
@@ -2209,7 +2217,7 @@ function monthlySnapshot(month){
   }
   if(report.fundedStock){let custody=Number(report.fundedStock.openingCustodyPaid);for(const {date,report:d}of days.values()){const source=report.fundedStock,part=(source.daily||[]).find(row=>row.day===date),principal=Number(part?.principal||0),fee=Number(part?.fee||0),payments=(source.rows||[]).filter(row=>row.paidAt.slice(0,10)===date);custody=money(custody+principal);d.fundedStock={...source,start:date,end:date,principal,paid:principal,periodCustodyPaid:principal,custodyPaid:custody,openingCustodyPaid:money(custody-principal),cashPaid:money(payments.filter(row=>row.paymentMethod==='Cash').reduce((sum,row)=>sum+row.total,0)),whishPaid:money(payments.filter(row=>row.paymentMethod==='Whish Money').reduce((sum,row)=>sum+row.total,0)),fee,fees:fee,additionalProfitDeduction:fee,count:payments.length,rows:payments,daily:part?[{...part}]:[]};}}
   for(const {date,report:dayReport}of days.values())Object.assign(dayReport,CompanyDebtSpending.applyToReport(FixedMonthlySpending.applyToReport(dayReport,fixedMonthlySummary(date,date)),companyDebtSummary(date,date)));
-  return {name:currentUser().full_name,report,daily:[...days.values()]};
+  return resellerMonthSnapshot({name:currentUser().full_name,report,daily:[...days.values()]},month,currentUser().role==='admin'?null:currentUser().account_key);
 }
 function mergeLedgerReports(entries){
   const section=activeWorkspace(),combined=combineReports(entries.map(report=>({section,report,drawer:{balance:0}}))),last=entries.at(-1);
@@ -2226,7 +2234,7 @@ function closedLedgerReport(start,end){
   for(const period of periods){
     const range=Finance.monthRange(period.month),from=start>range.start?start:range.start,to=end<range.end?end:range.end;
     if(cursor<from){const d=new Date(from+'T00:00:00Z');d.setUTCDate(d.getUTCDate()-1);reports.push(live(cursor,d.toISOString().slice(0,10)));}
-    let archived;try{archived=Finance.archive(db,period.month,key);}catch(error){if(!key)throw error;reports.push(live(from,to));}
+    let archived;try{archived=Finance.archive(db,period.month,key);if(activeWorkspace().id==='fiber-resellers')archived=ResellerCollectedRevenue.transactionSnapshot(archived);}catch(error){if(!key)throw error;reports.push(live(from,to));}
     if(archived){const piece=from===range.start&&to===range.end?archived.report:mergeLedgerReports(archived.daily.filter(d=>d.date>=from&&d.date<=to).map(d=>d.report));reports.push({...piece,debtAccounts:archived.report.debtAccounts});}
     const next=new Date(to+'T00:00:00Z');next.setUTCDate(next.getUTCDate()+1);cursor=next.toISOString().slice(0,10);
   }
@@ -2459,7 +2467,7 @@ function registerFinanceHandlers(){
     const owner=financeMember(ctx,input.fromKey,{own:true}),recipient=input.kind==='wallet_cashout'?financeMember(ctx,input.toKey):null;
     const result=Finance.walletMove(ctx.entry.db,input,ctx.caller,owner,recipient,Whish.listDestinations(workspaceDatabases.get('main').db,true),localIso());saveDatabase();return result;
   });});
-  registerHandler('finance:archive',(_event,input)=>financeContext(input,ctx=>{MonthClosingService.verifyArchive({db:ctx.entry.db,workspaceId:ctx.section.id,month:input.month});return Finance.archive(ctx.entry.db,input.month,ctx.admin&&!input.accountKey?null:ctx.viewed.account_key);}));
+  registerHandler('finance:archive',(_event,input)=>financeContext(input,ctx=>{MonthClosingService.verifyArchive({db:ctx.entry.db,workspaceId:ctx.section.id,month:input.month});const key=ctx.admin&&!input.accountKey?null:ctx.viewed.account_key;return resellerMonthSnapshot(Finance.archive(ctx.entry.db,input.month,key),input.month,key);}));
   registerHandler('finance:ledgerOverview',(_event,input)=>{
     if(activeWorkspace().id!=='main')throw Error('Open Main dashboard to view all business monthly ledgers.');
     monthClosingAdmin();
