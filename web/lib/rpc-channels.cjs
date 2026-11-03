@@ -23,7 +23,7 @@ const groups = {
   users: 'list create update delete updateAccess',
   employees: 'list create update',
   attendance: 'scan list update delete',
-  bills: 'list create saveRenew savePortal saveFreeRenewal renew renewalHistory resolveRenewal delete csv receiptCredentials',
+  bills: 'list create saveRenew savePortal saveFreeRenewal quoteChangeRenew startChangeRenew changeRenewStatus confirmChangeRenew resumeChangeRenew resolveChangeRenew renew renewalHistory resolveRenewal delete csv receiptCredentials',
   resellers: 'walletCorrectionPreview correctCollectedWallets walletCorrectionHistory resumeWalletCorrection reconciliationPreview reconcileWallets reconciliationHistory resumeWalletReconciliation collectionSources collectionBills collectionPreview payBill collections cancelCollection accounts fund refund importPreview importCharges releaseFailed portalList addMoney list create remove restore',
   portal: 'settings configure test disable customerResellers customerOptions createCustomer quoteChange applyChange operations resumeOperation resolveOperation status search lookup resellers planHistory resolvePlan',
   bundles: 'list updateCosts',

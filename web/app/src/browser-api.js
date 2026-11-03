@@ -13,7 +13,7 @@
   try { storage.setItem('fibernetlb.web.workspace.v1', workspaceId); signedOut = storage.getItem(signoutKey(workspaceId)) === '1'; } catch (_) {}
   const fallback = () => ({version:'',section:{id:workspaceId,name:workspaceId === 'main' ? 'Main dashboard' : 'Business',kind:workspaceId === 'main' ? 'main' : 'unavailable'},sections:[],areas:[],needsSetup:false});
   const unwrap = value => value && Object.prototype.hasOwnProperty.call(value,'data') ? value.data : value;
-  const readChannel = channel => /:(?:access|accounts|all|archive|categoryOverview|categoryPending|categoryStatus|checkoutOptions|collectionBills|collectionPreview|collectionSources|collections|csv|dashboard|debts|details|endDayPreview|endDayTargets|generateBarcode|get|history|importPreview|ledgerOverview|list|lookup|operations|options|overview|payBillPreview|paymentOptions|pending|planHistory|portalList|preview|previewReversal|quoteChange|receipt|receiptCopies|receiptCopy|receiptCredentials|reconciliationHistory|reconciliationPreview|renewalHistory|search|settings|sources|status|summary|test|walletCorrectionHistory|walletCorrectionPreview)$/.test(channel);
+  const readChannel = channel => /:(?:access|accounts|all|archive|categoryOverview|categoryPending|categoryStatus|changeRenewStatus|checkoutOptions|collectionBills|collectionPreview|collectionSources|collections|csv|dashboard|debts|details|endDayPreview|endDayTargets|generateBarcode|get|history|importPreview|ledgerOverview|list|lookup|operations|options|overview|payBillPreview|paymentOptions|pending|planHistory|portalList|preview|previewReversal|quoteChange|quoteChangeRenew|receipt|receiptCopies|receiptCopy|receiptCredentials|reconciliationHistory|reconciliationPreview|renewalHistory|search|settings|sources|status|summary|test|walletCorrectionHistory|walletCorrectionPreview)$/.test(channel);
   const financialMutation = channel => !channel.startsWith('auth:') && !['bank:collectionOverview','finance:autoMonthStatus'].includes(channel) && !readChannel(channel);
 
   async function request(route, options = {}, uncertain = false, timeoutMs = 90000) {
@@ -65,7 +65,7 @@
     if (signedOut && !['auth:login','auth:logout','auth:status'].includes(channel)) throw Error('Please sign in again.');
     if (metadata?.version !== loadedVersion) throw Error('The website version changed. Refresh this page and check saved pending requests before making another change.');
     const ticket = generation;
-    const timeoutMs = ['bills:savePortal','bills:saveRenew','bills:renew','finance:commitMonthsClose','finance:resumeMonthsClose'].includes(channel) ? 600000 : /^finance:(?:closeMonth|commitMonth|resumeMonth|pendingMonth)/.test(channel) ? 120000 : 90000;
+    const timeoutMs = ['bills:savePortal','bills:saveRenew','bills:renew','bills:startChangeRenew','bills:confirmChangeRenew','bills:resumeChangeRenew','finance:commitMonthsClose','finance:resumeMonthsClose'].includes(channel) ? 600000 : /^finance:(?:closeMonth|commitMonth|resumeMonth|pendingMonth)/.test(channel) ? 120000 : 90000;
     let result;
     try { result = await request('/api/rpc', {method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken,'X-App-Version':loadedVersion},body:JSON.stringify({channel,args,workspaceId})}, financialMutation(channel),timeoutMs); }
     catch (error) { if(error.status === 401) authEnded(); throw error; }

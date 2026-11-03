@@ -78,7 +78,7 @@ let bankAccounts;
 let monthClosing,monthClosingAll;
 let adminMoneyTransfers,stickyNotes;
 const MONTH_CLOSING_CHANNELS=new Set(['finance:closeMonthPreview','finance:commitMonthClose','finance:closeMonth','finance:closeMonthStatus','finance:resumeMonthClose','finance:pendingMonthClose','finance:closeMonthsPreview','finance:commitMonthsClose','finance:closeMonthsStatus','finance:resumeMonthsClose']);
-const BANDWIDTH_GUARDED_WRITES=new Set(['workspace:reset','users:update','users:updateAccess','users:delete','drawer:setBalance','sales:create','purchases:create','purchases:update','purchases:delete','expenses:create','expenses:update','expenses:delete','bills:create','bills:delete','bills:savePortal','bills:saveRenew','bills:saveFreeRenewal','bills:reset','telecomPayments:create','telecomPayments:delete','debts:pay','debts:refund','finance:closeMonth','finance:handover','finance:walletMove','finance:endDay','resellers:fund','resellers:refund','resellers:payBill','resellers:cancelCollection','resellers:reconcileWallets','resellers:correctCollectedWallets','whish:save']);
+const BANDWIDTH_GUARDED_WRITES=new Set(['bills:startChangeRenew','bills:confirmChangeRenew','bills:resumeChangeRenew','bills:resolveChangeRenew','workspace:reset','users:update','users:updateAccess','users:delete','drawer:setBalance','sales:create','purchases:create','purchases:update','purchases:delete','expenses:create','expenses:update','expenses:delete','bills:create','bills:delete','bills:savePortal','bills:saveRenew','bills:saveFreeRenewal','bills:reset','telecomPayments:create','telecomPayments:delete','debts:pay','debts:refund','finance:closeMonth','finance:handover','finance:walletMove','finance:endDay','resellers:fund','resellers:refund','resellers:payBill','resellers:cancelCollection','resellers:reconcileWallets','resellers:correctCollectedWallets','whish:save']);
 let backupManager;
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -128,7 +128,9 @@ const {profitBreakdown,profitBreakdownCsv}=require("./profit-breakdown.cjs");
 const {planChangePricing}=require("./plan-change-pricing.cjs");
 const {initializeBillReset,billResetPreview,billResetEpoch,resetBills,activeReceiptSql}=require("./bill-reset.cjs");
 const {starterExpiry,registrationInput,registrationBillCost,initializeCustomerRegistration,installationRows,installationReport,installationCsv}=require('./customer-registration.cjs');
-let portalApi, renewalLedger, planLedger, operationLedger;
+const {CombinedChangeRenew}=require('./combined-change-renew.cjs');
+const {applyCustomerChangePolicy,customerChangePolicy}=require('./change-service-customer-pricing.cjs');
+let portalApi, renewalLedger, planLedger, operationLedger, combinedChangeRenew;
 const portalQuotes=new Map();
 const customerForms=new Map();
 const PORTAL_ASYNC_CHANNELS = ["bills:saveFreeRenewal","bills:receiptCredentials","portal:customerResellers","portal:customerOptions","portal:createCustomer","portal:lookup", "portal:search", "portal:resellers", "portal:resolvePlan", "portal:quoteChange", "portal:applyChange", "portal:resolveOperation", "resellers:portalList", "resellers:addMoney", "bills:savePortal", "bills:saveRenew", "bills:renew"];
@@ -265,9 +267,9 @@ function paymentMethod(value, { allowUnpaid = true } = {}) {
 function whishSelection(input,method,previous=undefined){
   return Whish.resolveDestination(workspaceDatabases.get('main').db,method,input?.whishDestinationId??input?.whishDestination?.id,previous);
 }
-function billWhishSelection(input,method){
+function billWhishSelection(input,method,trustedSnapshot=undefined){
   const previous=input.requestId?one('SELECT bill_id FROM bill_requests WHERE request_id=?',[String(input.requestId)]):null;
-  const snapshot=whishSelection(input,method,previous?Whish.readSnapshot(database,'bill',previous.bill_id):undefined);
+  const snapshot=whishSelection(input,method,previous?Whish.readSnapshot(database,'bill',previous.bill_id):trustedSnapshot);
   return snapshot?{whishDestination:snapshot}:{};
 }
 
@@ -591,7 +593,7 @@ function validateEmployee(input) {
   return { employeeNo, fullName, jobTitle, rfidCard, active: input.active === undefined ? true : Boolean(input.active) };
 }
 
-function validateBill(input) {
+function validateBill(input, trustedWhishSnapshot=undefined, trustedCombinedBundle=undefined) {
   if (activeWorkspace().kind === "reseller") {
     const amount = Number(input.amount);
     const reseller = one("SELECT * FROM resellers WHERE id = ? AND active = 1",[Number(input.resellerId)]);
@@ -601,7 +603,7 @@ function validateBill(input) {
     const method = paymentMethod(input.paymentMethod);
     const billingPeriod = String(input.billingPeriod || localIso().slice(0, 7));
     if (!/^\d{4}-\d{2}$/.test(billingPeriod)) throw new Error("Choose a valid billing month.");
-    return { resellerId:reseller.id, customerAccount: reseller.username, customerName, phone: reseller.phone, serviceType: "Reseller transfer", billingPeriod, amount: money(amount), paymentMethod: method, paymentStatus: method === "Unpaid" ? "unpaid" : "paid", reference: String(input.reference ?? "").trim(), bundleCode: null, bundleName: "Reseller transfer", bundleDetails: "Recorded transfer only", bundlePrice: money(amount), bundleCost: 0,...method==='Whish Money'?billWhishSelection(input,method):{} };
+    return { resellerId:reseller.id, customerAccount: reseller.username, customerName, phone: reseller.phone, serviceType: "Reseller transfer", billingPeriod, amount: money(amount), paymentMethod: method, paymentStatus: method === "Unpaid" ? "unpaid" : "paid", reference: String(input.reference ?? "").trim(), bundleCode: null, bundleName: "Reseller transfer", bundleDetails: "Recorded transfer only", bundlePrice: money(amount), bundleCost: 0,...method==='Whish Money'?billWhishSelection(input,method,trustedWhishSnapshot):{} };
   }
   const accountInput = String(input.customerAccount ?? "").trim();
   const customerAccount = (activeWorkspace().id === "fiber-users" && input.exactPortalAccount === true) || accountInput.toLowerCase().startsWith(FIBERNETLB_ACCOUNT_PREFIX) ? accountInput : `${FIBERNETLB_ACCOUNT_PREFIX}${accountInput}`;
@@ -619,7 +621,7 @@ function validateBill(input) {
   if(!Number.isSafeInteger(renewalMonths)||renewalMonths<1||renewalMonths>12||(serviceType!=="Internet"&&renewalMonths!==1))throw Error("Choose 1–12 months for Internet; other services use one month.");
   const requestedBundleCode = String(input.bundleCode ?? "").trim().toUpperCase();
   const satelliteBundle = one("SELECT * FROM fibernetlb_bundles WHERE code = 'SAT-MONTHLY' AND active = 1");
-  const selectedBundle = serviceType === "Satellite"
+  const selectedBundle = serviceType === "Internet"&&trustedCombinedBundle ? trustedCombinedBundle : serviceType === "Satellite"
     ? satelliteBundle
     : one("SELECT * FROM fibernetlb_bundles WHERE code = ? AND service_type = 'Internet' AND active = 1", [requestedBundleCode]);
   if (!selectedBundle) throw new Error(serviceType === "Satellite" ? "The satellite bundle is unavailable." : "Choose an active Internet bundle.");
@@ -631,7 +633,7 @@ function validateBill(input) {
   const bundleName = serviceType === "Internet + Satellite" ? `${selectedBundle.name} + Satellite` : selectedBundle.name;
   const bundleDetails = (serviceType === "Internet + Satellite" ? `${selectedBundle.allowance} data + Satellite` : selectedBundle.allowance)+(renewalMonths>1?` · ${renewalMonths} months`:"");
   const retailPricing=serviceType==='Internet'?retailSelection(input.retailPricing):undefined;
-  return { customerAccount, customerName, phone, serviceType, billingPeriod, renewalMonths, amount: money(amount), paymentMethod: method, paymentStatus: method === "Unpaid" ? "unpaid" : "paid", reference, bundleCode: selectedBundle.code, bundleName, bundleDetails, bundlePrice: listPrice, bundleCost,...retailPricing?{retailPricing}:{},...method==='Whish Money'?billWhishSelection(input,method):{} };
+  return { customerAccount, customerName, phone, serviceType, billingPeriod, renewalMonths, amount: money(amount), paymentMethod: method, paymentStatus: method === "Unpaid" ? "unpaid" : "paid", reference, bundleCode: selectedBundle.code, bundleName, bundleDetails, bundlePrice: listPrice, bundleCost,...retailPricing?{retailPricing}:{},...method==='Whish Money'?billWhishSelection(input,method,trustedWhishSnapshot):{} };
 }
 
 function listBundles() {
@@ -926,6 +928,7 @@ function refreshWhishReceiptPolicy(requiredSections=[]){
   }finally{refreshingWhishReceiptPolicy=false;}
 }
 function authorizePortalOperation(kind) {
+  if(kind==='change_renew'){authorizeInternet();authorizeInternet('plans.manage');if(!portalApi.settings.status().ready)throw Error('The main administrator must enable the Proradius API first.');return;}
   if(kind==='free'){authorizeInternet();if(!portalApi.settings.status().ready)throw Error('The main administrator must enable the Proradius API first.');return;}
   if(kind==="change"||kind==="create")authorizeInternet(kind==='create'?'customers.manage':'plans.manage');
   else if(kind==="topup"||kind==='reseller_refund') {authorizeResellerFunding('write');return;}
@@ -964,16 +967,43 @@ function startFixedCostSync(){
 async function pricePlanChange(quote){
   try{
     const catalogue=await portalApi.fixedCosts(true);storeFixedCosts(catalogue);
-    return planChangePricing(quote,listBundles(),catalogue.plans);
-  }catch{return {available:false,reason:"Fixed monthly costs could not be verified. Enter the customer amount manually; the portal charge remains your cost."};}
+    return applyCustomerChangePolicy(planChangePricing(quote,listBundles(),catalogue.plans),new Date(),quote.total);
+  }catch{return applyCustomerChangePolicy({available:false,reason:"Fixed monthly costs could not be verified. Enter the customer amount manually; the portal charge remains your cost."},new Date(),quote.total);}
 }
+function combinedReady(username,ownId=''){
+  if(one("SELECT request_id FROM internet_plan_changes WHERE username=? AND state IN ('checking','processing','unknown')",[username])||one("SELECT bill_id FROM internet_renewals WHERE username=? AND state IN ('checking','processing','unknown')",[username]))throw Error('Review the customer’s unfinished renewal or plan change first.');
+  if(rows("SELECT request_id FROM portal_operations WHERE entity=? AND state IN ('checking','processing','unknown','confirmed')",['customer:'+username]).some(row=>row.request_id!==ownId))throw Error('Review the customer’s unfinished portal operation first.');
+}
+function combinedTargetRetail(quote,months,expected){
+  const bundle=matchInternetBundle(quote.targetName,listBundles());if(!bundle||!Number.isFinite(Number(bundle.price))||Number(bundle.price)<=0)throw Error('Verify the target service selling price before changing it.');
+  const retail=internetBillPricing(Number(bundle.price),months,new Date(),quote.expiry),value={bundleCode:bundle.code,bundleName:bundle.name,allowance:bundle.allowance,monthlyPrice:Number(bundle.price),renewalCustomerAmount:retail.suggestedAmount,retail};
+  if(expected&&JSON.stringify(value)!==JSON.stringify(expected))throw Error('The target retail price or billing day changed. Calculate again; no service change was sent.');
+  if(lateRenewalPolicy(undefined,quote.expiry).free)throw Error('This customer needs the existing Free renewal flow before a paid combined renewal. No service change was submitted.');return value;
+}
+function initializeCombinedChangeRenew(){
+  combinedChangeRenew=new CombinedChangeRenew({db:database,ledger:operationLedger,api:portalApi,save:saveDatabase,authorize:()=>authorizePortalOperation('change_renew'),actor:()=>({key:sectionAccess.key(currentUser(),activeWorkspace().id),name:currentUser().full_name,admin:currentUser().role==='admin'}),canInspect:()=>hasPermission('bills.manage')||hasPermission('bundles.manage'),priceChange:pricePlanChange,targetRetail:combinedTargetRetail,assertReady:(username,ownId)=>combinedReady(username,ownId||''),
+    renewalReview:async(input,quote)=>{const customer=await portalApi.billingCustomer(input.username),renewalQuote=await portalApi.quoteRenewal(input.username,input.targetId),catalogue=await portalApi.fixedCosts(true);storeFixedCosts(catalogue);const target=matchPortalPlan(matchInternetBundle(quote.targetName,listBundles()),catalogue.plans);if(!target||!Number.isFinite(target.cost)||target.cost<0)throw Error('The fixed target renewal reference is unavailable.');return {customer,renewalQuote,fixedMonthlyCost:target.cost};},
+    normalizePayment:(value,parent)=>{
+      const method=paymentMethod(value.paymentMethod,{allowUnpaid:false}),total=Number(value.amount),period=String(value.billingPeriod||''),reference=String(value.reference||'').trim(),periodMatch=/^(\d{4})-(0[1-9]|1[0-2])$/.exec(period);if(!Number.isFinite(total)||total<=0||money(total)!==total||!periodMatch||Number(periodMatch[1])<2000||Number(periodMatch[1])>9998||reference.length>350)throw Error('Confirm one positive full payment and a valid billing month.');
+      const old=parent.result.payment?.input,review=parent.result.payment?.review||parent.result.review;if(!review||total!==review.total)throw Error('Confirm the exact full reviewed customer amount.');
+      const destination=whishSelection(value,method,old?.whishDestination),snapshot=destination?(old?.whishDestination||{...destination,...Whish.receiptAmounts(total)}):null,collectorAccountKey=old?.collectorAccountKey||currentUser().account_key;
+      return {requestId:parent.row.request_id+'-bill',customerAccount:parent.input.username,exactPortalAccount:true,customerName:parent.quote.customerName||parent.input.username,phone:parent.quote.phone||'',serviceType:'Internet',bundleCode:review.targetRetail.bundleCode,billingPeriod:period,renewalMonths:parent.input.renewalMonths,amount:total,paymentMethod:method,reference,portalServiceId:parent.input.targetId,portalExpectedServiceId:parent.input.targetId,collectorAccountKey,changeCustomerAmount:parent.input.changeCustomerAmount,renewalCustomerAmount:review.targetRetail.renewalCustomerAmount,...snapshot?{whishDestination:snapshot}:{}};
+    },createBill:(parent,input,review)=>createBillPayment(input,false,{cost:review.renewalQuote.cost,fixedMonthlyCost:review.fixedMonthlyCost},parent.row.request_id),readBill:billById,renewBill:async id=>{await renewalLedger.start(billById(id),renewalActor());}
+  });
+}
+function registerCombinedChangeRenewHandlers(){
+  for(const [suffix,method]of [['quoteChangeRenew','quote'],['startChangeRenew','start'],['changeRenewStatus','status'],['confirmChangeRenew','confirm'],['resumeChangeRenew','resume'],['resolveChangeRenew','resolve']])registerHandler('bills:'+suffix,(_event,input)=>{
+    return combinedChangeRenew[method](input??{});
+  });
+}
+
 function portalOperationBill(row) {
   if([1,2,3,4,5,6].includes(JSON.parse(row.input_json).accountingVersion)&&['topup','reseller_refund'].includes(row.kind))return resellerFunding.complete(row);
   if(row.bill_id){if(row.state==="confirmed")operationLedger.attach(row.request_id,row.bill_id,currentUser().full_name);return {...billById(row.bill_id),idempotent:true};}
   if(row.state!=="confirmed")throw Error("The portal action is not confirmed. No payment was recorded.");
   const input=JSON.parse(row.input_json),quote=JSON.parse(row.quote_json),topup=row.kind==="topup",owner=actorUser(database,row);
   const amount=Number(input.amount),cost=topup?0:quote.total,method=input.paymentMethod;
-  const pricingDetails=!topup&&quote.retailPricing?.available?` · App monthly selling prices ${quote.retailPricing.beforePrice} → ${quote.retailPricing.targetPrice} · Portal current-period share ${(quote.retailPricing.currentFraction*100).toFixed(2)}% · Suggested customer adjustment ${quote.retailPricing.retailAdjustment}`:"";
+  const pricingDetails=!topup&&quote.retailPricing?.zeroChargeWindow?` · Customer service-change charge $0 · Beirut policy ${quote.retailPricing.policyDate}`:!topup&&quote.retailPricing?.available?` · App monthly selling prices ${quote.retailPricing.beforePrice} → ${quote.retailPricing.targetPrice} · Portal current-period share ${(quote.retailPricing.currentFraction*100).toFixed(2)}% · Suggested customer adjustment ${quote.retailPricing.retailAdjustment}`:"";
   const receiptNo=`${topup?"RTP":"PLN"}-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`;
   database.exec("BEGIN TRANSACTION");
   try {
@@ -1067,20 +1097,22 @@ function paymentFingerprint(bill,input,wantRenew) {
   const {bundleCost:_cost,...portalBill}=bill;
   return renewalLedger.fingerprint(input.portalServiceId ? {...portalBill,portalServiceId:Number(input.portalServiceId),portalExpectedServiceId:Number(input.portalExpectedServiceId)} : bill,wantRenew);
 }
-function createBillPayment(input, wantRenew = false, portalPricing = null) {
+function createBillPayment(input, wantRenew = false, portalPricing = null, combinedParentId = null) {
   if(input.portalServiceId && !portalPricing) throw new Error("Portal-priced bills must use the verified Proradius save action.");
   if (!hasPermission("bills.create") && !hasPermission("bills.manage")) requirePermission("bills.create");
   if(activeWorkspace().kind==='reseller')throw Error('Use reseller Add Money or Refund. Manual transfers are historical records only.');
-  const bill = validateBill(input), requestId = String(input.requestId || ""), fingerprint = paymentFingerprint(bill,input,wantRenew);
+  const combinedProof=combinedParentId?combinedChangeRenew.paymentSupport(combinedParentId,input):null;
+  const requestedKey=String(input.requestId||""),reservedParent=requestedKey.endsWith("-bill")?one("SELECT request_id FROM portal_operations WHERE kind='change_renew' AND request_id=?",[requestedKey.slice(0,-5)]):null;if(reservedParent&&reservedParent.request_id!==combinedProof?.requestId)throw Error("This payment request ID belongs to a saved combined workflow.");
+  const bill = validateBill(input,combinedProof?input.whishDestination:undefined,combinedProof?.bundleSnapshot), requestId = String(input.requestId || ""), fingerprint = paymentFingerprint(bill,input,wantRenew);
   if(requestId&&one("SELECT request_id FROM portal_operations WHERE request_id=? AND state='archived'",[requestId]))throw Error('This test request was archived and cannot create another payment or renewal.');
   const replay = renewalLedger.replay(requestId,fingerprint);
-  if (replay) return { ...billById(replay), idempotent: true };
+  if (replay) {if(combinedProof&&one("SELECT bill_id FROM portal_operations WHERE request_id=?",[combinedProof.requestId])?.bill_id!==replay)throw Error("An existing receipt is not attached to this exact combined parent.");return { ...billById(replay), idempotent: true };}
   if(bill.retailPricing){
     const monthly=Number(one("SELECT price FROM fibernetlb_bundles WHERE code=? AND active=1",[bill.bundleCode]).price),quote=portalPricing?.retailQuote??internetBillPricing(monthly,bill.renewalMonths);
     verifyRetailSelection(bill.retailPricing,quote,bill.amount);
     bill.bundlePrice=quote.suggestedAmount;bill.bundleDetails+=' · '+retailDescription(quote,bill.amount);
   }
-  if(activeWorkspace().id==="fiber-users"&&operationLedger.pending(`customer:${bill.customerAccount}`))throw Error("Review this customer's unfinished portal operation before billing or renewal.");
+  if(activeWorkspace().id==="fiber-users"&&rows("SELECT request_id FROM portal_operations WHERE entity=? AND state IN ('checking','processing','unknown','confirmed')",[`customer:${bill.customerAccount}`]).some(row=>row.request_id!==combinedProof?.requestId))throw Error("Review this customer's unfinished portal operation before billing or renewal.");
   if (wantRenew) {
     authorizeInternet();
     if(lateRenewalPolicy(undefined,portalPricing?.customerExpiry).free)throw Error('From the 11th through the 4th, use Free renewal for an unrenewed current cycle. Already-renewed customers may purchase additional full months. No paid renewal or bill was saved.');
@@ -1091,19 +1123,22 @@ function createBillPayment(input, wantRenew = false, portalPricing = null) {
   if(portalPricing) {
     if(!Number.isFinite(portalPricing.cost)||portalPricing.cost<0) throw new Error("Proradius did not supply a valid internal cost. No bill was saved.");
     if(!Number.isFinite(portalPricing.fixedMonthlyCost)||portalPricing.fixedMonthlyCost<0) throw new Error("Proradius did not supply a valid fibernetlb2 fixed monthly cost. No bill was saved.");
-    bill.bundleCost=portalBillCost(portalPricing,bill.renewalMonths);
+    bill.bundleCost=money(portalBillCost(portalPricing,bill.renewalMonths)+(combinedProof?.changeCost??0));
+    if(combinedProof){bill.bundleDetails+=` · Service adjustment ${Number(input.changeCustomerAmount).toFixed(2)}; renewal ${Number(input.renewalCustomerAmount).toFixed(2)} · One customer payment`;if(input.whishDestination)bill.whishDestination=input.whishDestination;}
   }
+  const collector=combinedProof?one("SELECT * FROM users WHERE account_key=?",[input.collectorAccountKey]):currentUser();if(!collector)throw Error("The original payment collector is unavailable.");
   const paidAt = localIso(), receiptNo = `FBL-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`;
   database.exec("BEGIN TRANSACTION");
   try {
-    database.run("INSERT INTO fibernetlb_bills (receipt_no, customer_account, customer_name, phone, service_type, bundle_code, bundle_name, bundle_details, bundle_price, bundle_cost, billing_period, amount, payment_method, payment_status, reference, paid_at, user_id, cashier_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [receiptNo,bill.customerAccount,bill.customerName,bill.phone,bill.serviceType,bill.bundleCode,bill.bundleName,bill.bundleDetails,bill.bundlePrice,bill.bundleCost,bill.billingPeriod,bill.amount,bill.paymentMethod,bill.paymentStatus,bill.reference,paidAt,currentUser().id,currentUser().full_name]);
+    database.run("INSERT INTO fibernetlb_bills (receipt_no, customer_account, customer_name, phone, service_type, bundle_code, bundle_name, bundle_details, bundle_price, bundle_cost, billing_period, amount, payment_method, payment_status, reference, paid_at, user_id, cashier_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [receiptNo,bill.customerAccount,bill.customerName,bill.phone,bill.serviceType,bill.bundleCode,bill.bundleName,bill.bundleDetails,bill.bundlePrice,bill.bundleCost,bill.billingPeriod,bill.amount,bill.paymentMethod,bill.paymentStatus,bill.reference,paidAt,collector.id,collector.full_name]);
     const billId = Number(one("SELECT id FROM fibernetlb_bills WHERE receipt_no=?",[receiptNo]).id);
     Whish.saveSnapshot(database,'bill',billId,bill.whishDestination,bill.amount);
     database.run("UPDATE fibernetlb_bills SET renewal_months=? WHERE id=?",[bill.renewalMonths??1,billId]);
     if(portalPricing) database.run("UPDATE fibernetlb_bills SET portal_service_id=?,portal_cost_source=?,portal_internal_cost=?,portal_fixed_monthly_cost=? WHERE id=?",[Number(input.portalServiceId),`${LIVE_COST_SOURCE} · ${bill.renewalMonths>1?'first live quote; future cycles estimated':'current internal cost at save; renewal not submitted'}`,portalPricing.cost,portalPricing.fixedMonthlyCost,billId]);
     if (bill.resellerId) database.run("UPDATE fibernetlb_bills SET reseller_id=? WHERE id=?",[bill.resellerId,billId]);
-    if (bill.paymentMethod === "Cash") addDrawerMovement(bill.amount,"bill_payment","bill",billId,receiptNo);
+    if (bill.paymentMethod === "Cash") addDrawerMovement(bill.amount,"bill_payment","bill",billId,receiptNo,collector);
     renewalLedger.recordRequest(requestId,billId,fingerprint);
+    if(combinedProof){database.run("UPDATE portal_operations SET bill_id=? WHERE request_id=? AND kind='change_renew' AND state='confirmed' AND bill_id IS NULL",[billId,combinedProof.requestId]);if(database.getRowsModified()!==1)throw Error("The exact combined payment parent changed before its receipt was saved.");}
     database.exec("COMMIT"); saveDatabase(); return billById(billId);
   } catch (error) { database.exec("ROLLBACK"); throw error; }
 }
@@ -1750,9 +1785,10 @@ function initializeBusinessSections(SQL) {
   const actorScope={key:()=>sectionAccess.key(currentUser(),activeSession().workspaceId),scope:()=>currentUser()?.role==='admin'?null:sectionAccess.key(currentUser(),activeSession().workspaceId)||'__no_owner__'};
   portalApi = new ProradiusApi(new PortalSettings(path.join(dataDirectory,"internet-api-settings.json"),safeStorage),providerFetch);
   portalApi.billingOnly=true;
-  renewalLedger = new RenewalLedger(database,portalApi,saveDatabase,authorizeInternet);
+  renewalLedger = new RenewalLedger(database,portalApi,saveDatabase,authorizeInternet,id=>combinedChangeRenew?.supportForBill(id));
   planLedger = new PlanChangeLedger(database,portalApi,saveDatabase,()=>authorizeInternet('plans.manage'),actorScope);
   operationLedger = new PortalOperationLedger(database,saveDatabase,authorizePortalOperation,actorScope);
+  initializeCombinedChangeRenew();
   resellerFunding=new ResellerFundingService({entries:workspaceDatabases,api:()=>portalApi,ledger:()=>operationLedger,now:localIso,
     authorize:authorizeResellerFunding,canManage:()=>hasPermission('resellerFunding.manage')&&hasPermission('drawer.manage'),
     receiverKey:resellerRecipientKey,cashiers:resellerCashiers,
@@ -2728,7 +2764,7 @@ function registerHandlers() {
     if(hasPermission('bills.manage')||hasPermission('bundles.manage'))return quote;
     const pricing=quote.retailPricing;
     return {username:quote.username,expectedId:quote.expectedId,targetId:quote.targetId,beforeName:quote.beforeName,targetName:quote.targetName,expiry:quote.expiry,pendingRefills:quote.pendingRefills,refundAllowed:quote.total<0,
-      retailPricing:pricing?.available?{available:true,beforePrice:pricing.beforePrice,targetPrice:pricing.targetPrice,currentFraction:pricing.currentFraction,pendingRefills:pricing.pendingRefills,retailAdjustment:pricing.retailAdjustment,customerAmount:pricing.customerAmount,customerCredit:pricing.customerCredit}:{available:false,reason:pricing?.reason}};
+      retailPricing:pricing?.available?{available:true,beforePrice:pricing.beforePrice,targetPrice:pricing.targetPrice,currentFraction:pricing.currentFraction,pendingRefills:pricing.pendingRefills,retailAdjustment:pricing.retailAdjustment,customerAmount:pricing.customerAmount,customerCredit:pricing.customerCredit,suggestedAmount:pricing.suggestedAmount,policyDate:pricing.policyDate,policyDay:pricing.policyDay,policyTimezone:pricing.policyTimezone,zeroChargeWindow:pricing.zeroChargeWindow,method:pricing.method}:{available:false,reason:pricing?.reason,suggestedAmount:pricing?.suggestedAmount,policyDate:pricing?.policyDate,policyDay:pricing?.policyDay,policyTimezone:pricing?.policyTimezone,zeroChargeWindow:pricing?.zeroChargeWindow}};
   };
   for (const [channel,method] of [["portal:lookup","customer"],["portal:search","search"],["portal:resellers","resellers"]]) registerHandler(channel,async (_event,value) => {
     authorizeInternetLookup();
@@ -2793,6 +2829,7 @@ function registerHandlers() {
     if(currentUser().role!=="admin") throw new Error("Only an administrator can reconcile an uncertain plan change.");
     return planLedger.resolve(String(id),input,currentUser().full_name,()=>{authorizeInternet();requirePermission('bills.manage');if(currentUser()?.role!=='admin')throw Error('Only an administrator can reconcile an uncertain plan change.');});
   });
+  registerCombinedChangeRenewHandlers();
   registerHandler("portal:quoteChange",async (_event,input)=>{
     authorizePortalOperation("change");
     const quote=await portalApi.quoteChange(input);quote.retailPricing=await pricePlanChange(quote);authorizePortalOperation("change");
@@ -2818,6 +2855,8 @@ function registerHandlers() {
     const saved=portalQuotes.get(String(value.quoteId));
     if(!saved||saved.until<Date.now()||saved.userKey!==sectionAccess.key(currentUser(),activeWorkspace().id))throw Error("The calculation expired. Get a fresh Proradius quote.");
     const quote=saved.quote;
+    if(quote.retailPricing?.policyDate!==customerChangePolicy().policyDate)throw Error("The Beirut change-charge day changed. Calculate again before submitting.");
+    if(quote.retailPricing.zeroChargeWindow&&amount!==0)throw Error("The customer service-change charge must be $0 from the 1st through the 5th in Beirut. Provider costs are unchanged.");
     if(input.username!==quote.username||input.expectedId!==quote.expectedId||input.targetId!==quote.targetId||value.confirm!==true)throw Error("Confirm the exact customer and quoted target plan.");
     if(amount<0&&(quote.total>=0||(quote.retailPricing?.available&&quote.retailPricing.retailAdjustment>=0)))throw Error("A negative customer amount is only allowed for a quoted downgrade credit.");
     if(one("SELECT request_id FROM bill_requests WHERE request_id=?",[String(value.requestId)]))throw Error("This request ID was already used for a payment.");
@@ -2829,7 +2868,8 @@ function registerHandlers() {
     if(resetEpoch!==billResetEpoch(database))throw Error("Bills were reset during calculation. Start a new plan change; no portal action was sent.");
     if(saved.until<Date.now())throw Error("The calculation expired while checking costs. Get a fresh Proradius quote; no plan change was sent.");
     if(quote.retailPricing?.available!==freshPricing.available||(freshPricing.available&&JSON.stringify(freshPricing)!==JSON.stringify(quote.retailPricing)))throw Error("The bundle selling prices or monthly costs changed. Calculate again and confirm the new customer amount; no plan change was sent.");
-    const row=await operationLedger.apply(String(value.requestId),"change",`customer:${quote.username}`,input,quote,currentUser().full_name,before=>portalApi.applyQuotedChange(quote,before));
+    if(one("SELECT request_id FROM internet_plan_changes WHERE username=? AND state IN ('checking','processing','unknown')",[quote.username])||one("SELECT bill_id FROM internet_renewals WHERE username=? AND state IN ('checking','processing','unknown')",[quote.username]))throw Error("Review the customer's unfinished renewal or plan change first.");
+    const row=await operationLedger.apply(String(value.requestId),"change",`customer:${quote.username}`,input,quote,currentUser().full_name,before=>portalApi.applyQuotedChange(quote,()=>{if(quote.retailPricing.policyDate!==customerChangePolicy().policyDate)throw Error("The Beirut change-charge day changed. Calculate again; no service change was sent.");before();}));
     return portalOperationBill(row);
   });
   registerHandler("resellers:portalList",async ()=>{authorizeResellerFunding();const list=await portalApi.moneyResellers();const actor=authorizeResellerFunding();return list.map(row=>resellerBalanceForRole(row,actor.role));});
@@ -2868,14 +2908,14 @@ function registerHandlers() {
     const row=await operationLedger.apply(String(value.requestId),"topup",`reseller:${input.portalResellerId}`,input,{},currentUser().full_name,before=>portalApi.topUp({...input,comment:`${reference} · FIBER Bills ${value.requestId}`},before));
     return portalOperationBill(row);
   });
-  registerHandler("portal:operations",(_event,kind)=>{if(['topup','reseller_refund'].includes(kind))authorizeResellerFunding();else authorizePortalOperation(kind);return operationLedger.history(kind).map(row=>kind==='change'?{...row,quote:publicPlanQuote(row.quote)}:row);});
+  registerHandler("portal:operations",(_event,kind)=>{if(kind==='change_renew')return combinedChangeRenew.history();if(['topup','reseller_refund'].includes(kind))authorizeResellerFunding();else authorizePortalOperation(kind);return operationLedger.history(kind).map(row=>kind==='change'?{...row,quote:publicPlanQuote(row.quote)}:row);});
   registerHandler("portal:resumeOperation",(_event,id)=>{
-    const row=operationLedger.get(String(id));if(!row)throw Error("Operation not found.");if(['topup','reseller_refund'].includes(row.kind))authorizeResellerFunding('recover',row);else authorizePortalOperation(row.kind);
+    const row=operationLedger.get(String(id));if(!row)throw Error("Operation not found.");if(row.kind==='change_renew')return combinedChangeRenew.resume({requestId:String(id)});if(['topup','reseller_refund'].includes(row.kind))authorizeResellerFunding('recover',row);else authorizePortalOperation(row.kind);
     if(!["confirmed","succeeded"].includes(row.state))throw Error("Verify the portal outcome first.");
     return completePortalOperation(row);
   });
   registerHandler("portal:resolveOperation",async (_event,id,input)=>{
-    const row=operationLedger.get(String(id));if(!row)throw Error("Operation not found.");const funding=['topup','reseller_refund'].includes(row.kind);
+    const row=operationLedger.get(String(id));if(!row)throw Error("Operation not found.");if(row.kind==='change_renew')return combinedChangeRenew.resolve({requestId:String(id),...input});const funding=['topup','reseller_refund'].includes(row.kind);
     if(funding)authorizeResellerFunding('recover',row);else{authorizePortalOperation(row.kind);if(currentUser().role!=="admin")throw Error("Only an administrator can reconcile an uncertain portal action.");}
     if(row.kind==='free'){
       const original=JSON.parse(row.input_json),customer=await portalApi.customer(original.username),quote=JSON.parse(row.quote_json);
@@ -2940,6 +2980,7 @@ function registerHandlers() {
     if(wantRenew && bill.paymentMethod==="Unpaid") throw new Error("Unpaid bills are records only; no plan change or renewal was sent.");
     const expectedId=Number(input.portalExpectedServiceId),targetId=Number(input.portalServiceId);
     if(!Number.isSafeInteger(expectedId)||expectedId<=0||!Number.isSafeInteger(targetId)||targetId<=0) throw new Error("Verify the customer's current portal plan first.");
+    if(targetId!==expectedId)throw Error("Use Change service & renew for one customer collection, or use standalone Change Plan before a current-service renewal. No service change, bill or renewal was submitted.");
     let customer=await portalApi.customer({username:bill.customerAccount,reseller:input.portalReseller||""});
     customer=await syncPortalCosts(customer,{force:true,strict:true});
     if(wantRenew&&lateRenewalPolicy(undefined,customer.expiry).free)throw Error('Use Free renewal for this unrenewed current cycle. Already-renewed customers may purchase additional full months. No paid renewal was sent.');
@@ -2982,7 +3023,7 @@ function registerHandlers() {
   });
   registerHandler("bills:renew", async (_event,id) => {
     authorizeInternet(); const bill=billById(id);
-    await renewalLedger.start(bill,renewalActor()); return billById(bill.id);
+    await renewalLedger.start(bill,renewalActor()); if(combinedChangeRenew.supportForBill(bill.id))combinedChangeRenew.finalize(combinedChangeRenew.supportForBill(bill.id).requestId);return billById(bill.id);
   });
   registerHandler("bills:receiptCredentials", async (_event,id) => {
     authorizeInternet(); requirePermission("bills.view");
@@ -2999,7 +3040,7 @@ function registerHandlers() {
   registerHandler("bills:resolveRenewal", (_event,id,input) => {
     authorizeInternet(); requirePermission("bills.manage");
     if (currentUser().role !== "admin") throw new Error("Only an administrator can reconcile an uncertain renewal.");
-    renewalLedger.resolve(Number(id),input,currentUser().full_name); return billById(id);
+    renewalLedger.resolve(Number(id),input,currentUser().full_name);const parent=combinedChangeRenew.supportForBill(Number(id));if(parent)combinedChangeRenew.finalize(parent.requestId);return billById(id);
   });
   registerHandler("auth:status", () => {
     if(currentUser()) {try{activeSession().user=sectionAccess.forWorkspace(currentUser(),activeSession().workspaceId);}catch{activeSession().user=null;}}

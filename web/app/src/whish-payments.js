@@ -1,6 +1,6 @@
 /* Destination recording only. The app does not send money through Whish. */
 window.WhishPayments=(()=>{
- const ids=['payment-method','bill-payment-method','telecom-payment-method','settle-payment-method','change-method','topup-method','nc-service-method','nc-installation-method','nc-equipment-method'];
+ const ids=['payment-method','bill-payment-method','telecom-payment-method','settle-payment-method','change-method','change-renew-method','topup-method','nc-service-method','nc-installation-method','nc-equipment-method'];
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  let api,adminCheck,rows=[],mounted=false,all=[],editing=null;
  const el=id=>document.getElementById(id);
@@ -11,7 +11,7 @@ window.WhishPayments=(()=>{
   return {gross:gross/100,fee:fee/100,netCollected:net/100,walletAmount:gross/100,refund:gross<0,note:gross<0?`Refund ${money(-gross/100)} from the selected wallet. No new Whish fee is added.`:gross===0?'No money received; no Whish fee is added.':`Profit fee (1%): ${money(fee/100)} · Full wallet credit: ${money(gross/100)}. The customer's payment remains ${money(gross/100)}; this fee reduces profit only, not wallet money.`};
  }
  function enteredAmount(id){
-  const amountIds={'bill-payment-method':'bill-amount','telecom-payment-method':'telecom-amount','settle-payment-method':'settle-amount','change-method':'change-amount','topup-method':'topup-amount','nc-service-method':'nc-service-amount','nc-installation-method':'nc-installation'};
+  const amountIds={'bill-payment-method':'bill-amount','telecom-payment-method':'telecom-amount','settle-payment-method':'settle-amount','change-method':'change-amount','change-renew-method':'change-renew-amount','topup-method':'topup-amount','nc-service-method':'nc-service-amount','nc-installation-method':'nc-installation'};
   if(id==='bill-payment-method'&&!el('bill-free-funding-panel')?.classList.contains('hidden'))return el('bill-free-funding')?.value;
   if(id==='payment-method'||id==='nc-equipment-method'){const text=el(id==='payment-method'?'cart-total-usd':'nc-equipment-usd')?.textContent;return text?text.replace(/[^\d.-]/g,''):undefined;}
   return el(amountIds[id])?.value;

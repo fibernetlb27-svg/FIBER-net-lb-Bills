@@ -30,6 +30,12 @@ function selectedPortalPlan() {
   if (portalCustomer?.username !== $("#bill-customer-account").value.trim()) return null;
   return FiberBillPlan.matchPortalPlan(state.bundles.find(bundle => bundle.code === $("#bill-bundle").value), portalCustomer.plans);
 }
+function portalWorkflowIdentity() {
+  return JSON.stringify([authSessionVersion,businessWorkspace.id,state.currentUser?.accountKey||state.currentUser?.account_key||state.currentUser?.username,state.currentUser?.role,state.currentUser?.active,[...(state.currentUser?.permissions||[])].sort(),[...accessibleSections()].sort()]);
+}
+function portalWorkflowCurrent(identity,permission) {
+  return identity===portalWorkflowIdentity()&&businessWorkspace.id==='fiber-users'&&Boolean(state.currentUser)&&state.currentUser.active!==false&&has(permission);
+}
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -574,9 +580,12 @@ function applyPermissions() {
   }
   const permissionByView={pos:'sales.create',products:'products.read',reports:'reports.view','change-plan':'plans.manage'};
   if(permissionByView[state.currentView]&&!has(permissionByView[state.currentView]))switchView(defaultView());
+  if(!canChangeRenew())clearChangeRenewal();
 }
 
 function clearNativeAccountData(){
+  clearChangeRenewal();
+  invalidateChange(true);
   for(const key of ['products','expenses','expenseCategories','purchases','purchaseDraft','reportCategories','users','employees','attendance','bills','bundles','telecomCatalog','telecomPayments','debts','cart'])state[key]=[];
   state.drawer=null;state.posCategory=null;state.activeReceipt=null;portalCustomer=null;portalSearchCustomers=[];portalLookupVersion++;portalSearchVersion++;
   expenseOptionsVersion++;expenseFundingWallets=[];expenseFundingSaved=null;expenseFundingProjection=null;expenseFundingRefreshDraft=null;dashboardLoadVersion++;dashboardHeadlineKey='';
@@ -598,6 +607,7 @@ function clearNativeAccountData(){
 
 function showAuth(mode) {
   authSessionVersion++;
+  clearChangeRenewal();
   state.syncing = false;
   window.AdminMoneyTransfers?.reset();
   window.StickyNotes?.reset();
@@ -825,6 +835,7 @@ async function loadAttendance() {
   renderAttendance();
 }
 async function loadBills() {
+  void loadChangeRenewPending();
   const start = $("#bills-start").value;
   const end = $("#bills-end").value;
   if (!start || !end || start > end) return;
@@ -1297,10 +1308,13 @@ function updateBillBundleOptions(updateAmount = true) {
   if(businessWorkspace.id!=="fiber-users"||serviceType!=="Internet")$("#bill-months").value=1;
   const select = $("#bill-bundle");
   const previous = select.value;
-  const eligible = state.bundles.filter((bundle) => serviceType === "Satellite" ? bundle.serviceType === "Satellite" : bundle.serviceType === "Internet");
-  select.innerHTML = (billBundleNeedsSelection ? '<option value="" disabled>Choose the billing bundle for this portal plan</option>' : "") + eligible.map((bundle) => `<option value="${escapeHtml(bundle.code)}">${escapeHtml(bundle.name)} — ${formatMoney(bundle.price)}</option>`).join("");
+  const currentPlanOnly=businessWorkspace.id==='fiber-users'&&serviceType==='Internet'&&portalStatus.ready;
+  const verified=portalCustomer?.username===$('#bill-customer-account').value.trim();
+  const eligible = state.bundles.filter((bundle) => (serviceType === "Satellite" ? bundle.serviceType === "Satellite" : bundle.serviceType === "Internet")&&(!currentPlanOnly||(verified&&FiberBillPlan.matchPortalPlan(bundle,portalCustomer.plans)?.id===portalCustomer.serviceId)));
+  const needsSelection=billBundleNeedsSelection||currentPlanOnly&&!eligible.length;
+  select.innerHTML = (needsSelection ? `<option value="" disabled>${currentPlanOnly?'Verify the customer’s current service first':'Choose the billing bundle for this portal plan'}</option>` : "") + eligible.map((bundle) => `<option value="${escapeHtml(bundle.code)}">${escapeHtml(bundle.name)} — ${formatMoney(bundle.price)}</option>`).join("");
   if (eligible.some((bundle) => bundle.code === previous)) select.value = previous;
-  if (billBundleNeedsSelection) select.value = "";
+  if (needsSelection) select.value = "";
   const selected = eligible.find((bundle) => bundle.code === select.value);
   const satellite = state.bundles.find((bundle) => bundle.serviceType === "Satellite");
   const listPrice = Number(selected?.price || 0) + (serviceType === "Internet + Satellite" ? Number(satellite?.price || 0) : 0);
@@ -1315,7 +1329,7 @@ function updateFreeRenewalForm(){
   $('#bill-free-funding-panel').classList.toggle('hidden',!free);$('#bill-free-funding').disabled=!free||billSaving;
   $('#bill-amount-field').classList.toggle('hidden',free);$('#bill-amount').disabled=free;
   $('#bill-months').disabled=free;$('#bill-months-field').classList.toggle('hidden',free||businessWorkspace.id!=='fiber-users'||$('#bill-service-type').value!=='Internet');if(free)$('#bill-months').value=1;
-  $('#bill-bundle').disabled=free&&Boolean(portalCustomer);$('#bill-pricing-panel').classList.toggle('hidden',free||!billRetailQuote());
+  $('#bill-bundle').disabled=businessWorkspace.id==='fiber-users'&&$('#bill-service-type').value==='Internet'&&portalStatus.ready||free&&Boolean(portalCustomer);$('#bill-pricing-panel').classList.toggle('hidden',free||!billRetailQuote());
   $('#bill-save-only').classList.toggle('hidden',free);
   $('#bill-portal-pricing-help').classList.toggle('hidden',free);
   const unpaid=$('input[name="bill-payment"][value="Unpaid"]');unpaid.disabled=free;
@@ -1383,7 +1397,7 @@ function updateBillBundleNote() {
     const plan = portalCustomer.service || "Not supplied by portal";
     note = match && selected?.code === match.code ? `Matched to portal plan ${plan} · ${note}`
       : match ? `Portal plan: ${plan}. · ${note}`
-      : `Portal plan: ${plan}. No unique billing bundle matches; choose a supported plan. · ${note}`;
+      : `Portal plan: ${plan}. No unique billing bundle matches; ask Admin to check the current service’s billing bundle. · ${note}`;
     if (target) {
       if (target.cost !== undefined) note += target.cost === null ? " · Proradius internal cost unavailable; saving is blocked." : ` · Daily service-option internal cost ${formatMoney(target.cost)} (reference only)`;
       if(target.renewalCost!==undefined)note+=` · Proradius renewal preview cost ${formatMoney(target.renewalCost)} is used for bill profit`;
@@ -1391,7 +1405,7 @@ function updateBillBundleNote() {
       if (target.fixedCost !== undefined) note += target.fixedCost === null ? " · fibernetlb2 reference unavailable; saving is blocked." : ` · Fixed monthly reference ${formatMoney(target.fixedCost)}${billMonths()>1&&Number.isFinite(target.renewalCost)?` · Estimated ${billMonths()}-cycle cost ${formatMoney(target.renewalCost+target.fixedCost*(billMonths()-1))}; each cycle is re-quoted and saved separately when renewed`:''}`;
       if (portalCustomer.costVerifiedAt) note += ` · Synced ${dateTimeFormatter.format(new Date(portalCustomer.costVerifiedAt))}`;
       if (portalCustomer.costRefreshError) note += " · Refresh failed; verify again. Save rechecks live costs.";
-      if (target.id !== portalCustomer.serviceId) note += has("plans.manage") ? ` · Will change Proradius to ${target.name} after confirmation on Save; a fresh renewal preview is required after the change.` : " · Your role cannot change the portal plan.";
+      if (target.id !== portalCustomer.serviceId) note += " · Use Change service & renew to switch service with one customer payment.";
     } else note += !portalCustomer.plans?.length ? " · Proradius supplied no services for this customer’s owner. Check the reseller’s assigned services before saving." : " · Selected bundle has no unique Proradius plan; saving is blocked.";
   }
   $("#bill-bundle-note").textContent = note;
@@ -1777,15 +1791,124 @@ function openAttendanceDialog(record) {
 
 function renewalLabel(state) { return ({ not_requested: "Not renewed", free:"Free service · expense funding separate", created:"Activated on account creation", checking: "Verifying customer", processing: "Renewing — do not repeat", succeeded: "Internet renewed", failed: "Not renewed — retry available", unknown: "Check portal — outcome uncertain",archived:"Archived test bill — audit only" })[state] || "Not renewed"; }
 let changeCustomer=null,changeQuote=null,changeResults=[],changeVersion=0,changeBusy=false,changeRequestId=null;
+let portalHandoffBusy=false;
+const changeRenewWorkflow={version:0,identity:'',customer:null,reseller:'',quote:null,record:null,requestId:null,busy:false,error:'',paymentReviewKey:''};
+const CHANGE_RENEW_PHASES=new Set(['change_pending','change_unknown','change_confirmed','awaiting_payment','payment_prepared','renewal_pending','renewal_unknown','renewal_failed','completed','change_failed']);
+function canChangeRenew(){return portalWorkflowCurrent(portalWorkflowIdentity(),'plans.manage')&&(has('bills.create')||has('bills.manage'))&&Boolean(api.bills.quoteChangeRenew&&api.bills.changeRenewStatus);}
+function changeRenewCurrent(version){return version===changeRenewWorkflow.version&&portalWorkflowCurrent(changeRenewWorkflow.identity,'plans.manage')&&(has('bills.create')||has('bills.manage'))&&$('#change-renew-dialog').open;}
+function resetChangeRenewWorkflow(){
+  changeRenewWorkflow.version++;
+  Object.assign(changeRenewWorkflow,{identity:'',customer:null,reseller:'',quote:null,record:null,requestId:null,busy:false,error:'',paymentReviewKey:''});
+  if($('#change-renew-dialog')?.open)$('#change-renew-dialog').close();
+  $('#change-renew-form')?.reset();
+  for(const id of ['change-renew-customer','change-renew-status','change-renew-change-summary','change-renew-policy','change-renew-estimate','change-renew-payment-summary','change-renew-provider-cost','change-renew-recovery-note','change-renew-change-charge','change-renew-renewal-charge','change-renew-total'])if($('#'+id))$('#'+id).textContent='';
+  if($('#change-renew-target'))$('#change-renew-target').innerHTML='<option value="">Choose a different service</option>';
+}
+function changeRenewMoney(value){return Number.isFinite(value)&&Math.abs(value)<=1000000&&Math.abs(value*100-Math.round(value*100))<0.000001;}
+function acceptChangeRenewRecord(record){
+  const flow=changeRenewWorkflow;
+  if(!record||record.requestId!==flow.requestId||record.username!==flow.customer?.username||!CHANGE_RENEW_PHASES.has(record.phase))throw Error('The saved service-change request could not be verified. Check its exact request reference before continuing.');
+  if(flow.quote&&(record.expectedId!==flow.quote.expectedId||record.targetId!==flow.quote.targetId))throw Error('The saved request does not match the reviewed service change.');
+  if(record.phase==='awaiting_payment'&&(!record.token||!Number.isFinite(Date.parse(record.validUntil))||!changeRenewMoney(record.changeCustomerAmount)||!changeRenewMoney(record.renewalCustomerAmount)||!changeRenewMoney(record.totalToCollect)||Math.round(record.totalToCollect*100)!==Math.round(record.changeCustomerAmount*100)+Math.round(record.renewalCustomerAmount*100)))throw Error('The full customer charge could not be verified. Refresh the saved request before taking payment.');
+  if(record.bill&&(record.bill.customerAccount!==record.username||!Number.isSafeInteger(record.bill.id)||record.bill.id<=0))throw Error('The saved customer receipt could not be verified.');
+  flow.record=record;flow.error='';
+}
+function renderChangeRenew(){
+  const flow=changeRenewWorkflow,record=flow.record,quote=flow.quote,phase=record?.phase,ready=phase==='awaiting_payment',fresh=ready&&Date.parse(record.validUntil)>Date.now();
+  $('#change-renew-customer').textContent=flow.customer?`${flow.customer.name||flow.customer.username} · ${flow.customer.username}${record?` · Request ${record.requestId}`:` · Current service: ${flow.customer.service}`}`:'';
+  const messages={change_pending:'The saved service change is being checked or submitted. Wait and check this request; do not send a replacement or collect payment.',change_unknown:'Service-change outcome is uncertain. Do not submit a replacement or collect the payment yet.',change_confirmed:'Service change is confirmed. Continue this saved request to obtain a fresh renewal quote.',awaiting_payment:fresh?'New service confirmed. Review the fresh full charge below, then collect and confirm one payment.':'The payment quote expired. Refresh this saved request and review the new total before confirming.',payment_prepared:'The payment has already been prepared. Continue the saved request to recover its exact receipt; do not take payment again.',renewal_pending:'Payment is recorded. Only the remaining unconfirmed renewal can continue; the service change will not repeat.',renewal_unknown:'Payment is recorded, but the renewal outcome needs review. Do not repeat it. Use its renewal history.',renewal_failed:'Payment is recorded. The renewal did not complete; review and explicitly continue its remaining renewal.',completed:'Service change, one customer payment and renewal are recorded.',change_failed:'The service change was not applied. No combined customer payment was recorded. Review the saved outcome before starting again.'};
+  $('#change-renew-status').textContent=flow.error||(phase?messages[phase]:'Choose the new service, then review the server’s service-change quote.');
+  $('#change-renew-selection').classList.toggle('hidden',Boolean(flow.requestId));
+  $('#change-renew-first-review').classList.toggle('hidden',!quote||Boolean(flow.requestId));
+  $('#change-renew-payment').classList.toggle('hidden',!ready||Boolean(flow.error));
+  $('#change-renew-recovery').classList.toggle('hidden',!flow.requestId);
+  if(quote&&!flow.requestId){
+    $('#change-renew-change-summary').textContent=`${quote.beforeName} → ${quote.targetName}${Number.isFinite(quote.changeCost)?` · Proradius service-change cost/credit ${formatMoney(quote.changeCost)}`:''}`;
+    $('#change-renew-policy').textContent=`Beirut date ${quote.policyDate} · ${quote.zeroChargeWindow?'Dates 1–5: service-change customer charge is $0.':'From the 6th: normal service-change customer pricing applies.'} Renewal customer pricing is separate.`;
+    const amount=$('#change-renew-change-amount');amount.readOnly=!quote.changeAmountRequired||quote.zeroChargeWindow;amount.required=Boolean(quote.changeAmountRequired);if(amount.readOnly)amount.value=Number(quote.changeCustomerAmount||0).toFixed(2);
+    $('#change-renew-change-amount-note').textContent=quote.changeAmountRequired?'Automatic service-change pricing is unavailable. Enter the agreed service-change charge or refund before continuing.':'This quoted service-change charge is carried into the single combined payment.';
+    $('#change-renew-estimate').textContent=Number.isFinite(quote.renewalCustomerAmount)?`Renewal customer charge ${formatMoney(quote.renewalCustomerAmount)}${Number.isFinite(quote.totalToCollect)?` · Full customer charge ${formatMoney(quote.totalToCollect)}`:''}. Target retail pricing is verified; the provider’s renewal cost is still quoted after the service change.`:'The full amount collected will be filled after the service changes and its live renewal quote is verified.';
+  }
+  if(ready){
+    const reviewKey=JSON.stringify([record.requestId,record.token,record.totalToCollect]);if(reviewKey!==flow.paymentReviewKey){flow.paymentReviewKey=reviewKey;$('#change-renew-ack').checked=false;}
+    $('#change-renew-payment-summary').textContent=`${record.targetName} · ${record.renewalMonths} renewal month${record.renewalMonths===1?'':'s'} · Quote valid until ${dateTimeFormatter.format(new Date(record.validUntil))}. A refreshed total needs your review and confirmation.`;
+    $('#change-renew-change-charge').textContent=formatMoney(record.changeCustomerAmount);$('#change-renew-renewal-charge').textContent=formatMoney(record.renewalCustomerAmount);$('#change-renew-total').textContent=formatMoney(record.totalToCollect);$('#change-renew-amount').value=record.totalToCollect.toFixed(2);
+    $('#change-renew-provider-cost').textContent=[Number.isFinite(record.changeCost)?`Proradius change cost/credit ${formatMoney(record.changeCost)}`:'',Number.isFinite(record.renewalCost)?`Fresh renewal cost ${formatMoney(record.renewalCost)}`:''].filter(Boolean).join(' · ');
+  }
+  $('#change-renew-recovery-note').textContent=record?.bill?`${record.bill.receiptNo}: one payment already recorded. Continue only this saved request; no extra cash or Whish credit is created.`:flow.requestId?`Keep request ${flow.requestId}. Check this request after any lost response; never create a replacement to guess the outcome.`:'';
+  $('#change-renew-resume').classList.toggle('hidden',!['change_confirmed','awaiting_payment','payment_prepared','renewal_pending','renewal_failed'].includes(phase));
+  $('#change-renew-resume').textContent=record?.canFinalize?'Finalize saved receipt':ready?'Refresh payment quote':['renewal_pending','renewal_failed'].includes(phase)?'Continue remaining renewal':'Continue saved request';
+  $('#change-renew-review').classList.toggle('hidden',phase!=='change_unknown'||state.currentUser?.role!=='admin');
+  $('#change-renew-receipt').classList.toggle('hidden',!record?.bill);
+  for(const control of $$('#change-renew-form button,#change-renew-form input,#change-renew-form select'))control.disabled=flow.busy;
+  $('#change-renew-target').disabled=flow.busy||Boolean(flow.requestId);
+  $('#change-renew-change-amount').disabled=flow.busy||Boolean(flow.requestId);
+  $('#change-renew-confirm').disabled=flow.busy||!fresh||Boolean(flow.error)||!$('#change-renew-ack').checked;
+  $('#change-renew-quote').disabled=flow.busy||!$('#change-renew-target').value;
+  WhishPayments.sync();
+}
+async function runChangeRenew(action){
+  const flow=changeRenewWorkflow,version=flow.version;if(flow.busy||!changeRenewCurrent(version))return;
+  flow.busy=true;flow.error='';renderChangeRenew();
+  try{const result=await action();if(!changeRenewCurrent(version))return;acceptChangeRenewRecord(result);}
+  catch(error){if(changeRenewCurrent(version)){flow.error=errorMessage(error);showToast(flow.error,'error');}}
+  finally{if(changeRenewCurrent(version)){flow.busy=false;renderChangeRenew();void loadChangeRenewPending();}}
+}
+async function openChangeRenewFromBill(){
+  if(portalHandoffBusy||billSaving||portalSelecting||changeBusy||!canChangeRenew())return;
+  const customer=portalCustomer;if(!customer||customer.username!==$('#bill-customer-account').value.trim()||customer.blocked)throw Error('Verify an active customer before changing service and renewing.');
+  const reseller=$('#portal-reseller-search').value.trim(),months=billMonths(),period=$('#bill-period').value;
+  resetChangeRenewWorkflow();Object.assign(changeRenewWorkflow,{identity:portalWorkflowIdentity(),customer,reseller,renewalMonths:months});
+  $('#change-renew-target').innerHTML='<option value="">Choose a different service</option>'+(customer.plans||[]).filter(plan=>plan.id!==customer.serviceId).map(plan=>`<option value="${Number(plan.id)}">${escapeHtml(plan.name)}</option>`).join('');
+  $('#change-renew-period').value=period||localDate().slice(0,7);$('#bill-dialog').close();$('#change-renew-dialog').showModal();renderChangeRenew();
+}
+async function loadChangeRenewPending(){
+  const panel=$('#change-renew-pending-panel');if(!panel)return;
+  const identity=portalWorkflowIdentity();if(!canChangeRenew()){panel.classList.add('hidden');$('#change-renew-pending-list').replaceChildren();return;}
+  try{const result=await api.bills.changeRenewStatus({});if(identity!==portalWorkflowIdentity()||!canChangeRenew())return;
+    if(!Array.isArray(result?.pending))throw Error('Pending service-change requests could not be verified.');
+    $('#change-renew-pending-list').innerHTML=result.pending.map(row=>`<div class="portal-customer-choice"><span><strong>${escapeHtml(row.customerName||row.username)}</strong><small>${escapeHtml(row.username)} · ${escapeHtml(row.targetName)} · ${escapeHtml(row.phase)} · ${escapeHtml(row.requestId)}</small></span><button class="button button-secondary" type="button" data-change-renew-request="${escapeHtml(row.requestId)}">Review saved request</button></div>`).join('');panel.classList.toggle('hidden',!result.pending.length);
+  }catch(error){if(identity===portalWorkflowIdentity()&&canChangeRenew()){$('#change-renew-pending-list').textContent=errorMessage(error);panel.classList.remove('hidden');}}
+}
+async function openSavedChangeRenew(requestId){
+  if(!canChangeRenew()||changeRenewWorkflow.busy)return;
+  resetChangeRenewWorkflow();Object.assign(changeRenewWorkflow,{identity:portalWorkflowIdentity(),requestId});
+  const version=changeRenewWorkflow.version;$('#change-renew-dialog').showModal();changeRenewWorkflow.busy=true;renderChangeRenew();
+  try{const record=await api.bills.changeRenewStatus({requestId});if(!changeRenewCurrent(version))return;changeRenewWorkflow.customer={username:record.username,name:record.customerName};acceptChangeRenewRecord(record);$('#change-renew-period').value=localDate().slice(0,7);}
+  catch(error){if(changeRenewCurrent(version))changeRenewWorkflow.error=errorMessage(error);}
+  finally{if(changeRenewCurrent(version)){changeRenewWorkflow.busy=false;renderChangeRenew();}}
+}
 let topupRequestId=null,topupBusy=false,topupChoices=[],portalOperations={change:[],topup:[]};
+function clearChangeRenewal(){
+  resetChangeRenewWorkflow();
+  $('#change-renew-pending-panel')?.classList.add('hidden');$('#change-renew-pending-list')?.replaceChildren();
+}
+async function openChangePlanFromBill(){
+  const identity=portalWorkflowIdentity(),customer=portalCustomer,target=selectedPortalPlan(),reseller=$('#portal-reseller-search').value.trim();
+  if(portalHandoffBusy||billSaving||portalSelecting||changeBusy)return;
+  if(!portalWorkflowCurrent(identity,'plans.manage')||!customer||customer.username!==$('#bill-customer-account').value.trim())throw Error('Verify the customer and check your Change Plan access first.');
+  portalHandoffBusy=true;
+  try{
+    $('#bill-dialog').close();invalidateChange(true);switchView('change-plan',{deferLoad:true});
+    $('#change-reseller').value=reseller;$('#change-search').value=customer.username;
+    await loadChangePlanView();
+    if(!portalWorkflowCurrent(identity,'plans.manage')||state.currentView!=='change-plan')return;
+    await selectChangeCustomer(customer.username);
+    if(!portalWorkflowCurrent(identity,'plans.manage')||state.currentView!=='change-plan')return;
+    if(target&&target.id!==changeCustomer?.serviceId&&Array.from($('#change-target').options).some(option=>option.value===String(target.id))){$('#change-target').value=String(target.id);invalidateChange();}
+    $('#change-target').focus();
+  }finally{portalHandoffBusy=false;}
+}
 function invalidateChange(customerToo=false) {
   changeVersion++;changeQuote=null;changeRequestId=crypto.randomUUID();
   if(customerToo){changeCustomer=null;changeResults=[];$("#change-search-results").innerHTML="";$("#change-target").innerHTML='<option value="">Select a customer first</option>';$("#change-target").disabled=true;$("#change-customer-summary").textContent="Select a customer to see the current service and expiry.";}
-  $("#change-quote-panel").classList.add("hidden");$("#change-amount").value="";$("#change-amount").disabled=true;$("#change-apply").disabled=true;$("#change-calculate").disabled=!changeCustomer||!$("#change-target").value||changeBusy;
+  $("#change-quote-panel").classList.add("hidden");$("#change-amount").value="";$("#change-amount").readOnly=false;$("#change-amount").disabled=true;$("#change-apply").disabled=true;$("#change-calculate").disabled=!changeCustomer||!$("#change-target").value||changeBusy;
 }
 async function loadChangePlanView() {
+  const identity=portalWorkflowIdentity();if(!portalWorkflowCurrent(identity,'plans.manage'))return;
   if(!$("#change-period").value)$("#change-period").value=localDate().slice(0,7);
   const list=await api.portal.resellers();
+  if(!portalWorkflowCurrent(identity,'plans.manage'))return;
   $("#change-reseller-options").innerHTML=list.map(item=>`<option value="${escapeHtml(item.username)}">${escapeHtml(item.name||item.username)}</option>`).join("");
   await loadPortalOperations("change");
 }
@@ -1797,9 +1920,10 @@ async function searchChangeCustomers() {
   $("#change-search-results").innerHTML=result.customers.map((item,index)=>`<button type="button" class="portal-customer-choice" data-change-customer="${index}"><span><strong>${escapeHtml(item.name||item.username)}</strong><small>${escapeHtml(item.username)} · ${escapeHtml(item.phone||"No phone")}</small></span>${icon("arrow-right")}</button>`).join("")||'<p class="field-note">No matching customers. Try an exact username.</p>';
 }
 async function selectChangeCustomer(username) {
+  const identity=portalWorkflowIdentity();if(!portalWorkflowCurrent(identity,'plans.manage'))return;
   invalidateChange(true);const version=changeVersion,reseller=$("#change-reseller").value.trim();
   const customer=await api.portal.lookup({username,reseller});
-  if(version!==changeVersion)return;
+  if(version!==changeVersion||!portalWorkflowCurrent(identity,'plans.manage'))return;
   changeCustomer=customer;
   $("#change-customer-summary").textContent=`${customer.name||customer.username} · ${customer.username} · ${customer.phone||"No phone"} · Current plan: ${customer.service} · Expiry: ${customer.expiry}${customer.blocked?" · BLOCKED":""}`;
   $("#change-search-results").innerHTML="";
@@ -1807,19 +1931,20 @@ async function selectChangeCustomer(username) {
   $("#change-target").disabled=customer.blocked;await loadBundles();
 }
 async function calculateChange() {
-  if(changeBusy||!changeCustomer)return;
+  const identity=portalWorkflowIdentity();if(changeBusy||!changeCustomer||!portalWorkflowCurrent(identity,'plans.manage'))return;
   invalidateChange();const version=changeVersion;$("#change-calculate").disabled=true;
   const quote=await api.portal.quoteChange({username:changeCustomer.username,expectedId:changeCustomer.serviceId,targetId:Number($("#change-target").value),reseller:$("#change-reseller").value.trim()});
-  if(version!==changeVersion)return;
+  if(version!==changeVersion||!portalWorkflowCurrent(identity,'plans.manage'))return;
   changeQuote=quote;
   const financial=Number.isFinite(quote.total);
   $('#change-quote-panel .eyebrow').textContent=financial?'PRORADIUS INTERNAL COST · NOT THE CUSTOMER PRICE':'CUSTOMER SERVICE ADJUSTMENT';
   $("#change-quote-total").textContent=financial?(quote.total<0?`Your Proradius internal credit: ${formatMoney(-quote.total)}`:`Your Proradius internal cost: ${formatMoney(quote.total)}`):'Confirm the customer charge or refund below';
-  $("#change-quote-details").textContent=`${quote.beforeName} → ${quote.targetName}${financial?` · Current period ${formatMoney(quote.currentPeriodPrice)} · ${quote.pendingRefills} pending refills (${formatMoney(quote.pendingRefillsPrice)}) · Freetime ${formatMoney(quote.freetimePrice)}`:` · ${quote.pendingRefills} pending refills`} · Expiry ${quote.expiry||"Not supplied"}. Quote valid for 2 minutes; it is rechecked before submission.`;
+  const costParts=[Number.isFinite(quote.currentPeriodPrice)?`Current period ${formatMoney(quote.currentPeriodPrice)}`:'',Number.isSafeInteger(quote.pendingRefills)?`${quote.pendingRefills} pending refills${Number.isFinite(quote.pendingRefillsPrice)?` (${formatMoney(quote.pendingRefillsPrice)})`:''}`:'',Number.isFinite(quote.freetimePrice)?`Freetime ${formatMoney(quote.freetimePrice)}`:''].filter(Boolean);
+  $("#change-quote-details").textContent=`${quote.beforeName} → ${quote.targetName}${costParts.length?' · '+costParts.join(' · '):''} · Expiry ${quote.expiry||"Not supplied"}. Quote valid for 2 minutes; it is rechecked before submission.`;
   $('#change-cost-preview').parentElement.classList.toggle('hidden',!financial);$('#change-profit-preview').parentElement.classList.toggle('hidden',!financial);
   const pricing=quote.retailPricing;
-  $("#change-pricing-note").textContent=pricing?.available?`Monthly selling prices: ${formatMoney(pricing.beforePrice)} → ${formatMoney(pricing.targetPrice)}. Current period share: ${(pricing.currentFraction*100).toFixed(2)}% · ${pricing.pendingRefills} future full cycle(s). ${pricing.customerCredit>0?`Customer refund: ${formatMoney(pricing.customerCredit)}. The negative adjustment reduces revenue and reverses the corresponding profit.`:"The customer upgrade price is separate from your portal cost."}`:pricing?.reason||"Automatic retail pricing is unavailable. Enter the actual signed customer amount; do not use portal cost as the selling price.";
-  $("#change-quote-panel").classList.remove("hidden");$("#change-amount").value=pricing?.available?pricing.customerAmount.toFixed(2):"";$("#change-amount").disabled=false;$("#change-calculate").disabled=false;updateChangeProfitPreview();
+  $("#change-pricing-note").textContent=pricing?.zeroChargeWindow?`Beirut date ${pricing.policyDate}: dates 1–5 have a $0 service-change customer charge. Proradius’s service-change cost is separate; renewal customer pricing is unchanged.`:pricing?.available?`${pricing.policyDate?`Beirut date ${pricing.policyDate} · From the 6th: normal service-change pricing. `:''}${Number.isFinite(pricing.beforePrice)&&Number.isFinite(pricing.targetPrice)?`Monthly selling prices: ${formatMoney(pricing.beforePrice)} → ${formatMoney(pricing.targetPrice)}. `:''}${Number.isFinite(pricing.currentFraction)?`Current period share: ${(pricing.currentFraction*100).toFixed(2)}% · ${pricing.pendingRefills} future full cycle(s). `:''}${pricing.customerCredit>0?`Customer refund: ${formatMoney(pricing.customerCredit)}. The negative adjustment reduces revenue and reverses the corresponding profit.`:"The customer upgrade price is separate from your portal cost."}`:pricing?.reason||"Automatic retail pricing is unavailable. Enter the actual signed customer amount; do not use portal cost as the selling price.";
+  $("#change-quote-panel").classList.remove("hidden");$("#change-amount").value=pricing?.available?pricing.customerAmount.toFixed(2):"";$("#change-amount").readOnly=Boolean(pricing?.zeroChargeWindow);$("#change-amount").disabled=false;$("#change-calculate").disabled=false;updateChangeProfitPreview();
 }
 function updateChangeProfitPreview(){
   if(!changeQuote)return;
@@ -1841,7 +1966,7 @@ async function loadFreeRenewalHistory(){
   await loadPortalOperations('free');
 }
 async function loadPortalOperations(kind) {
-  const list=await api.portal.operations(kind);portalOperations[kind]=list;
+  const identity=portalWorkflowIdentity(),list=await api.portal.operations(kind);if(identity!==portalWorkflowIdentity()||!state.currentUser||state.currentUser.active===false)return;portalOperations[kind]=list;
   const displayed=kind==='topup'?list.filter(item=>![1,2].includes(item.input.accountingVersion)):list;
   if(kind==='topup')$('#topup-operation-panel').classList.toggle('hidden',!has('topup.manage')||!displayed.length);
   $(`#${kind==='free'?'free':kind==='change'?'change':'topup'}-operations-body`).innerHTML=displayed.map(item=>{
@@ -1862,6 +1987,62 @@ async function openTopupDialog() {
   $("#topup-submit").disabled=!topupChoices.length;$("#topup-dialog").showModal();
 }
 function bindPortalOperations() {
+  $('#change-renew-payment').addEventListener('input',event=>{if(event.target.id!=='change-renew-ack')$('#change-renew-ack').checked=false;$('#change-renew-confirm').disabled=!$('#change-renew-ack').checked||changeRenewWorkflow.busy;});
+  $('#change-renew-payment').addEventListener('change',event=>{if(event.target.id!=='change-renew-ack')$('#change-renew-ack').checked=false;$('#change-renew-confirm').disabled=!$('#change-renew-ack').checked||changeRenewWorkflow.busy;});
+  $('#portal-change-renew-open').addEventListener('click',()=>openChangeRenewFromBill().catch(error=>showToast(errorMessage(error),'error')));
+  $('#change-renew-close').addEventListener('click',()=>{if(!changeRenewWorkflow.busy)$('#change-renew-dialog').close();});
+  $('#change-renew-dialog').addEventListener('cancel',event=>{if(changeRenewWorkflow.busy)event.preventDefault();});
+  $('#change-renew-target').addEventListener('change',()=>{changeRenewWorkflow.version++;changeRenewWorkflow.quote=null;changeRenewWorkflow.error='';$('#change-renew-change-amount').value='';renderChangeRenew();});
+  $('#change-renew-pending-refresh').addEventListener('click',()=>void loadChangeRenewPending());
+  $('#change-renew-pending-list').addEventListener('click',event=>{const button=event.target.closest('[data-change-renew-request]');if(button)openSavedChangeRenew(button.dataset.changeRenewRequest).catch(error=>showToast(errorMessage(error),'error'));});
+  $('#change-renew-quote').addEventListener('click',async()=>{
+    const flow=changeRenewWorkflow,version=flow.version,targetId=Number($('#change-renew-target').value);if(flow.busy||flow.requestId||!targetId||!changeRenewCurrent(version))return;
+    flow.busy=true;flow.quote=null;flow.error='';renderChangeRenew();
+    try{const quote=await api.bills.quoteChangeRenew({username:flow.customer.username,expectedId:flow.customer.serviceId,targetId,reseller:flow.reseller,renewalMonths:flow.renewalMonths});
+      if(!changeRenewCurrent(version))return;
+      if(quote?.phase!=='review_change'||!quote.quoteId||quote.username!==flow.customer.username||quote.expectedId!==flow.customer.serviceId||quote.targetId!==targetId||!Number.isFinite(Date.parse(quote.validUntil))||!quote.changeAmountRequired&&!changeRenewMoney(quote.changeCustomerAmount)||quote.zeroChargeWindow&&quote.changeCustomerAmount!==0)throw Error('The service-change quote could not be verified. Refresh it before continuing.');
+      flow.quote=quote;$('#change-renew-change-amount').value=quote.changeAmountRequired?'':quote.changeCustomerAmount.toFixed(2);
+    }catch(error){if(changeRenewCurrent(version))flow.error=errorMessage(error);}
+    finally{if(changeRenewCurrent(version)){flow.busy=false;renderChangeRenew();}}
+  });
+  $('#change-renew-start').addEventListener('click',async()=>{
+    const flow=changeRenewWorkflow,version=flow.version,quote=flow.quote,amount=Number($('#change-renew-change-amount').value);
+    if(flow.busy||flow.requestId||!quote||!changeRenewCurrent(version))return;
+    if(Date.parse(quote.validUntil)<=Date.now()||!changeRenewMoney(amount)||$('#change-renew-change-amount').value.trim()===''||quote.zeroChargeWindow&&amount!==0||!quote.changeAmountRequired&&amount!==quote.changeCustomerAmount)return showToast('Review a current service-change quote and its customer charge first.','error');
+    if(!await confirmPortalAction(`Change ${quote.username} from ${quote.beforeName} to ${quote.targetName}?\n\nService-change customer charge: ${formatMoney(amount)}. ${quote.zeroChargeWindow?'Beirut dates 1–5: this customer charge is $0.':''}\n${Number.isFinite(quote.renewalCustomerAmount)?`Renewal customer charge: ${formatMoney(quote.renewalCustomerAmount)}\nFull customer charge: ${formatMoney(amount+quote.renewalCustomerAmount)}\n`:''}${Number.isFinite(quote.changeCost)?`Proradius service-change cost/credit: ${formatMoney(quote.changeCost)}.\n`:''}This submits the service change once. It does not collect payment yet. After it is confirmed, review the fresh full charge and confirm one payment and renewal.`))return;
+    if(!changeRenewCurrent(version)||quote!==flow.quote||Date.parse(quote.validUntil)<=Date.now())return;
+    flow.requestId=crypto.randomUUID();await runChangeRenew(()=>api.bills.startChangeRenew({requestId:flow.requestId,quoteId:quote.quoteId,username:quote.username,expectedId:quote.expectedId,targetId:quote.targetId,renewalMonths:quote.renewalMonths,changeCustomerAmount:amount,confirm:true}));
+  });
+  $('#change-renew-form').addEventListener('submit',async event=>{
+    event.preventDefault();const flow=changeRenewWorkflow,version=flow.version,record=flow.record;if(flow.busy||record?.phase!=='awaiting_payment'||!changeRenewCurrent(version))return;
+    if(!$('#change-renew-ack').checked)return showToast('Review the full amount collected and the payment destination first.','error');
+    if(Date.parse(record.validUntil)<=Date.now())return showToast('Refresh the payment quote and review its new total before confirming.','error');
+    const amount=Number($('#change-renew-amount').value),method=$('#change-renew-method').value;
+    if(amount!==record.totalToCollect||!['Cash','Whish Money'].includes(method))return showToast('Confirm the full quoted amount using Cash or Whish Money.','error');
+    let input;try{input={requestId:flow.requestId,token:record.token,amount,paymentMethod:method,billingPeriod:$('#change-renew-period').value,reference:$('#change-renew-reference').value,confirm:true,...WhishPayments.input('change-renew-method')};}catch(error){return showToast(errorMessage(error),'error');}
+    const whish=WhishPayments.preview(amount,method);
+    if(!await confirmPortalAction(`Record one ${formatMoney(amount)} customer payment by ${method} and renew ${record.targetName}?\n\nService-change charge: ${formatMoney(record.changeCustomerAmount)}\nRenewal customer charge: ${formatMoney(record.renewalCustomerAmount)}\nFull amount collected: ${formatMoney(amount)}${whish?`\n${whish.note}`:''}\n\nThe service change is already confirmed and will not repeat. One receipt, cash/wallet credit and any Whish fee are recorded. Confirm only money actually received.`,{title:'Confirm full customer payment',actionLabel:'Confirm payment & renew',icon:'update',subtitle:'Service changed. Collect the verified full charge once.',subject:{name:record.customerName,username:record.username},fields:[{label:'Current service',value:record.targetName},{label:'Renewal',value:`${record.renewalMonths} month${record.renewalMonths===1?'':'s'}`}],payments:[{label:'Service-change charge',amount:formatMoney(record.changeCustomerAmount)},{label:'Renewal customer charge',amount:formatMoney(record.renewalCustomerAmount)},{label:'Total amount collected',amount:formatMoney(amount),method,separate:true,note:whish?.note||'One customer payment'}],notice:'The already confirmed service change is not repeated. Only this saved request can record the payment and submit its renewal. An uncertain response must be reviewed before any retry.'}))return;
+    let currentInput;try{currentInput={requestId:flow.requestId,token:flow.record?.token,amount:Number($('#change-renew-amount').value),paymentMethod:$('#change-renew-method').value,billingPeriod:$('#change-renew-period').value,reference:$('#change-renew-reference').value,confirm:true,...WhishPayments.input('change-renew-method')};}catch{return;}
+    if(!changeRenewCurrent(version)||record!==flow.record||!$('#change-renew-ack').checked||JSON.stringify(currentInput)!==JSON.stringify(input))return;
+    if(Date.parse(record.validUntil)<=Date.now()){renderChangeRenew();return showToast('The payment quote expired. Refresh and review the current full charge.','error');}
+    await runChangeRenew(()=>api.bills.confirmChangeRenew(input));
+  });
+  $('#change-renew-refresh').addEventListener('click',()=>{const requestId=changeRenewWorkflow.requestId;if(requestId)void runChangeRenew(()=>api.bills.changeRenewStatus({requestId}));});
+  $('#change-renew-resume').addEventListener('click',async()=>{
+    const flow=changeRenewWorkflow,version=flow.version,record=flow.record;if(!record||flow.busy||!changeRenewCurrent(version))return;
+    const renew=['renewal_pending','renewal_failed'].includes(record.phase)&&!record.canFinalize;
+    if(renew&&!await confirmPortalAction(`Continue only the remaining, unconfirmed renewal for ${record.username}?\n\nThe saved payment is ${record.bill?.receiptNo||'already recorded'}. Do not collect payment again. The confirmed service change and confirmed renewal cycles will not repeat.`))return;
+    if(!changeRenewCurrent(version)||record!==flow.record)return;
+    await runChangeRenew(()=>api.bills.resumeChangeRenew({requestId:record.requestId,...renew?{renew:true}:{}}));
+  });
+  $('#change-renew-receipt').addEventListener('click',()=>{const flow=changeRenewWorkflow;if(changeRenewCurrent(flow.version)&&flow.record?.bill){$('#change-renew-dialog').close();showReceipt('bill',flow.record.bill);}});
+  $('#change-renew-review').addEventListener('click',()=>{
+    const flow=changeRenewWorkflow;if(!changeRenewCurrent(flow.version)||flow.record?.phase!=='change_unknown'||state.currentUser?.role!=='admin')return;
+    $('#portal-operation-review-form').reset();$('#portal-operation-review-form').dataset.changeRenewRequest=flow.requestId;
+    $('#portal-operation-review .auth-copy').textContent='Check the exact service-change transaction and its financial outcome in Proradius. APPLIED confirms only that saved service change, then the same request can obtain its renewal quote. NOT APPLIED records the failed change. This review does not submit another change, collect payment or send a renewal.';
+    $('#portal-operation-review-id').value=flow.requestId;$('#portal-operation-review-summary').textContent=`${flow.record.username} · ${flow.record.beforeName} → ${flow.record.targetName} · Request ${flow.requestId}. Check the exact native service-change transaction before deciding. This review does not send a new action or collect money.`;$('#portal-operation-review').showModal();
+  });
+  $('#portal-change-plan-first').addEventListener('click',()=>openChangePlanFromBill().catch(error=>showToast(errorMessage(error),'error')));
   $("#portal-operation-review .auth-copy").textContent="Check the exact transfer in Proradius: for top-ups use its FIBER Bills request reference; for plan changes match the customer, timestamp, service and quoted charge. A balance or current plan alone does not prove the financial outcome. APPLIED saves the original local payment once; NOT APPLIED allows a new confirmed attempt. This review never sends money or changes service.";
   $$('[data-close]').forEach(button=>button.addEventListener("click",()=>button.closest("dialog").close()));
   $("#topup-dialog").addEventListener("cancel",event=>{if(topupBusy)event.preventDefault();});
@@ -1874,16 +2055,20 @@ function bindPortalOperations() {
   $("#change-search-results").addEventListener("click",event=>{const button=event.target.closest("[data-change-customer]");const customer=button&&changeResults[Number(button.dataset.changeCustomer)];if(customer)selectChangeCustomer(customer.username).catch(error=>showToast(errorMessage(error),"error"));});
   $("#change-calculate").addEventListener("click",()=>calculateChange().catch(error=>{showToast(errorMessage(error),"error");invalidateChange();}));
   $("#change-plan-form").addEventListener("submit",async event=>{
-    event.preventDefault();if(changeBusy||!changeQuote)return;
+    event.preventDefault();const identity=portalWorkflowIdentity(),version=changeVersion;if(changeBusy||!changeQuote||!portalWorkflowCurrent(identity,'plans.manage'))return;
     const quote=changeQuote,input={requestId:changeRequestId,quoteId:quote.quoteId,username:quote.username,expectedId:quote.expectedId,targetId:quote.targetId,amount:Number($("#change-amount").value),paymentMethod:$("#change-method").value,billingPeriod:$("#change-period").value,reference:$("#change-reference").value,confirm:true};
     Object.assign(input,WhishPayments.input('change-method'));
     const refund=input.amount<0;
     const whish=WhishPayments.preview(input.amount,input.paymentMethod);
     if(!await confirmPortalAction(`Change ${quote.username} from ${quote.beforeName} to ${quote.targetName}?\n\nCustomer ${refund?"refund":"amount"}: ${formatMoney(refund?-input.amount:input.amount)} (${input.paymentMethod})${Number.isFinite(quote.total)?`\nYour Proradius cost/credit: ${formatMoney(quote.total)}\nProfit ${refund?"adjustment":"before other expenses"}: ${formatMoney(input.amount-quote.total-(whish?.fee||0))}`:''}${whish?`\n${whish.note}`:''}\n\n${refund?`Confirm that ${formatMoney(-input.amount)} is being returned to the customer by ${input.paymentMethod}. This records a refund, subtracts revenue and ${input.paymentMethod==="Cash"?"reduces the cash drawer":"reduces net Whish collections"}. It does not send money or create future customer credit.`:"This records the customer payment/debt."} This applies one real Change Service action, not a monthly renewal.`))return;
+    if(!portalWorkflowCurrent(identity,'plans.manage')||version!==changeVersion||quote!==changeQuote||state.currentView!=='change-plan')return;
     changeBusy=true;const fields=$$("#change-plan-form input,#change-plan-form select,#change-plan-form button"),prior=fields.map(field=>field.disabled);fields.forEach(field=>field.disabled=true);
-    try{const bill=await api.portal.applyChange(input);invalidateChange(true);showToast(`${bill.receiptNo}: plan changed and ${refund?"refund":"payment"} recorded.`);await Promise.all([loadBills(),loadPortalOperations("change"),has("reports.view")?loadReport():Promise.resolve(),has("dashboard.view")?loadDashboard():Promise.resolve(),has("debts.view")?loadDebts():Promise.resolve(),has("drawer.view")?loadDrawer():Promise.resolve()]);}
-    catch(error){showToast(errorMessage(error),"error");await loadPortalOperations("change").catch(()=>{});}
-    finally{changeBusy=false;fields.forEach((field,index)=>field.disabled=prior[index]);$("#change-apply").disabled=!changeQuote;$("#change-calculate").disabled=!changeCustomer||!$("#change-target").value;$("#change-amount").disabled=!changeQuote;$("#change-target").disabled=!changeCustomer||changeCustomer.blocked;updateChangeProfitPreview();}
+    try{const bill=await api.portal.applyChange(input);
+      if(!portalWorkflowCurrent(identity,'plans.manage')||version!==changeVersion)return;
+      invalidateChange(true);showToast(`${bill.receiptNo}: plan changed and ${refund?"refund":"payment"} recorded.`);
+      await Promise.all([loadBills(),loadPortalOperations("change"),has("reports.view")?loadReport():Promise.resolve(),has("dashboard.view")?loadDashboard():Promise.resolve(),has("debts.view")?loadDebts():Promise.resolve(),has("drawer.view")?loadDrawer():Promise.resolve()]);}
+    catch(error){if(portalWorkflowCurrent(identity,'plans.manage')){showToast(errorMessage(error),"error");await loadPortalOperations("change").catch(()=>{});}}
+    finally{changeBusy=false;if(portalWorkflowCurrent(identity,'plans.manage')){fields.forEach((field,index)=>field.disabled=prior[index]);$("#change-apply").disabled=!changeQuote;$("#change-calculate").disabled=!changeCustomer||!$("#change-target").value;$("#change-amount").disabled=!changeQuote;$("#change-target").disabled=!changeCustomer||changeCustomer.blocked;updateChangeProfitPreview();}}
   });
   $("#add-reseller-money").addEventListener("click",()=>window.ResellerFunding?.open().catch(error=>showToast(errorMessage(error),"error")));
   $("#topup-form").addEventListener("submit",async event=>{
@@ -1901,11 +2086,13 @@ function bindPortalOperations() {
     try{
       if(refresh)await loadPortalOperations(refresh.dataset.kind);
       if(resume){resume.disabled=true;await api.portal.resumeOperation(resume.dataset.id);await Promise.all([loadBills(),loadPortalOperations(resume.dataset.kind)]);showToast("Confirmed payment saved. No new portal submission.");}
-      if(review){const row=portalOperations[review.dataset.kind].find(item=>item.requestId===review.dataset.id);$("#portal-operation-review-form").reset();$('#portal-operation-review-form').dataset.kind=review.dataset.kind;$("#portal-operation-review-id").value=row.requestId;$("#portal-operation-review-summary").textContent=`${row.input.username} · ${formatMoney(row.input.amount)} · ${row.requestId}${review.dataset.kind==='free'?' · Free expiry '+row.input.expiry+' · Check the exact expiry edit, not a renewal charge.':''}`;$("#portal-operation-review").showModal();}
+      if(review){const row=portalOperations[review.dataset.kind].find(item=>item.requestId===review.dataset.id);$("#portal-operation-review-form").reset();delete $('#portal-operation-review-form').dataset.changeRenewRequest;$('#portal-operation-review .auth-copy').textContent='Check the exact transfer in Proradius: for top-ups use its FIBER Bills request reference; for plan changes match the customer, timestamp, service and quoted charge. A balance or current plan alone does not prove the financial outcome. APPLIED saves the original local payment once; NOT APPLIED allows a new confirmed attempt. This review never sends money or changes service.';$('#portal-operation-review-form').dataset.kind=review.dataset.kind;$("#portal-operation-review-id").value=row.requestId;$("#portal-operation-review-summary").textContent=`${row.input.username} · ${formatMoney(row.input.amount)} · ${row.requestId}${review.dataset.kind==='free'?' · Free expiry '+row.input.expiry+' · Check the exact expiry edit, not a renewal charge.':''}`;$("#portal-operation-review").showModal();}
     }catch(error){showToast(errorMessage(error),"error");if(resume)resume.disabled=false;}
   });
   $("#portal-operation-review-form").addEventListener("submit",async event=>{
     event.preventDefault();const button=$("#portal-operation-review-form [type='submit']");button.disabled=true;
+    const combinedRequest=$('#portal-operation-review-form').dataset.changeRenewRequest;
+    if(combinedRequest){try{const flow=changeRenewWorkflow;if(combinedRequest!==flow.requestId||flow.record?.phase!=='change_unknown'||state.currentUser?.role!=='admin'||!changeRenewCurrent(flow.version))throw Error('Open the exact saved request again before reviewing its outcome.');await runChangeRenew(()=>api.bills.resolveChangeRenew({requestId:combinedRequest,confirmation:$('#portal-operation-review-confirmation').value,note:$('#portal-operation-review-note').value}));if(!flow.error)$('#portal-operation-review').close();}catch(error){showToast(errorMessage(error),'error');}finally{button.disabled=false;}return;}
     try{await api.portal.resolveOperation($("#portal-operation-review-id").value,{confirmation:$("#portal-operation-review-confirmation").value,note:$("#portal-operation-review-note").value});$("#portal-operation-review").close();await Promise.all([loadBills(),loadPortalOperations($('#portal-operation-review-form').dataset.kind==='free'?'free':businessWorkspace.kind==="reseller"?"topup":"change")]);showToast("Verified portal outcome recorded; no portal action repeated.");}
     catch(error){showToast(errorMessage(error),"error");}finally{button.disabled=false;}
   });
@@ -1936,10 +2123,12 @@ function updatePortalCustomerSummary() {
   $("#portal-verify-button").disabled = billSaving || portalSelecting || !portalStatus.ready;
   const linked = businessWorkspace.id === "fiber-users" && $("#bill-service-type").value === "Internet" && portalStatus.ready;
   const freePolicy=billFreePolicy(),free=Boolean(freePolicy?.free);
-  const target = selectedPortalPlan(), invalidPlan = valid && (!target || (free?target.id!==portalCustomer.serviceId:target.cost === null || target.fixedCost === null || Boolean(portalCustomer.renewalQuoteError) || (target.id !== portalCustomer.serviceId && !has("plans.manage"))));
-  const changing = linked && valid && target && target.id !== portalCustomer.serviceId;
-  $("#bill-save-only").textContent = businessWorkspace.kind === "reseller" ? "Save transfer" : changing ? "Save payment & change plan" : "Save payment only";
-  $("#bill-renew-button").innerHTML = `${icon("update")}${changing ? "Save, change & Renew Internet" : "Save & Renew Internet"}`;
+  const target = selectedPortalPlan(), invalidPlan = valid && (!target || target.id!==portalCustomer.serviceId || (!free&&(target.cost === null || target.fixedCost === null || Boolean(portalCustomer.renewalQuoteError))));
+  $("#bill-save-only").textContent = businessWorkspace.kind === "reseller" ? "Save transfer" : "Save payment only";
+  $("#bill-renew-button").innerHTML = `${icon("update")}Save & Renew current service`;
+  $('#portal-change-plan-step').classList.toggle('hidden',!linked||!valid||!has('plans.manage'));
+  $('#portal-change-plan-first').disabled=billSaving||portalSelecting||changeBusy||portalCustomer?.blocked;
+  $('#portal-change-renew-open').disabled=billSaving||portalSelecting||changeBusy||portalCustomer?.blocked||!canChangeRenew();
   $("#bill-save-only").disabled = billSaving || portalSelecting || (linked && (!valid || invalidPlan || portalCustomer.blocked));
   $("#bill-renew-button").disabled = billSaving || portalSelecting || !portalStatus.ready || !valid || invalidPlan || !$("#bill-bundle").value || portalCustomer?.blocked || $("#bill-payment-method").value === "Unpaid" || $("#bill-service-type").value !== "Internet";
   if(free&&valid&&portalCustomer.expiry.slice(0,10)>=freePolicy.expiry)$('#bill-renew-button').disabled=true;
@@ -1966,12 +2155,13 @@ async function refreshPortalCustomerCosts(manual=false){
   finally{costRefreshPending=false;}
 }
 async function selectPortalCustomer(username) {
-  const version = ++portalLookupVersion, requestId = billRequestId, reseller = $("#portal-reseller-search").value.trim();
+  const identity=portalWorkflowIdentity(),version = ++portalLookupVersion, requestId = billRequestId, reseller = $("#portal-reseller-search").value.trim();
   portalSelecting = true; portalCustomer = null; updatePortalCustomerSummary();
   try {
     const customer = await api.portal.lookup(reseller ? {username,reseller} : username);
+    if(identity!==portalWorkflowIdentity())return;
     await loadBundles();
-    if (version !== portalLookupVersion || requestId !== billRequestId || !$("#bill-dialog").open) return;
+    if (identity!==portalWorkflowIdentity()||version !== portalLookupVersion || requestId !== billRequestId || !$("#bill-dialog").open) return;
     portalCustomer = customer; $("#bill-customer-account").value = customer.username;
     $("#bill-customer-name").value = customer.name || "";
     $("#bill-phone").value = customer.phone || "";
@@ -1983,9 +2173,9 @@ async function selectPortalCustomer(username) {
     else { $("#bill-amount").value = ""; updateBillBundleNote(); }
     $("#portal-search-results").innerHTML = "";
   } catch (error) {
-    if (version === portalLookupVersion && requestId === billRequestId && $("#bill-dialog").open) throw error;
+    if (identity===portalWorkflowIdentity()&&version === portalLookupVersion && requestId === billRequestId && $("#bill-dialog").open) throw error;
   } finally {
-    if (version === portalLookupVersion) { portalSelecting = false; updatePortalCustomerSummary(); }
+    if (identity===portalWorkflowIdentity()&&version === portalLookupVersion) { portalSelecting = false; updatePortalCustomerSummary(); }
   }
 }
 async function openPortalSettings() {
@@ -2059,18 +2249,20 @@ async function openPortalPlanHistory() {
 function billRenewalConfirmation(username, amount, customer, target, changing, wantRenew,months=1) {
   const quote=Number.isFinite(target?.renewalCost)&&Number.isFinite(target?.fixedCost)?target.renewalCost+target.fixedCost*(months-1):null;
   const whish=WhishPayments.preview(amount,$('#bill-payment-method').value),pricing=quote!==null?`\n${months>1?'Estimated total service cost':'Current Proradius service cost'}: ${formatMoney(quote)} · ${months>1?'Estimated':'Bill'} profit before other expenses: ${formatMoney(Number(amount)-quote-(whish?.fee||0))}${whish?`\n${whish.note}`:''}${months>1?'\nEach submitted renewal cycle gets its own live cost quote; reports update to the sum of those saved quotes. Unsubmitted cycles remain estimates.':''}`:'';
-  return `Save ${formatMoney(amount)} for ${username}?\n\nCurrent Proradius plan: ${customer?.service || "Current account plan"}\n${changing ? `CHANGE Proradius plan to: ${target.name}\n` : ""}Current expiry: ${customer?.expiry || "Not supplied"}\n${retailPriceNote(billRetailQuote())}${pricing}\n\n${wantRenew ? `Renew ${months} monthly cycle${months===1?"":"s"} after saving one payment. Future cycles may appear as pending refills. The app stops on an uncertain response; confirmed cycles are never repeated.` : "Save payment/debt and change the plan only. No renewal will be sent."}\nSelling price remains the amount entered in the app. Customer Override Price is not used or modified. IPTV is not renewed.`;
+  return `Save ${formatMoney(amount)} for ${username}?\n\nCurrent Proradius plan: ${customer?.service || "Current account plan"}\nCurrent expiry: ${customer?.expiry || "Not supplied"}\n${retailPriceNote(billRetailQuote())}${pricing}\n\n${wantRenew ? `Renew ${months} monthly cycle${months===1?"":"s"} of this current service after saving one payment. Future cycles may appear as pending refills. The app stops on an uncertain response; confirmed cycles are never repeated.` : "Save the payment or debt only. No service change or renewal will be sent."}\nSelling price remains the amount entered in the app. Customer Override Price is not used or modified. IPTV is not renewed.`;
 }
 function billRenewalReview(bill,customer,target,changing,wantRenew){
   const months=Number(bill.renewalMonths),cost=Number.isFinite(target?.renewalCost)&&Number.isFinite(target?.fixedCost)?target.renewalCost+target.fixedCost*(months-1):null;
-  const pricing=billRetailQuote(),fields=[{label:"Service",value:changing?`${customer?.service||'Current plan'} → ${target.name}`:customer?.service||target?.name||'Current account plan'},{label:"Current expiry",value:customer?.expiry||'Not supplied'},{label:"Renewal",value:wantRenew?`${months} monthly cycle${months===1?'':'s'}`:'Plan change only · no renewal'}];
+  const pricing=billRetailQuote(),fields=[{label:"Current service",value:customer?.service||target?.name||'Current account plan'},{label:"Current expiry",value:customer?.expiry||'Not supplied'},{label:"Renewal",value:wantRenew?`${months} monthly cycle${months===1?'':'s'}`:'Payment only · no renewal'}];
   if(pricing)fields.push({label:"Billing coverage",value:pricing.advance?`Additional full month${months>1?'s':''} · existing subscription stays active`:`${pricing.remainingDays}/${pricing.cycleDays} days through ${pricing.cycleEnd}${pricing.additionalFullMonths?` + ${pricing.additionalFullMonths} full cycle(s)`:''}`});
   if(bill.whishDestinationId)fields.push({label:"Whish destination",value:$('#bill-payment-method-whish')?.selectedOptions[0]?.textContent||'Selected wallet'});
   const whish=WhishPayments.preview(bill.amount,bill.paymentMethod);
-  return {title:wantRenew?'Confirm service renewal':'Confirm payment & plan change',actionLabel:wantRenew?'Confirm renewal':'Confirm plan change',icon:'update',subtitle:'Check the account and the exact amount collected before continuing.',subject:{name:bill.customerName||customer?.name,username:bill.customerAccount},fields,payments:[{label:bill.paymentMethod==='Unpaid'?'Customer debt':'Customer payment',amount:formatMoney(bill.amount),method:bill.paymentMethod,note:`Uses the amount you entered, including any manual edit.${whish?' '+whish.note:''}`}],metrics:cost===null?[]:[{label:months>1?'Estimated service cost':'Proradius service cost',value:formatMoney(cost)},{label:months>1?'Estimated profit before other expenses':'Profit before other expenses',value:formatMoney(Number(bill.amount)-cost-(whish?.fee||0))}],notice:wantRenew?`One payment is recorded for ${months} monthly cycle${months===1?'':'s'}. Each cycle uses a fresh Proradius quote. Confirmed cycles are not repeated; an uncertain result stops the request. IPTV is not renewed.`:'Records the payment or debt and changes the Internet plan. No monthly renewal or IPTV action is sent.'};
+  return {title:wantRenew?'Confirm current-service renewal':'Confirm payment',actionLabel:wantRenew?'Confirm renewal':'Confirm payment',icon:'update',subtitle:'Check the account and the exact amount collected before continuing.',subject:{name:bill.customerName||customer?.name,username:bill.customerAccount},fields,payments:[{label:bill.paymentMethod==='Unpaid'?'Customer debt':'Customer payment',amount:formatMoney(bill.amount),method:bill.paymentMethod,note:`Uses the amount you entered, including any manual edit.${whish?' '+whish.note:''}`}],metrics:cost===null?[]:[{label:months>1?'Estimated service cost':'Proradius service cost',value:formatMoney(cost)},{label:months>1?'Estimated profit before other expenses':'Profit before other expenses',value:formatMoney(Number(bill.amount)-cost-(whish?.fee||0))}],notice:wantRenew?`One payment is recorded for ${months} monthly cycle${months===1?'':'s'} of the verified current service. Each cycle uses a fresh Proradius quote. Confirmed cycles are not repeated; an uncertain result stops the request. IPTV is not renewed.`:'Records the payment or debt only. No service change or renewal is sent.'};
 }
 
 async function openBillDialog() {
+  const identity=portalWorkflowIdentity();
+  if(!state.currentUser||state.currentUser.active===false||!has('bills.create')&&!has('bills.manage'))return showToast('Your role cannot record customer bills.','error');
   if (businessWorkspace.kind === "reseller") return showToast("Use Add money or Refund in the current reseller list. Earlier bills are historical records.", "error");
   if(billSaving)return showToast("Please wait for the current payment to finish.","error");
   $("#bill-form").reset();
@@ -2085,6 +2277,8 @@ async function openBillDialog() {
   updateBillPayment();
   updateBillBundleOptions(true);
   if (businessWorkspace.id === "fiber-users") await loadPortalStatus();
+  if(identity!==portalWorkflowIdentity())return;
+  updateBillBundleOptions(true);
   updatePortalCustomerSummary();
   $("#bill-dialog").showModal();
   if (businessWorkspace.id === "fiber-users" && portalStatus.ready && api.portal.resellers) {
@@ -2092,6 +2286,7 @@ async function openBillDialog() {
     api.portal.resellers().then(list=>{if(requestId===billRequestId && $("#bill-dialog").open)$("#portal-reseller-options").innerHTML=list.map(item=>`<option value="${escapeHtml(item.username)}">${escapeHtml(item.name || item.username)}</option>`).join("");}).catch(()=>{if(requestId===billRequestId)$("#portal-reseller-options").innerHTML="";});
   }
   requestAnimationFrame(() => { const dialog=$('#bill-dialog'),active=document.activeElement;const input = $(businessWorkspace.kind === "reseller" ? "#bill-reseller" : businessWorkspace.id==="fiber-users"&&portalStatus.ready ? "#portal-customer-search" : "#bill-customer-account"); if(!dialog.open||dialog.contains(active)&&['INPUT','SELECT','TEXTAREA'].includes(active.tagName))return;input.focus(); if (input.setSelectionRange) input.setSelectionRange(input.value.length, input.value.length); });
+  return billRequestId;
 }
 
 async function saveFreeRenewal(){
@@ -3150,7 +3345,9 @@ function bindEvents() {
   });
 
   $("#bill-form").addEventListener("submit", async (event) => {
-    event.preventDefault(); if(billSaving || portalSelecting)return;
+    event.preventDefault();const identity=portalWorkflowIdentity(); if(billSaving || portalSelecting)return;
+    if(!state.currentUser||state.currentUser.active===false||!has('bills.create')&&!has('bills.manage'))return showToast('Your role cannot record customer bills.','error');
+    if(businessWorkspace.id==='fiber-users'&&portalStatus.ready&&$('#bill-service-type').value==='Internet'&&portalCustomer&&selectedPortalPlan()?.id!==portalCustomer.serviceId)return showToast('Use Change service & renew for a different service. This form only renews the verified current service.','error');
     if(billFreePolicy()?.free){await saveFreeRenewal();return;}
     const wantRenew=event.submitter?.id==="bill-renew-button";
     const account=normalizedBillAccount();
@@ -3163,12 +3360,13 @@ function bindEvents() {
     const target=selectedPortalPlan(), changing=linked && target?.id!==portalCustomer?.serviceId;
     if(linked){
       if(!portalCustomer || portalCustomer.username!==account || !target || target.cost===null || target.fixedCost===null || portalCustomer.blocked)return showToast("Verify the customer and select a supported plan with current internal cost and fibernetlb2 fixed cost.","error");
-      if(changing && !has("plans.manage"))return showToast("Your role cannot change the portal plan.","error");
-      Object.assign(bill,{portalServiceId:target.id,portalExpectedServiceId:portalCustomer.serviceId,portalReseller:$("#portal-reseller-search").value.trim(),confirmPlanChange:changing});
+      if(changing)return showToast('Use Change service & renew for a different service. This form only renews the verified current service.','error');
+      Object.assign(bill,{portalServiceId:target.id,portalExpectedServiceId:portalCustomer.serviceId,portalReseller:$("#portal-reseller-search").value.trim(),confirmPlanChange:false});
     }
     billSaving=true;const buttons=$$("#bill-form button"),prior=buttons.map(button=>button.disabled);buttons.forEach(button=>button.disabled=true);
     try {
-      if((wantRenew||changing)&&!await confirmPortalAction(billRenewalConfirmation(account,bill.amount,portalCustomer,target,changing,wantRenew,bill.renewalMonths),billRenewalReview(bill,portalCustomer,target,changing,wantRenew)))return;
+      if(wantRenew&&!await confirmPortalAction(billRenewalConfirmation(account,bill.amount,portalCustomer,target,false,wantRenew,bill.renewalMonths),billRenewalReview(bill,portalCustomer,target,false,wantRenew)))return;
+      if(identity!==portalWorkflowIdentity()||bill.requestId!==billRequestId||!$('#bill-dialog').open||!has('bills.create')&&!has('bills.manage'))return;
       $('#bill-form').setAttribute('aria-busy','true');
       const saved=await (linked ? api.bills.savePortal(bill,wantRenew) : wantRenew ? api.bills.saveRenew(bill) : api.bills.create(bill));
       $("#bill-dialog").close();

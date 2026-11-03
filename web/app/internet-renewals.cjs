@@ -121,7 +121,7 @@ class PlanChangeLedger {
 }
 
 class RenewalLedger {
-  constructor(db, api, save, authorize) { this.db = db; this.api = api; this.save = save; this.authorize = authorize; }
+  constructor(db, api, save, authorize, combinedSupport = null) { this.db = db; this.api = api; this.save = save; this.authorize = authorize; this.combinedSupport = combinedSupport; }
   one(sql, params = []) { return query(this.db, sql, params)[0] || null; }
   liveCostBill(id){return this.one('SELECT portal_cost_source AS source FROM fibernetlb_bills WHERE id=?',[id])?.source?.startsWith(LIVE_COST_SOURCE);}
   costQuotes(id){return query(this.db,'SELECT cycle_no AS cycle,quoted_cost AS cost,state,quoted_at AS quotedAt FROM internet_renewal_costs WHERE bill_id=? ORDER BY cycle_no',[id]);}
@@ -130,7 +130,9 @@ class RenewalLedger {
     const bill=this.one('SELECT renewal_months AS months,portal_internal_cost AS initialCost,portal_fixed_monthly_cost AS fixedCost FROM fibernetlb_bills WHERE id=?',[id]);
     const quotes=this.costQuotes(id).filter(p=>p.state!=='not_applied'),known=quotes.reduce((sum,p)=>sum+p.cost,0),missing=bill.months-quotes.length;
     const firstMissing=!quotes.some(p=>p.cycle===1),remaining=missing-(firstMissing?1:0);
-    const cost=roundCost(known+(firstMissing?bill.initialCost:0)+bill.fixedCost*remaining),confirmed=quotes.filter(p=>p.state==='confirmed').length;
+    const extra=this.combinedSupport?.(id)?.changeCost??0;
+    if(!Number.isFinite(extra)||Math.abs(extra)>1000000||Math.abs(extra*100-Math.round(extra*100))>0.00001)throw Error('The confirmed service-change cost could not be verified.');
+    const cost=roundCost(known+(firstMissing?bill.initialCost:0)+bill.fixedCost*remaining+extra),confirmed=quotes.filter(p=>p.state==='confirmed').length;
     const status=confirmed===bill.months?'all cycles confirmed':quotes.some(p=>p.state==='quoted')?'submission awaiting confirmation; remaining cycles estimated':`${confirmed}/${bill.months} confirmed; unsubmitted cycles estimated`;
     this.db.run('UPDATE fibernetlb_bills SET bundle_cost=?,portal_cost_source=? WHERE id=?',[cost,`${LIVE_COST_SOURCE} · ${status}`,id]);
   }
@@ -171,7 +173,8 @@ class RenewalLedger {
     this.authorize();
     if(this.free(bill.id))throw Error('This free service was extended by expiry edit. It cannot submit a paid renewal. Start a new renewal form for a new cycle.');
     if(this.creation(bill.id))throw Error('This initial service was activated during customer creation. Record a new bill for an additional renewal; this first bill will not renew twice.');
-    if(this.one("SELECT name FROM sqlite_master WHERE name='portal_operations'")&&this.one("SELECT request_id FROM portal_operations WHERE entity=? AND state IN ('checking','processing','unknown','confirmed')",[`customer:${bill.customerAccount}`]))throw Error("Review the unfinished charged plan change before renewal.");
+    const combined=this.combinedSupport?.(bill.id);
+    if(this.one("SELECT name FROM sqlite_master WHERE name='portal_operations'")&&query(this.db,"SELECT request_id FROM portal_operations WHERE entity=? AND state IN ('checking','processing','unknown','confirmed')",[`customer:${bill.customerAccount}`]).some(row=>row.request_id!==combined?.requestId))throw Error("Review the unfinished charged plan change before renewal.");
     if (bill.serviceType !== "Internet" || Number(bill.remainingAmount) !== 0 || bill.paymentStatus !== "paid") throw new Error("Renewal is available for fully paid Internet bills only. Collect any remaining debt first.");
     const existing = this.details(bill.id);
     if (["checking","processing","succeeded","unknown"].includes(existing.state)) return existing;
@@ -245,6 +248,7 @@ class RenewalLedger {
     return this.finish(id,completed===progress.requestedMonths?"succeeded":"failed",`Administrator checked uncertain cycle ${progress.completedMonths+1}: ${input.confirmation}. ${completed} of ${progress.requestedMonths} confirmed; ${progress.requestedMonths-completed} remaining. ${note}`,actor,progress.afterExpiry);
   }
   canDelete(id) {
+    if(this.combinedSupport?.(id))throw Error('This receipt owns a confirmed service change and renewal audit. Deleting it would not reverse those provider actions.');
     if(this.one("SELECT request_id FROM internet_plan_changes WHERE bill_id=?",[id])) throw new Error("This bill has a portal plan-change audit trail and cannot be deleted. Removing a payment would not undo the plan change.");
     const row = this.one("SELECT state,attempts FROM internet_renewals WHERE bill_id = ?",[id]);
     if (row && (row.attempts > 0 || ["checking","processing","unknown"].includes(row.state))) throw new Error("This bill has a portal renewal audit trail and cannot be deleted. Removing a payment would not undo the Internet renewal.");

@@ -436,6 +436,12 @@
       "sourceSha256": "9ef985fb74117bc182f3c4c3755eec7a212ed03edb669d4d925cc5407c7d3ff8",
       "sha256": "a59e46e86f7d6fad19621190bb1adbb4ba9a8ba13a0e4d8bb3a0ceaa5b072862",
       "reason": "Optional prior-month collection deposits retain the selected calendar month and exact-source residual proof, enforce the old-money cap again at commit, and preserve ordinary historical Bank inputs and atomic recovery."
+    },
+    {
+      "file": "internet-renewals.cjs",
+      "sourceSha256": "5fbe3d0348e7c315fa225367b64b02abfea53f16165f7a07f60838687f3616e6",
+      "sha256": "a7984b3c08a37b24a65eca72e33aaa305727b047e46d2fccfa5786f5c78803c7",
+      "reason": "An optional server-only verified combined parent permits only its own linked receipt to renew, preserves the immutable signed service-change cost in every actual-cycle cost synchronization, and protects externally audited combined receipts from deletion. Ordinary bills and original fixtures keep their existing rules."
     }
   ],
   "helpers": [],

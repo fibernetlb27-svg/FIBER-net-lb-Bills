@@ -68,6 +68,21 @@ test('lost financial response is uncertain and is never retried',async()=>{
   assert.equal(h.calls.filter(row=>row.route==='/api/rpc').length,1);
 });
 
+test('combined change/renew keeps one saved request on a lost mutation response and treats quotes/status as reads',async()=>{
+  const h=harness({rpc:()=>{throw Error('lost reply');}});
+  const saved={requestId:'fictional-combined-original',token:'fictional-reviewed-quote',amount:30,paymentMethod:'Cash',confirm:true};
+  for(const method of ['quoteChangeRenew','changeRenewStatus']){
+    await assert.rejects(h.api.bills[method]({requestId:saved.requestId}),error=>error.uncertain===false);
+  }
+  for(const method of ['startChangeRenew','confirmChangeRenew','resumeChangeRenew','resolveChangeRenew']){
+    await assert.rejects(h.api.bills[method](saved),error=>error.uncertain===true&&/Nothing was automatically retried/.test(error.message));
+  }
+  const calls=h.calls.filter(row=>row.route==='/api/rpc').map(row=>JSON.parse(row.options.body));
+  assert.equal(calls.length,6,'Each explicit invocation sends once; the transport does not replay a collection.');
+  assert.deepEqual(calls.map(row=>row.channel),['bills:quoteChangeRenew','bills:changeRenewStatus','bills:startChangeRenew','bills:confirmChangeRenew','bills:resumeChangeRenew','bills:resolveChangeRenew']);
+  assert.ok(calls.every(row=>row.args[0].requestId===saved.requestId));
+});
+
 test('collection balances and automatic closing status are read-only browser requests',async()=>{
   const h=harness({rpc:()=>{throw Error('offline read');}});
   for(const read of [()=>h.api.bank.collectionOverview({workspaceId:'fiber-users'}),()=>h.api.finance.autoMonthStatus()]){

@@ -89,6 +89,12 @@ const api = {
     remove: (id) => invoke("attendance:delete", id)
   },
   bills: {
+    quoteChangeRenew: input => invoke('bills:quoteChangeRenew', input),
+    startChangeRenew: input => invoke('bills:startChangeRenew', input),
+    changeRenewStatus: input => invoke('bills:changeRenewStatus', input),
+    confirmChangeRenew: input => invoke('bills:confirmChangeRenew', input),
+    resumeChangeRenew: input => invoke('bills:resumeChangeRenew', input),
+    resolveChangeRenew: input => invoke('bills:resolveChangeRenew', input),
     receiptCredentials: id => invoke("bills:receiptCredentials",id),
     resetPreview: () => invoke("bills:resetPreview"),
     reset: input => invoke("bills:reset",input),

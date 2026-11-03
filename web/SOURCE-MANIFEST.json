@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -40,8 +40,8 @@
     },
     {
       "name": "README.md",
-      "length": 10808,
-      "sha256": "46526c69d218167c57fe27a4f83cfd146c7f4d40833d01ca4d43e4ce12d7cb10"
+      "length": 12161,
+      "sha256": "aea33edd66ab98be8f1523feb0c4985a55153342ce235ca79dbbc30eac81d5e4"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -119,9 +119,19 @@
       "sha256": "b15fa955a5c9d7b62c63322aa9f10a3585731793276b126175421c02b92c5ee6"
     },
     {
+      "name": "app/change-service-customer-pricing.cjs",
+      "length": 2127,
+      "sha256": "c41eba7bf8b7fcbfad0d018030ef4b465d96be5de89f3ffc59f2a683cb341ef0"
+    },
+    {
       "name": "app/client-transport.cjs",
       "length": 3910,
       "sha256": "8a094c2e63d3c4ffb3b8d0e0b6a664b13974574b582eb2d7e8ccbeda7a1029d3"
+    },
+    {
+      "name": "app/combined-change-renew.cjs",
+      "length": 25319,
+      "sha256": "6b99488badac27b5d4d6db7325f9e6dae67fe8c68d302a03762ce01c249f7bb6"
     },
     {
       "name": "app/company-debt-business.cjs",
@@ -145,8 +155,8 @@
     },
     {
       "name": "app/core.cjs",
-      "length": 376981,
-      "sha256": "a4a20578092d3507fe90d63a7c3c226746ff134bc7d0b4b8023732d96c3faa66"
+      "length": 386668,
+      "sha256": "e20c3a1fbb3d0052896e14c3571c6b379a2a3240a3ce224aae9608e076893d83"
     },
     {
       "name": "app/customer-registration.cjs",
@@ -210,8 +220,8 @@
     },
     {
       "name": "app/internet-renewals.cjs",
-      "length": 27577,
-      "sha256": "5fbe3d0348e7c315fa225367b64b02abfea53f16165f7a07f60838687f3616e6"
+      "length": 28159,
+      "sha256": "a7984b3c08a37b24a65eca72e33aaa305727b047e46d2fccfa5786f5c78803c7"
     },
     {
       "name": "app/invoice-voids.cjs",
@@ -400,8 +410,8 @@
     },
     {
       "name": "app/src/app.js",
-      "length": 332806,
-      "sha256": "01f04dc0cef817a28e264f3ec0556d56860a0ce241e562afaec2b88d6dd7ab8c"
+      "length": 362617,
+      "sha256": "d27cf4b0f55ebe4745e333c772d70fc10ec6d088de493e6322a3056ebc645bca"
     },
     {
       "name": "app/src/backups.js",
@@ -450,13 +460,13 @@
     },
     {
       "name": "app/src/browser-api.js",
-      "length": 11023,
-      "sha256": "01fe3820a2655a9ef4c3c2643fc0659a56805a78874c62d81b48ec0a8b908bb4"
+      "length": 11136,
+      "sha256": "2172d11f065c660420649af000a00c5708fb1355ee4c586c2d8159b7022a85e0"
     },
     {
       "name": "app/src/browser-contract.js",
-      "length": 16000,
-      "sha256": "98f1d4805d06d1eee6a9fce8b22188b202e022a980aef33f7c84cb1a09ca2a2e"
+      "length": 16444,
+      "sha256": "06be00aee0435cc1628efefddf55986af467ff661a0ec13fb4c528673e4706bd"
     },
     {
       "name": "app/src/company-debts.css",
@@ -525,8 +535,8 @@
     },
     {
       "name": "app/src/index.html",
-      "length": 145706,
-      "sha256": "66ab780935513404e7639295a1aedd4f962e78634445c5a7ab94a45bf6e35137"
+      "length": 150676,
+      "sha256": "d81073a26c085bca3851a2d6c0066e96c38b737a2b01b73b72bf384c5f7cf0f6"
     },
     {
       "name": "app/src/internet-pricing.js",
@@ -685,8 +695,8 @@
     },
     {
       "name": "app/src/whish-payments.js",
-      "length": 15504,
-      "sha256": "c62230edba4cf576761a00d281ab97946951d54efedd30b4dab53617f0b5f81d"
+      "length": 15570,
+      "sha256": "873789d0fa8e2e37f8ae0c1338be2ce95d60f5fc2b63ee6a1f9d5dc081023e11"
     },
     {
       "name": "app/staff-permissions.cjs",
@@ -770,8 +780,8 @@
     },
     {
       "name": "lib/rpc-channels.cjs",
-      "length": 3668,
-      "sha256": "7b58619cf1b3e1cf3521b1ccf7883f6dfe5a2baef64a0c49d676640d64ee3d77"
+      "length": 3776,
+      "sha256": "5433ff9dac5e772975d9fb9a2cee3a2a74f6c58bb430145e4d7841659ae85608"
     },
     {
       "name": "lib/secrets.cjs",
@@ -786,12 +796,12 @@
     {
       "name": "package-lock.json",
       "length": 1367,
-      "sha256": "0f85abee9bcbf20ad18fb7df21e4b60162ae1726879a6ec1318b9f604dc03d79"
+      "sha256": "daf75595f5ab05dfdabbdf08c8eb39196c80cba025673060284dcd592f2ee91b"
     },
     {
       "name": "package.json",
       "length": 508,
-      "sha256": "245601b8636c9a8a24ee83e8616f2f3564172436a708ef9653a82bf33cedd3ee"
+      "sha256": "18fb0ebe7137f6a326a4ba60162a1c5deedebea78aca21deb2c9424a6e8a7b57"
     },
     {
       "name": "server.cjs",
@@ -820,13 +830,18 @@
     },
     {
       "name": "test/browser-bridge.test.cjs",
-      "length": 9940,
-      "sha256": "7b80893e680b082dc42cd699020be1b64897f99fbe6762279a4240663a96f3a8"
+      "length": 11184,
+      "sha256": "1a664acf2227ae50a7d1427ec687f78e9b5cb5877b2645db8e7623d9a7f1941c"
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 48576,
-      "sha256": "b00890b616f70946ce17dc0bb64e67168d109a687cdaad9ab04c5f40bf54717f"
+      "length": 65712,
+      "sha256": "a0ad9208f33c9791e0859309ca59a3789e4440c7356dafb8a90fc2409eab656b"
+    },
+    {
+      "name": "test/change-service-customer-pricing.test.cjs",
+      "length": 2483,
+      "sha256": "c90982267822bfc20a30dc509a950deff9effc6dfd3d99f8c45e1bf956e4fefc"
     },
     {
       "name": "test/core-auth.test.cjs",
@@ -870,8 +885,8 @@
     },
     {
       "name": "test/financial-regression.test.cjs",
-      "length": 1161,
-      "sha256": "fcac8208110e3c05fdecd245d4cfc6da6a01115d5f7aefafdcc86196d30740fd"
+      "length": 1185,
+      "sha256": "e0dd78a932806a71dd6cc39a293afc7ee48cc5f3ee6359c5fef44ef23dd5f0f3"
     },
     {
       "name": "test/mail-dependency.test.cjs",
@@ -910,8 +925,8 @@
     },
     {
       "name": "test/retained/manifest.json",
-      "length": 17471,
-      "sha256": "0ac86a3c70d00a5776215b7fcfb0ea22724e553edf2e883568fda976f7f3a92f"
+      "length": 18034,
+      "sha256": "b5699ada99425ac85c92b3308ba336e2b036f445c0be41a5618d9e7b7bc70ad9"
     },
     {
       "name": "test/retained/qa-admin-money-transfers.cjs",
@@ -1064,6 +1079,11 @@
       "sha256": "eec0279d54e3b2b2fd6515cb312b5e53e39b52e535cf9a3f3074321abc001618"
     },
     {
+      "name": "test/separate-change-renew.test.cjs",
+      "length": 46559,
+      "sha256": "6f3491357d6ecf3fe5602cf193c24c32e9f40fb84c2d937e2b094e7a2eb724bb"
+    },
+    {
       "name": "test/server-core.test.cjs",
       "length": 8561,
       "sha256": "c014c1c14b927837494139fda9030513d918d5a213d5b25d25596118a56b930f"
@@ -1105,8 +1125,8 @@
     },
     {
       "name": "tools/run-retained-tests.cjs",
-      "length": 4524,
-      "sha256": "85b68495f7f409509cbe0bd8c677a84d4790cc2452d6641ccf44a36975957a32"
+      "length": 4579,
+      "sha256": "8d51904d94825f2a8e0844b999011d1727b8bb233b1b7cd24c9d14e437dcaaec"
     },
     {
       "name": "tools/verify-backup.cjs",
