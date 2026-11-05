@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -40,8 +40,8 @@
     },
     {
       "name": "README.md",
-      "length": 12161,
-      "sha256": "aea33edd66ab98be8f1523feb0c4985a55153342ce235ca79dbbc30eac81d5e4"
+      "length": 13307,
+      "sha256": "54b7eee70672ec1697caa363188a3b3ec4a8e0062a7b075472a9bf90f0fde58f"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -270,8 +270,8 @@
     },
     {
       "name": "app/portal-operations.cjs",
-      "length": 6696,
-      "sha256": "25ba6a5e97f3efdb396cdcaf85fa0f730c0e2621d2930facd4a181ffc19b730f"
+      "length": 6982,
+      "sha256": "9f076076c7211658db0f78e30b9b9da5f659c30b1c4d8ee7d89bebef026a5e96"
     },
     {
       "name": "app/prior-month-reversal-proof.cjs",
@@ -285,8 +285,13 @@
     },
     {
       "name": "app/proradius-api.cjs",
-      "length": 61483,
-      "sha256": "a7a3e6061b69579e10c900fc090c5f1e663d1987607a28e40dc29e3afc5ab56f"
+      "length": 62053,
+      "sha256": "4d76430c3ed4b83c9fdc1e21ddce8537daf2b631b4ff80b7c497040c545468c4"
+    },
+    {
+      "name": "app/proradius-validation.cjs",
+      "length": 6631,
+      "sha256": "b764b810a782c78e204598ef487ca5074f7baacde15b1ada3b99634163ef0c17"
     },
     {
       "name": "app/receipt-printers.cjs",
@@ -410,8 +415,8 @@
     },
     {
       "name": "app/src/app.js",
-      "length": 362617,
-      "sha256": "d27cf4b0f55ebe4745e333c772d70fc10ec6d088de493e6322a3056ebc645bca"
+      "length": 363102,
+      "sha256": "d6765c812270a4b143a948b432d60060f0f3d51a757a55b8358b177ca8dd7c20"
     },
     {
       "name": "app/src/backups.js",
@@ -796,12 +801,12 @@
     {
       "name": "package-lock.json",
       "length": 1367,
-      "sha256": "daf75595f5ab05dfdabbdf08c8eb39196c80cba025673060284dcd592f2ee91b"
+      "sha256": "c372f1670258368ad7d23d33c8f5b8fc9a3b04273140814a2a984ff95f0757c4"
     },
     {
       "name": "package.json",
       "length": 508,
-      "sha256": "18fb0ebe7137f6a326a4ba60162a1c5deedebea78aca21deb2c9424a6e8a7b57"
+      "sha256": "b40604d25492ad8751429d3e59281658b9745ca34b75cb115a9d0fd66de02338"
     },
     {
       "name": "server.cjs",
@@ -885,8 +890,8 @@
     },
     {
       "name": "test/financial-regression.test.cjs",
-      "length": 1185,
-      "sha256": "e0dd78a932806a71dd6cc39a293afc7ee48cc5f3ee6359c5fef44ef23dd5f0f3"
+      "length": 1229,
+      "sha256": "3c8131fdabd0c133254b1b762e6c0bd8b93b9fdd95873b73fa3ce71861c12891"
     },
     {
       "name": "test/mail-dependency.test.cjs",
@@ -900,13 +905,23 @@
     },
     {
       "name": "test/package-source.test.cjs",
-      "length": 1465,
-      "sha256": "7c23285b1255153cf1a41a4e5eacff50f5ca4dc3ee7149648b8b52f75bed946b"
+      "length": 1536,
+      "sha256": "729b49857479275ff68bbc296d68d18579e9b8ba7ddb869f889696ced6546c24"
     },
     {
       "name": "test/prior-month-reversal-proof.test.cjs",
       "length": 7432,
       "sha256": "9cbe29408b9ad16ffbc2bc877bd37b82c21cee2100847dc0781996a25e2db80c"
+    },
+    {
+      "name": "test/proradius-validation-ledger.test.cjs",
+      "length": 10731,
+      "sha256": "e1a6b085ebbc0149a155b31d7a8b3fce8da992851e5f0ae72066591b42ba0baa"
+    },
+    {
+      "name": "test/proradius-validation.test.cjs",
+      "length": 11360,
+      "sha256": "cdb0955b3bbfbd82707039bbab65a3b132aab9e70c8e19ba7c63404bf0874bc4"
     },
     {
       "name": "test/reseller-month-report.test.cjs",
@@ -925,8 +940,8 @@
     },
     {
       "name": "test/retained/manifest.json",
-      "length": 18034,
-      "sha256": "b5699ada99425ac85c92b3308ba336e2b036f445c0be41a5618d9e7b7bc70ad9"
+      "length": 19050,
+      "sha256": "0daa217799553adfa887e4308f65ae1fcddb078d54383aa05be6f10f6a64d318"
     },
     {
       "name": "test/retained/qa-admin-money-transfers.cjs",
@@ -1125,8 +1140,8 @@
     },
     {
       "name": "tools/run-retained-tests.cjs",
-      "length": 4579,
-      "sha256": "8d51904d94825f2a8e0844b999011d1727b8bb233b1b7cd24c9d14e437dcaaec"
+      "length": 4596,
+      "sha256": "29ad9f848effd639d1896f5492e3ee99f673d5514bf3f371557e874536555766"
     },
     {
       "name": "tools/verify-backup.cjs",

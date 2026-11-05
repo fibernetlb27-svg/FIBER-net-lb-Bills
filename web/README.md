@@ -1,8 +1,14 @@
 # FIBER net lb website preview
 
-Version 0.1.7 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.8 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 Use isolated staging and a copied-data rehearsal before a new deployment or upgrade. The existing authorized accounting server remains the sole authority until an agreed cutover; an already migrated website must not resume recording on its old desktop copy. The website uses the seven existing SQLite database formats. Fictional previews and their checks are separate from accepting live business data.
+
+## Proradius validation messages
+
+When Proradius returns HTTP 422 for the native Change Service operation or its preview, the website reads a bounded JSON response and translates recognized validation reasons into fixed, safe messages. Unknown or malformed responses keep the generic HTTP 422 explanation. Raw provider text, credentials and unknown fields are not displayed or saved as validation details.
+
+This update improves the explanation of a rejected operation; it does not resolve the provider's underlying business rejection. A request already submitted to Proradius still keeps its uncertain outcome and requires review before another action. Native request payloads, pricing, permissions, accounting and saved customer data are unchanged, and no financial action is retried automatically.
 
 ## Service change before renewal
 
@@ -71,7 +77,7 @@ node tools/check-source.cjs
 npm test
 ```
 
-Tests use fictional, temporary data. The suite covers the genuine headless core, real HTTP sessions, roles and business isolation, funding and monthly closing, copied-data preservation, and a real Chrome browser. Thirty unchanged accepted financial fixtures run against 57 unchanged accounting modules and nine explicitly hashed website adaptations recorded in `test/retained/manifest.json`. The reviewed adaptations cover backups, reseller monthly reporting/carry-forward, the trusted automatic close boundary, prior-month Bank deposit limits and exact-parent combined renewal recovery/costs; the original desktop sources stay unchanged. Dedicated tests verify Support handover visibility and authorization, reseller collection dates and monthly totals, immutable archives, protected carried funds, automatic Beirut month closing and restart recovery, prior-month-only Bank balances, partial deposits and stale-request rejection, local-only daily backups and blocked external delivery while providers are disabled.
+Tests use fictional, temporary data. The suite covers the genuine headless core, real HTTP sessions, roles and business isolation, funding and monthly closing, copied-data preservation, and a real Chrome browser. Thirty unchanged accepted financial fixtures run against 55 unchanged accounting modules and eleven explicitly hashed website adaptations recorded in `test/retained/manifest.json`. The reviewed adaptations cover backups, reseller monthly reporting/carry-forward, the trusted automatic close boundary, prior-month Bank deposit limits, exact-parent combined renewal recovery/costs and safe Proradius validation reporting; the original desktop sources stay unchanged. Dedicated tests also check bounded validation parsing, fixed safe messages, unchanged native payloads, uncertain-outcome replay protection, preserved audit rows and literal browser error rendering. Provider tests use mocked responses and do not submit a live service change, renewal, payment or refund. Existing coverage retains Support handover visibility and authorization, reseller collection dates and monthly totals, immutable archives, protected carried funds, automatic Beirut month closing and restart recovery, prior-month-only Bank balances, partial deposits and stale-request rejection, local-only daily backups and blocked external delivery while providers are disabled.
 
 Chrome must be installed for the UI test. Set `CHROME_BIN` to its absolute path if needed. `CHROME_TEST_NO_SANDBOX=1` is reserved for disposable CI runners, not normal deployment. There is no TypeScript build or configured lint tool in this plain JavaScript project; the source check verifies JavaScript syntax and public-package boundaries. No coverage percentage is claimed.
 

@@ -442,6 +442,18 @@
       "sourceSha256": "5fbe3d0348e7c315fa225367b64b02abfea53f16165f7a07f60838687f3616e6",
       "sha256": "a7984b3c08a37b24a65eca72e33aaa305727b047e46d2fccfa5786f5c78803c7",
       "reason": "An optional server-only verified combined parent permits only its own linked receipt to renew, preserves the immutable signed service-change cost in every actual-cycle cost synchronization, and protects externally audited combined receipts from deletion. Ordinary bills and original fixtures keep their existing rules."
+    },
+    {
+      "file": "proradius-api.cjs",
+      "sourceSha256": "a7a3e6061b69579e10c900fc090c5f1e663d1987607a28e40dc29e3afc5ab56f",
+      "sha256": "4d76430c3ed4b83c9fdc1e21ddce8537daf2b631b4ff80b7c497040c545468c4",
+      "reason": "Only HTTP 422 responses from the native Change Service POST or its read-only preview may produce bounded allowlisted validation categories. Native payloads, credentials, sent/status semantics, other responses and the prohibition on write retries remain unchanged."
+    },
+    {
+      "file": "portal-operations.cjs",
+      "sourceSha256": "25ba6a5e97f3efdb396cdcaf85fa0f730c0e2621d2930facd4a181ffc19b730f",
+      "sha256": "9f076076c7211658db0f78e30b9b9da5f659c30b1c4d8ee7d89bebef026a5e96",
+      "reason": "New submitted service-change HTTP 422 events may append a fixed safe validation explanation. The durable submission boundary still classifies uncertain results, blocks replay, and preserves historical rows, financial records, schemas and all other operation messages."
     }
   ],
   "helpers": [],

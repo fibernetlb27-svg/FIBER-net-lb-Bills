@@ -1,4 +1,5 @@
 const crypto=require("node:crypto");
+const {publicMessage}=require('./proradius-validation.cjs');
 function rows(db,sql,params=[]) {const statement=db.prepare(sql);statement.bind(params);const result=[];try{while(statement.step())result.push(statement.getAsObject());}finally{statement.free();}return result;}
 function initializePortalOperations(db) {
   db.exec(`CREATE TABLE IF NOT EXISTS portal_operations (
@@ -45,7 +46,8 @@ class PortalOperationLedger {
       });
       return this.finish(id,"confirmed","Proradius explicitly confirmed the operation. Saving the local payment next.",actor,result);
     }catch(error){
-      const message=sent?"Portal outcome is uncertain. Check Proradius transactions; no second submission or local payment was made.":error.message;
+      const validation=sent&&error?.status===422&&['change','change_renew'].includes(kind)&&error.providerValidation?.operation==='changeservice'?publicMessage(error.providerValidation):null;
+      const message=sent?"Portal outcome is uncertain. Check Proradius transactions; no second submission or local payment was made."+(validation?` ${validation}`:''):error.message;
       const metadata=JSON.parse(this.get(id).result_json);
       this.finish(id,sent?"unknown":"failed",message,actor,metadata);throw Error(message);
     }

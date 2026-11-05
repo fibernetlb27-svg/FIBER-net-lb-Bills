@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const ResellerTransactions=require('./reseller-transactions.cjs');
+const ProviderValidation=require('./proradius-validation.cjs');
 
 const PORTAL_URL = "https://pi.fibernetlb.net";
 const MAX_RESPONSE = 1024 * 1024;
@@ -239,7 +240,14 @@ class ProradiusApi {
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 8000);
     try {
       const response = await this.fetch(`${PORTAL_URL}${route}`, { method, redirect: "error", signal: controller.signal, headers: { Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}), ...(authorization ? { Authorization: authorization } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
-      if (!response.ok) throw new PortalError(response.status === 401 || response.status === 403 ? "The portal rejected the API account or its permissions." : `The Internet portal returned HTTP ${response.status}.`, writing, response.status);
+      if (!response.ok) {
+        const validation = response.status === 422 && method === 'POST' && route === '/api/user/bulk/actions/' && ['checkchangeservice', 'changeservice'].includes(body?.op)
+          ? await ProviderValidation.readProviderValidation(response, {operation:body.op, signal:controller.signal}) : null;
+        const reason = ProviderValidation.publicMessage(validation);
+        const error = new PortalError((response.status === 401 || response.status === 403 ? "The portal rejected the API account or its permissions." : `The Internet portal returned HTTP ${response.status}.`) + (reason ? ' ' + reason : ''), writing, response.status);
+        if (reason) error.providerValidation = validation;
+        throw error;
+      }
       if (Number(response.headers.get("content-length")) > MAX_RESPONSE) throw new PortalError("The portal response is too large.", writing);
       const reader = response.body?.getReader();
       if (!reader) throw new PortalError("The portal returned an empty response.", writing);
