@@ -967,8 +967,8 @@ function startFixedCostSync(){
 async function pricePlanChange(quote){
   try{
     const catalogue=await portalApi.fixedCosts(true);storeFixedCosts(catalogue);
-    return applyCustomerChangePolicy(planChangePricing(quote,listBundles(),catalogue.plans),new Date(),quote.total);
-  }catch{return applyCustomerChangePolicy({available:false,reason:"Fixed monthly costs could not be verified. Enter the customer amount manually; the portal charge remains your cost."},new Date(),quote.total);}
+    return applyCustomerChangePolicy(planChangePricing(quote,listBundles(),catalogue.plans),new Date(),quote.total,quote);
+  }catch{return applyCustomerChangePolicy({available:false,reason:"Fixed monthly costs could not be verified. Enter the customer amount manually; the portal charge remains your cost."},new Date(),quote.total,quote);}
 }
 function combinedReady(username,ownId=''){
   if(one("SELECT request_id FROM internet_plan_changes WHERE username=? AND state IN ('checking','processing','unknown')",[username])||one("SELECT bill_id FROM internet_renewals WHERE username=? AND state IN ('checking','processing','unknown')",[username]))throw Error('Review the customer’s unfinished renewal or plan change first.');
@@ -2762,9 +2762,9 @@ function registerHandlers() {
   const publicPortalCustomer = customer => hasPermission("bills.manage") || hasPermission("bundles.manage") ? customer : {...customer,cost:undefined,renewalQuote:undefined,plans:customer.plans?.map(({cost,fixedCost,renewalCost,...plan})=>plan)};
   const publicPlanQuote = quote => {
     if(hasPermission('bills.manage')||hasPermission('bundles.manage'))return quote;
-    const pricing=quote.retailPricing;
+    const pricing=quote.retailPricing,coverage=pricing?{policyVersion:pricing.policyVersion,calendarWindow:pricing.calendarWindow,coverageReason:pricing.coverageReason,waivedFraction:pricing.waivedFraction,chargedFraction:pricing.chargedFraction,currentPeriodEnd:pricing.currentPeriodEnd}:{};
     return {username:quote.username,expectedId:quote.expectedId,targetId:quote.targetId,beforeName:quote.beforeName,targetName:quote.targetName,expiry:quote.expiry,pendingRefills:quote.pendingRefills,refundAllowed:quote.total<0,
-      retailPricing:pricing?.available?{available:true,beforePrice:pricing.beforePrice,targetPrice:pricing.targetPrice,currentFraction:pricing.currentFraction,pendingRefills:pricing.pendingRefills,retailAdjustment:pricing.retailAdjustment,customerAmount:pricing.customerAmount,customerCredit:pricing.customerCredit,suggestedAmount:pricing.suggestedAmount,policyDate:pricing.policyDate,policyDay:pricing.policyDay,policyTimezone:pricing.policyTimezone,zeroChargeWindow:pricing.zeroChargeWindow,method:pricing.method}:{available:false,reason:pricing?.reason,suggestedAmount:pricing?.suggestedAmount,policyDate:pricing?.policyDate,policyDay:pricing?.policyDay,policyTimezone:pricing?.policyTimezone,zeroChargeWindow:pricing?.zeroChargeWindow}};
+      retailPricing:pricing?.available?{available:true,beforePrice:pricing.beforePrice,targetPrice:pricing.targetPrice,currentFraction:pricing.currentFraction,pendingRefills:pricing.pendingRefills,retailAdjustment:pricing.retailAdjustment,customerAmount:pricing.customerAmount,customerCredit:pricing.customerCredit,suggestedAmount:pricing.suggestedAmount,policyDate:pricing.policyDate,policyDay:pricing.policyDay,policyTimezone:pricing.policyTimezone,zeroChargeWindow:pricing.zeroChargeWindow,method:pricing.method,...coverage}:{available:false,reason:pricing?.reason,suggestedAmount:pricing?.suggestedAmount,policyDate:pricing?.policyDate,policyDay:pricing?.policyDay,policyTimezone:pricing?.policyTimezone,zeroChargeWindow:pricing?.zeroChargeWindow,...coverage}};
   };
   for (const [channel,method] of [["portal:lookup","customer"],["portal:search","search"],["portal:resellers","resellers"]]) registerHandler(channel,async (_event,value) => {
     authorizeInternetLookup();
@@ -2856,7 +2856,7 @@ function registerHandlers() {
     if(!saved||saved.until<Date.now()||saved.userKey!==sectionAccess.key(currentUser(),activeWorkspace().id))throw Error("The calculation expired. Get a fresh Proradius quote.");
     const quote=saved.quote;
     if(quote.retailPricing?.policyDate!==customerChangePolicy().policyDate)throw Error("The Beirut change-charge day changed. Calculate again before submitting.");
-    if(quote.retailPricing.zeroChargeWindow&&amount!==0)throw Error("The customer service-change charge must be $0 from the 1st through the 5th in Beirut. Provider costs are unchanged.");
+    if(quote.retailPricing.zeroChargeWindow&&amount!==0)throw Error("The customer service-change charge must be $0 for this reviewed closing-period change. Recalculate if the customer has already renewed the next cycle. Provider costs are unchanged.");
     if(input.username!==quote.username||input.expectedId!==quote.expectedId||input.targetId!==quote.targetId||value.confirm!==true)throw Error("Confirm the exact customer and quoted target plan.");
     if(amount<0&&(quote.total>=0||(quote.retailPricing?.available&&quote.retailPricing.retailAdjustment>=0)))throw Error("A negative customer amount is only allowed for a quoted downgrade credit.");
     if(one("SELECT request_id FROM bill_requests WHERE request_id=?",[String(value.requestId)]))throw Error("This request ID was already used for a payment.");

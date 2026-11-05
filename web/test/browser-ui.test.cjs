@@ -139,6 +139,58 @@ async function resellerScopedSearchBrowser(page){
  }
 }
 
+async function paidCycleServiceChangeBrowser(page){
+ // Fictional paid-period quotes exercise actual bound controls without opening
+ // a financial confirmation or permitting any mutation adapter to run.
+ await evaluate(page,`(async()=>{
+  await loadBundles();
+  const bundles=state.bundles.filter(row=>row.serviceType==='Internet');if(bundles.length<2)throw Error('Two fictional catalogue matches are required');
+  window.__qaPaidCyclePricing={originalPortal:{...posApi.portal},originalBills:{...posApi.bills},oldUser:state.currentUser,oldView:state.currentView,oldStatus:portalStatus,oldOperations:structuredClone(portalOperations),mutations:[],quotes:[],plans:[{id:10,name:bundles[0].name,cost:3,fixedCost:6,renewalCost:3},{id:20,name:bundles[1].name,cost:4,fixedCost:8,renewalCost:4},{id:30,name:'Fictional paid-cycle downgrade',cost:2,fixedCost:4,renewalCost:2}]};
+  const qa=window.__qaPaidCyclePricing;
+  const noMutation=channel=>async()=>{qa.mutations.push(channel);throw Error('The paid-cycle pricing preview must not submit '+channel);};
+  for(const name of ['applyChange','createCustomer','resumeOperation','resolveOperation'])posApi.portal[name]=noMutation('portal.'+name);
+  for(const name of ['create','saveRenew','savePortal','saveFreeRenewal','startChangeRenew','confirmChangeRenew','resumeChangeRenew','resolveChangeRenew','renew'])posApi.bills[name]=noMutation('bills.'+name);
+  posApi.portal.status=async()=>({ready:true});posApi.portal.resellers=async()=>[];posApi.portal.operations=async()=>[];
+  posApi.portal.lookup=async()=>({username:'fictional.paid-cycle.customer',name:'Fictional Paid Cycle Customer',phone:'03000004',serviceId:10,service:qa.plans[0].name,expiry:'2026-12-05T12:00:00',billingDate:'2026-11-05',blocked:false,plans:qa.plans,costVerifiedAt:new Date().toISOString()});
+  posApi.bills.changeRenewStatus=async()=>({pending:[]});
+  posApi.bills.quoteChangeRenew=async input=>{qa.quotes.push({kind:'combined',...structuredClone(input)});return {phase:'review_change',quoteId:'fictional-signed-paid-cycle-combined',validUntil:new Date(Date.now()+120000).toISOString(),username:input.username,customerName:'Fictional Paid Cycle Customer',beforeName:qa.plans[0].name,targetName:qa.plans.find(row=>row.id===input.targetId).name,expectedId:input.expectedId,targetId:input.targetId,renewalMonths:input.renewalMonths,expiry:'2026-12-05T12:00:00',policyVersion:2,policyDate:'2026-11-05',policyDay:5,policyTimezone:'Asia/Beirut',calendarWindow:true,zeroChargeWindow:false,coverageReason:'paid_current_period',changeCustomerAmount:5,changeAmountRequired:false,changeCost:1.5,renewalCustomerAmount:25,totalToCollect:30};};
+  posApi.portal.quoteChange=async input=>{qa.quotes.push({kind:'standalone',...structuredClone(input)});const amount=input.targetId===30?-10:5;return {quoteId:'fictional-signed-paid-cycle-'+input.targetId,validUntil:new Date(Date.now()+120000).toISOString(),username:input.username,expectedId:input.expectedId,targetId:input.targetId,beforeName:qa.plans[0].name,targetName:qa.plans.find(row=>row.id===input.targetId).name,total:amount<0?-2:1.5,refundAllowed:amount<0,expiry:'2026-12-05T12:00:00',retailPricing:{available:true,policyVersion:2,policyDate:'2026-11-05',policyDay:5,policyTimezone:'Asia/Beirut',calendarWindow:true,zeroChargeWindow:false,coverageReason:'paid_current_period',beforePrice:20,targetPrice:amount<0?10:25,currentFraction:1,pendingRefills:0,customerAmount:amount,retailAdjustment:amount,customerCredit:amount<0?-amount:0}};};
+  clearChangeRenewal();switchView('bills',{deferLoad:true});await openBillDialog();document.querySelector('#bill-customer-account').value='fictional.paid-cycle.customer';await selectPortalCustomer('fictional.paid-cycle.customer');
+ })()`);
+ try{
+  assert.equal(await evaluate(page,"portalCustomer.expiry"),'2026-12-05T12:00:00','Paid-cycle fixture is renewed through December5');
+  await tap(page,'#portal-change-renew-open');await waitFor(page,"document.querySelector('#change-renew-dialog').open",'Paid-cycle combined review opens');
+  await evaluate(page,"document.querySelector('#change-renew-target').value='20';document.querySelector('#change-renew-target').dispatchEvent(new Event('change',{bubbles:true}))");
+  await tap(page,'#change-renew-quote');await waitFor(page,"changeRenewWorkflow.quote?.quoteId==='fictional-signed-paid-cycle-combined'&&!document.querySelector('#change-renew-first-review').classList.contains('hidden')",'Paid-cycle day5 quote is rendered');
+  assert.deepEqual(await evaluate(page,"({amount:document.querySelector('#change-renew-change-amount').value,readOnly:document.querySelector('#change-renew-change-amount').readOnly,version:changeRenewWorkflow.quote.policyVersion,window:changeRenewWorkflow.quote.calendarWindow,zero:changeRenewWorkflow.quote.zeroChargeWindow,reason:changeRenewWorkflow.quote.coverageReason})"),{amount:'5.00',readOnly:true,version:2,window:true,zero:false,reason:'paid_current_period'},'A verified paid-cycle upgrade retains its quoted$5 adjustment on day5');
+  const policy=await evaluate(page,"document.querySelector('#change-renew-policy').textContent");
+  assert.match(policy,/2026-11-05/);assert.match(policy,/adjustment for already covered cycles is retained/i);
+  assert.doesNotMatch(policy,/From (?:the )?6th|customer charge is \$0/i,'A paid day5 quote is not mislabeled as a post-5th or free-change policy');
+  const estimate=await evaluate(page,"document.querySelector('#change-renew-estimate').textContent");
+  assert.match(estimate,/Full customer charge \$30\.00/,'Combined review includes the paid-cycle$5 plus one new$25 renewal');
+  assert.match(estimate,/adds a new renewal/i);assert.match(estimate,/Use Change Plan.*already renewed cycle/i,'Adjustment-only customers are directed to standalone Change Plan');
+  assert.equal(await evaluate(page,"document.querySelector('#portal-confirm-dialog').open"),false,'Quote preview does not open a financial confirmation');
+  await tap(page,'#change-renew-close');
+  await evaluate(page,"(async()=>{switchView('bills',{deferLoad:true});await openBillDialog();document.querySelector('#bill-customer-account').value='fictional.paid-cycle.customer';await selectPortalCustomer('fictional.paid-cycle.customer');})()");
+  await tap(page,'#portal-change-plan-first');await waitFor(page,"state.currentView==='change-plan'&&changeCustomer?.username==='fictional.paid-cycle.customer'",'Paid-cycle customer opens standalone Change Plan');
+  await evaluate(page,"document.querySelector('#change-target').value='20';document.querySelector('#change-target').dispatchEvent(new Event('change',{bubbles:true}))");
+  await tap(page,'#change-calculate');await waitFor(page,"changeQuote?.quoteId==='fictional-signed-paid-cycle-20'&&!document.querySelector('#change-quote-panel').classList.contains('hidden')",'Paid-cycle upgrade calculation uses its signed quote');
+  assert.equal(await evaluate(page,"document.querySelector('#change-amount').value"),'5.00','Standalone calculate keeps the paid-cycle upgrade charge on day5');
+  assert.match(await evaluate(page,"document.querySelector('#change-pricing-note').textContent"),/already covered cycles is retained/i);
+  assert.doesNotMatch(await evaluate(page,"document.querySelector('#change-pricing-note').textContent"),/dates 1.5 have a \$0|From (?:the )?6th/i);
+  await evaluate(page,"document.querySelector('#change-target').value='30';document.querySelector('#change-target').dispatchEvent(new Event('change',{bubbles:true}))");
+  await tap(page,'#change-calculate');await waitFor(page,"changeQuote?.quoteId==='fictional-signed-paid-cycle-30'",'Paid-cycle downgrade calculation uses its signed credit quote');
+  assert.equal(await evaluate(page,"document.querySelector('#change-amount').value"),'-10.00','Standalone calculate retains the paid downgrade credit on day5');
+  assert.match(await evaluate(page,"document.querySelector('#change-pricing-note').textContent"),/Calculated customer refund: \$10\.00/,'The paid-cycle downgrade refund explanation is retained');
+  assert.match(await evaluate(page,"document.querySelector('#change-margin-warning').textContent"),/Refund \$10\.00/);
+  assert.equal(await evaluate(page,"document.querySelector('#change-apply').textContent"),'Confirm change & record refund');
+  assert.equal(await evaluate(page,"document.querySelector('#portal-confirm-dialog').open"),false,'No downgrade confirmation or financial operation was opened');
+  assert.deepEqual(await evaluate(page,"({quotes:__qaPaidCyclePricing.quotes.map(row=>({kind:row.kind,expectedId:row.expectedId,targetId:row.targetId})),mutations:__qaPaidCyclePricing.mutations})"),{quotes:[{kind:'combined',expectedId:10,targetId:20},{kind:'standalone',expectedId:10,targetId:20},{kind:'standalone',expectedId:10,targetId:30}],mutations:[]},'Paid-cycle upgrade and downgrade previews make only the three expected read-only quote requests');
+ }finally{
+  await evaluate(page,"(()=>{const qa=window.__qaPaidCyclePricing;if(!qa)return;for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();Object.assign(posApi.portal,qa.originalPortal);Object.assign(posApi.bills,qa.originalBills);state.currentUser=qa.oldUser;portalStatus=qa.oldStatus;portalOperations=qa.oldOperations;portalCustomer=null;portalSearchCustomers=[];portalLookupVersion++;portalSearchVersion++;portalSelecting=false;clearChangeRenewal();invalidateChange(true);applyPermissions();switchView(qa.oldView,{deferLoad:true});delete window.__qaPaidCyclePricing;})()");
+ }
+}
+
 async function combinedServiceChangeBrowser(page){
  // Fictional adapter responses exercise the genuine bound browser controls. No provider or live customer is called.
  await evaluate(page,`(async()=>{
@@ -362,6 +414,8 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
   await responsive(page,section+' dashboard');
  }
  await resellerScopedSearchBrowser(page);
+ await paidCycleServiceChangeBrowser(page);
+ t.diagnostic('Genuine Chrome v2 paid-cycle pricing: Beirut day 5 retains the fixed $5 combined upgrade, warns that a new renewal is added, directs adjustment-only use to Change Plan, and standalone calculate retains a $5 upgrade and -$10 downgrade credit with zero financial submissions.');
  await combinedServiceChangeBrowser(page);
  for(const [view,button,dialog]of [['products','add-product','product-dialog'],['expenses','add-expense','expense-dialog']]){
   await evaluate(page,`document.querySelector('[data-view=${view}]').click()`);await pause(200);

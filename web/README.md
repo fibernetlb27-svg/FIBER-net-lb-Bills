@@ -1,6 +1,6 @@
 # FIBER net lb website preview
 
-Version 0.1.9 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.10 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 Use isolated staging and a copied-data rehearsal before a new deployment or upgrade. The existing authorized accounting server remains the sole authority until an agreed cutover; an already migrated website must not resume recording on its old desktop copy. The website uses the seven existing SQLite database formats. Fictional previews and their checks are separate from accepting live business data.
 
@@ -20,7 +20,11 @@ This update improves the explanation of a rejected operation; it does not resolv
 
 Use **Change service & renew** to collect one payment covering both operations. First review and confirm the native quoted service change. After Proradius confirms the new service, the website obtains its fresh renewal quote and fills the full customer charge. The final review records one paid receipt, one Cash/Whish collection and the renewal request. The receipt preserves the service-change and renewal cost components separately; updating actual renewal costs does not erase the confirmed change cost.
 
-The customer's service-change charge is **$0 on Beirut calendar dates 1–5 inclusive**. From the 6th onward, the normal retail change calculation applies; a quote without enough verified pricing requires an explicit customer adjustment. The same rule appears in standalone **Change Plan**. It does not reduce the renewal price or Proradius's internal change cost. A confirmed change keeps its saved date policy if payment/renewal finishes later.
+On **Beirut calendar dates 1–5 inclusive**, only the eligible closing-period adjustment before the next renewal is waived. An already renewed cycle keeps its upgrade price difference or calculated downgrade credit. Additional prepaid cycles keep their adjustments too. The versioned calculation verifies the provider's period breakdown and the monthly fifth before deciding which part is waived; missing or inconsistent evidence requires an explicit reviewed amount instead of assuming zero. From the 6th onward, normal retail change pricing applies.
+
+For example, changing a fully covered cycle from a $20 service to a $30 service charges a $10 adjustment. **Change Plan** changes the service without another renewal. **Change service & renew** explicitly adds a new renewal at the new service's price. A customer who has not renewed the next cycle can change the closing service without an extra eligible 1st–5th adjustment, then pay the new service's renewal price. Customer refunds must be confirmed only for money actually returned; a provider credit alone does not mean a customer refund was paid.
+
+Existing receipts and saved requests keep their original amounts and pricing proofs. No historical payment is recalculated, no provider action is retried automatically, and a confirmed change keeps its saved policy if payment or renewal finishes later.
 
 The ordinary Renew form keeps the verified current service. An unfinished combined request stays visible for recovery, and unknown provider outcomes need review before another action. Confirmed changes, renewals and collections are never automatically repeated. Proradius permissions are not changed by this update.
 

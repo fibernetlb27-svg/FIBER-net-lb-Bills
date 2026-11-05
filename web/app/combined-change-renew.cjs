@@ -14,6 +14,7 @@ function rows(db,sql,params=[]){const s=db.prepare(sql);try{s.bind(params);const
 const one=(db,sql,params=[])=>rows(db,sql,params)[0]||null;
 const moneyEqual=(a,b)=>cents(a)===cents(b);
 const customerIdentity=c=>({username:c.username,serviceId:c.serviceId,resellerId:c.resellerId,expiry:c.expiry,blocked:c.blocked===true});
+const publicPolicy=policy=>({...Number.isSafeInteger(policy?.policyVersion)?{policyVersion:policy.policyVersion}:{},...typeof policy?.calendarWindow==='boolean'?{calendarWindow:policy.calendarWindow}:{},...typeof policy?.coverageReason==='string'?{coverageReason:policy.coverageReason}:{}});
 
 class CombinedChangeRenew{
   constructor({db,ledger,api,authorize,actor,save,now=()=>new Date(),priceChange,targetRetail,renewalReview,normalizePayment,createBill,readBill,renewBill,assertReady,canInspect=()=>false}){
@@ -46,7 +47,7 @@ class CombinedChangeRenew{
     for(const [key,item]of this.quotes)if(item.until<this.time().getTime())this.quotes.delete(key);
     if(this.quotes.size>=200)this.quotes.delete(this.quotes.keys().next().value);
     this.quotes.set(id,{quote,pricing,retail,months,actorKey:this.actor().key,until});
-    return {phase:'review_change',quoteId:id,validUntil:new Date(until).toISOString(),username:quote.username,customerName:quote.customerName,beforeName:quote.beforeName,targetName:quote.targetName,expectedId:quote.expectedId,targetId:quote.targetId,renewalMonths:months,changeCustomerAmount:change,changeAmountRequired:change===null,renewalCustomerAmount:retail.renewalCustomerAmount,totalToCollect:change===null?null:amount(change+retail.renewalCustomerAmount),policyDate:pricing.policyDate,policyDay:pricing.policyDay,policyTimezone:pricing.policyTimezone,zeroChargeWindow:pricing.zeroChargeWindow,...this.canInspect()?{changeCost:quote.total}:{}};
+    return {phase:'review_change',quoteId:id,validUntil:new Date(until).toISOString(),username:quote.username,customerName:quote.customerName,beforeName:quote.beforeName,targetName:quote.targetName,expectedId:quote.expectedId,targetId:quote.targetId,renewalMonths:months,changeCustomerAmount:change,changeAmountRequired:change===null,renewalCustomerAmount:retail.renewalCustomerAmount,totalToCollect:change===null?null:amount(change+retail.renewalCustomerAmount),policyDate:pricing.policyDate,policyDay:pricing.policyDay,policyTimezone:pricing.policyTimezone,zeroChargeWindow:pricing.zeroChargeWindow,...publicPolicy(pricing),...this.canInspect()?{changeCost:quote.total}:{}};
   }
   async startLocked(value){
     this.authorize();object(value,['requestId','quoteId','username','expectedId','targetId','renewalMonths','changeCustomerAmount','confirm'],['requestId','quoteId','username','expectedId','targetId','renewalMonths','changeCustomerAmount','confirm']);const id=requestId(value.requestId);
@@ -132,6 +133,7 @@ class CombinedChangeRenew{
     if(bill&&phase!=='completed')phase=bill.renewal?.state==='unknown'?'renewal_unknown':bill.renewal?.state==='failed'?'renewal_failed':'renewal_pending';
     if(bill&&!this.canInspect()){bill=clone(bill);for(const key of ['bundleCost','portalInternalCost','portalFixedMonthlyCost','portalCostSource'])delete bill[key];if(bill.renewal)delete bill.renewal.costQuotes;}
     const review=p.result.payment?.review||p.result.review,retailAmount=review?.targetRetail?.renewalCustomerAmount??p.input.renewalCustomerAmount,visible={requestId:p.row.request_id,state:p.row.state,phase,username:p.input.username,customerName:p.quote.customerName,beforeName:p.quote.beforeName,targetName:p.quote.targetName,expectedId:p.input.expectedId,targetId:p.input.targetId,renewalMonths:p.input.renewalMonths,changeCustomerAmount:p.input.changeCustomerAmount,renewalCustomerAmount:retailAmount,totalToCollect:amount(p.input.changeCustomerAmount+retailAmount),policyDate:p.input.policyDate,policyDay:p.quote.changePolicy.policyDay,policyTimezone:p.quote.changePolicy.policyTimezone,zeroChargeWindow:p.quote.changePolicy.zeroChargeWindow,expiry:p.result.customer?.expiry||p.quote.expiry,bill,canReview:p.row.state==='unknown'&&this.actor().admin,message:p.result.reviewError||p.row.message};
+    Object.assign(visible,publicPolicy(p.quote.changePolicy));
     if(phase==='awaiting_payment'&&review){visible.token=review.token;visible.validUntil=review.validUntil;}
     if(bill?.renewal?.state==='succeeded'&&p.row.state!=='succeeded')visible.canFinalize=true;
     if(this.canInspect()){visible.changeCost=p.quote.total;if(review)visible.renewalCost=review.renewalQuote.cost;}

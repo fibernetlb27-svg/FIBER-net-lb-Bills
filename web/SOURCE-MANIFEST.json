@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -40,8 +40,8 @@
     },
     {
       "name": "README.md",
-      "length": 14257,
-      "sha256": "723fe19f109a7211f881a2bf82683b31e2759beb2e148a04465c82c80e40eaec"
+      "length": 15173,
+      "sha256": "f0f336473407c4de851636a58ee2fefc5a3cd18d8bd5054d31134cd244a55556"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -120,8 +120,8 @@
     },
     {
       "name": "app/change-service-customer-pricing.cjs",
-      "length": 2127,
-      "sha256": "c41eba7bf8b7fcbfad0d018030ef4b465d96be5de89f3ffc59f2a683cb341ef0"
+      "length": 8119,
+      "sha256": "75845c58b894de3fc6fee568df44168039c24bfc59af1368583919a1394b35a4"
     },
     {
       "name": "app/client-transport.cjs",
@@ -130,8 +130,8 @@
     },
     {
       "name": "app/combined-change-renew.cjs",
-      "length": 25319,
-      "sha256": "6b99488badac27b5d4d6db7325f9e6dae67fe8c68d302a03762ce01c249f7bb6"
+      "length": 25699,
+      "sha256": "929f3f8c7b2650c4d4ec01eb24cf9c123d731a2dd527a7b9a6928d6325eb8a1a"
     },
     {
       "name": "app/company-debt-business.cjs",
@@ -155,8 +155,8 @@
     },
     {
       "name": "app/core.cjs",
-      "length": 386668,
-      "sha256": "e20c3a1fbb3d0052896e14c3571c6b379a2a3240a3ce224aae9608e076893d83"
+      "length": 387023,
+      "sha256": "5a508ac5ae13da824b497fd87a49bfb11bc34e2f2fa54d9fd08789652ad6526d"
     },
     {
       "name": "app/customer-registration.cjs",
@@ -415,8 +415,8 @@
     },
     {
       "name": "app/src/app.js",
-      "length": 365008,
-      "sha256": "a572cde7667af505fc9391f38eb6f21e4ad9b6ce3ff8bd2bfdc563f3e67ead6b"
+      "length": 366190,
+      "sha256": "6af5ac2c158d0978666fee9a3b325dd02cdec845c7c442a15592de783e8f0cf5"
     },
     {
       "name": "app/src/backups.js",
@@ -800,13 +800,13 @@
     },
     {
       "name": "package-lock.json",
-      "length": 1367,
-      "sha256": "88f2a5f76d1f8ab1adce65137906ec0f2b8eb30a8d28b78038d16a8b9156ef0b"
+      "length": 1369,
+      "sha256": "9cd63f09427e36f464b0d5aac1d77238a5bf56daa0d06b15ad70d32cacb352d3"
     },
     {
       "name": "package.json",
-      "length": 508,
-      "sha256": "99061f153bfc89957c0efcf5ab360f9192f8232cbee890f7c8ca05aea77274d1"
+      "length": 509,
+      "sha256": "45493b7b7879aaaffe9633bbc032b469b19e96ce42f435de7151188d32d4b92e"
     },
     {
       "name": "server.cjs",
@@ -840,13 +840,13 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 74549,
-      "sha256": "08a05e93cb4b5669a3a7db69bf8af5405459b9dc566aa0a9a2b172e10d84dbd2"
+      "length": 84374,
+      "sha256": "91ef24907320935229dfaa362c2e1fda168fe6e3a05f5eedd71505b438f5b671"
     },
     {
       "name": "test/change-service-customer-pricing.test.cjs",
-      "length": 2483,
-      "sha256": "c90982267822bfc20a30dc509a950deff9effc6dfd3d99f8c45e1bf956e4fefc"
+      "length": 11256,
+      "sha256": "8a1b9b91d788bbef6de546e7c5d551f4066a78638f1add9e74609d4f91f2aa0b"
     },
     {
       "name": "test/core-auth.test.cjs",
@@ -1105,8 +1105,8 @@
     },
     {
       "name": "test/separate-change-renew.test.cjs",
-      "length": 46559,
-      "sha256": "6f3491357d6ecf3fe5602cf193c24c32e9f40fb84c2d937e2b094e7a2eb724bb"
+      "length": 57541,
+      "sha256": "5e8ff235d117e509480ccb5094be74e2317831325755e375525e83d86ef64970"
     },
     {
       "name": "test/server-core.test.cjs",
