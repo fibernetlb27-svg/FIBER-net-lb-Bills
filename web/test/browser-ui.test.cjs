@@ -85,6 +85,60 @@ async function enlargedText(page,label){
  }
 }
 
+async function resellerScopedSearchBrowser(page){
+ // Pointer interactions and real bound change events use fictional adapter
+ // replies only. Deferred results can never contact a provider or collect money.
+ await evaluate(page,`(async()=>{
+  await loadBundles();
+  const bundles=state.bundles.filter(row=>row.serviceType==='Internet');if(bundles.length<2)throw Error('Two fictional Internet bundles are required');
+  window.__qaResellerSearch={originalPortal:{...posApi.portal},originalBills:{...posApi.bills},oldUser:state.currentUser,oldView:state.currentView,oldStatus:portalStatus,searches:[],lookups:[],mutations:0,deferNext:false};
+  const qa=window.__qaResellerSearch;
+  const plans=bundles.slice(0,2).map((row,index)=>({id:301+index,name:row.name,cost:13+index,fixedCost:13+index,renewalCost:13+index}));
+  qa.customer=scope=>({username:scope==='fictional.beta'?'fictional.beta.client':'fictional.alpha.client',name:scope==='fictional.beta'?'Fictional Beta Client':'Fictional Alpha Client',phone:'03000003',serviceId:301,service:plans[0].name,resellerId:scope==='fictional.beta'?29:17,expiry:'2099-12-05T12:00:00',billingDate:'2026-11-05',blocked:false,plans,costVerifiedAt:new Date().toISOString()});
+  posApi.portal.status=async()=>({ready:true});posApi.portal.operations=async()=>[];
+  posApi.portal.resellers=async()=>[{id:17,username:'fictional.alpha',name:'Fictional Alpha'},{id:29,username:'fictional.beta',name:'Fictional Beta'}];
+  posApi.portal.search=async input=>{qa.searches.push(structuredClone(input));const result={customers:[qa.customer(input.reseller)],total:1};if(qa.deferNext){qa.deferNext=false;return new Promise(resolve=>{qa.release=()=>{delete qa.release;resolve(result);};});}return result;};
+  posApi.portal.lookup=async input=>{qa.lookups.push(structuredClone(input));const scope=typeof input==='object'?input.reseller:'';const found=qa.customer(scope);if((typeof input==='object'?input.username:input)!==found.username)throw Error('Fictional lookup must retain the selected reseller.');return found;};
+  const denied=async()=>{qa.mutations++;throw Error('Financial actions are forbidden in the reseller-search browser fixture.');};
+  posApi.portal.applyChange=denied;for(const name of ['savePortal','saveRenew','renew','startChangeRenew','confirmChangeRenew'])posApi.bills[name]=denied;
+  switchView('bills',{deferLoad:true});await openBillDialog();
+  document.querySelector('#portal-reseller-search').value='fictional.alpha';document.querySelector('#portal-reseller-search').dispatchEvent(new Event('change',{bubbles:true}));
+  document.querySelector('#portal-customer-search').value='fictional';document.querySelector('#portal-customer-search').dispatchEvent(new Event('input',{bubbles:true}));
+ })()`);
+ try{
+  await tap(page,'#portal-search-button');
+  await waitFor(page,"document.querySelector('#portal-search-results [data-portal-index]')&&portalSearchCustomers[0]?.username==='fictional.alpha.client'",'Bills bound search keeps reseller Alpha');
+  await tap(page,'#portal-search-results [data-portal-index="0"]');
+  await waitFor(page,"portalCustomer?.username==='fictional.alpha.client'&&!portalSelecting",'Bills pointer selection verifies Alpha');
+  await evaluate(page,"__qaResellerSearch.deferNext=true");await tap(page,'#portal-search-button');
+  await waitFor(page,"typeof __qaResellerSearch.release==='function'",'Bills deferred Alpha search is in flight');
+  await evaluate(page,"document.querySelector('#portal-reseller-search').value='fictional.beta';document.querySelector('#portal-reseller-search').dispatchEvent(new Event('change',{bubbles:true}))");
+  assert.equal(await evaluate(page,"portalCustomer===null&&portalSearchCustomers.length===0&&document.querySelector('#portal-search-results').textContent===''&&document.querySelector('#bill-save-only').disabled&&document.querySelector('#bill-renew-button').disabled"),true,'Committed reseller change clears the prior Bills customer, rows and payment readiness');
+  await evaluate(page,"__qaResellerSearch.release();new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  assert.equal(await evaluate(page,"portalCustomer===null&&portalSearchCustomers.length===0&&!document.querySelector('#portal-search-results').textContent.includes('Alpha')"),true,'Late Alpha search cannot repopulate Bills under reseller Beta');
+  await tap(page,'#portal-search-button');
+  await waitFor(page,"portalSearchCustomers[0]?.username==='fictional.beta.client'",'Bills current Beta search returns Beta');
+  await tap(page,'#portal-search-results [data-portal-index="0"]');
+  await waitFor(page,"portalCustomer?.username==='fictional.beta.client'&&!portalSelecting",'Bills pointer selection verifies Beta');
+  await evaluate(page,"document.querySelector('#bill-dialog').close();switchView('change-plan',{deferLoad:true});document.querySelector('#change-reseller').value='fictional.alpha';document.querySelector('#change-reseller').dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#change-search').value='fictional';document.querySelector('#change-search').dispatchEvent(new Event('input',{bubbles:true}))");
+  await tap(page,'#change-search-button');
+  await waitFor(page,"changeResults[0]?.username==='fictional.alpha.client'&&document.querySelector('#change-search-results [data-change-customer]')",'Change Plan bound search keeps Alpha');
+  await tap(page,'#change-search-results [data-change-customer="0"]');
+  await waitFor(page,"changeCustomer?.username==='fictional.alpha.client'",'Change Plan pointer selection verifies Alpha');
+  await evaluate(page,"document.querySelector('#change-reseller').value='fictional.beta';document.querySelector('#change-reseller').dispatchEvent(new Event('change',{bubbles:true}))");
+  assert.equal(await evaluate(page,"changeCustomer===null&&changeResults.length===0&&changeQuote===null&&document.querySelector('#change-target').disabled&&document.querySelector('#change-apply').disabled&&document.querySelector('#change-search-results').textContent===''"),true,'Committed reseller change clears the prior Change Plan customer, target and charge');
+  await evaluate(page,"document.querySelector('#change-reseller').value='fictional.alpha';document.querySelector('#change-reseller').dispatchEvent(new Event('change',{bubbles:true}));__qaResellerSearch.deferNext=true");
+  await tap(page,'#change-search-button');await waitFor(page,"typeof __qaResellerSearch.release==='function'",'Change Plan deferred Alpha search is in flight');
+  await evaluate(page,"document.querySelector('#change-reseller').value='fictional.beta';document.querySelector('#change-reseller').dispatchEvent(new Event('change',{bubbles:true}));__qaResellerSearch.release();new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  assert.equal(await evaluate(page,"changeCustomer===null&&changeResults.length===0&&!document.querySelector('#change-search-results').textContent.includes('Alpha')&&document.querySelector('#change-apply').disabled"),true,'Late Alpha search cannot repopulate Change Plan or re-enable its action under Beta');
+  await tap(page,'#change-search-button');await waitFor(page,"changeResults[0]?.username==='fictional.beta.client'",'Change Plan current Beta search returns Beta');
+  await tap(page,'#change-search-results [data-change-customer="0"]');await waitFor(page,"changeCustomer?.username==='fictional.beta.client'",'Change Plan pointer selection verifies Beta');
+  assert.deepEqual(await evaluate(page,"({searches:__qaResellerSearch.searches.map(row=>row.reseller),lookups:__qaResellerSearch.lookups.map(row=>row.reseller).filter((scope,index,scopes)=>!index||scope!==scopes[index-1]),mutations:__qaResellerSearch.mutations})"),{searches:['fictional.alpha','fictional.alpha','fictional.beta','fictional.alpha','fictional.alpha','fictional.beta'],lookups:['fictional.alpha','fictional.beta','fictional.alpha','fictional.beta'],mutations:0},'Both bound forms preserve the exact selected reseller without any financial action; repeated read-only cost refreshes retain that scope');
+ }finally{
+  await evaluate(page,"(()=>{const qa=window.__qaResellerSearch;if(!qa)return;if(qa.release)qa.release();for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();Object.assign(posApi.portal,qa.originalPortal);Object.assign(posApi.bills,qa.originalBills);state.currentUser=qa.oldUser;portalStatus=qa.oldStatus;portalCustomer=null;portalSearchCustomers=[];portalLookupVersion++;portalSearchVersion++;portalSelecting=false;invalidateChange(true);applyPermissions();switchView(qa.oldView,{deferLoad:true});delete window.__qaResellerSearch;})()");
+ }
+}
+
 async function combinedServiceChangeBrowser(page){
  // Fictional adapter responses exercise the genuine bound browser controls. No provider or live customer is called.
  await evaluate(page,`(async()=>{
@@ -307,6 +361,7 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
   await waitFor(page,`location.search.includes('${section}')&&document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')`,'Authorized '+section+' business switch');
   await responsive(page,section+' dashboard');
  }
+ await resellerScopedSearchBrowser(page);
  await combinedServiceChangeBrowser(page);
  for(const [view,button,dialog]of [['products','add-product','product-dialog'],['expenses','add-expense','expense-dialog']]){
   await evaluate(page,`document.querySelector('[data-view=${view}]').click()`);await pause(200);
@@ -416,5 +471,5 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  assert.equal(await evaluate(page,"!document.querySelector('#support-end-day').getClientRects().length&&!document.querySelector('#support-end-dialog').open&&document.querySelector('#support-end-save').disabled"),true,'Logout clears the Support action and unfinished preview');
  const exceptions=pages.flatMap(target=>target.events.filter(event=>event.method==='Runtime.exceptionThrown').map(event=>event.params.exceptionDetails.exception?.description||event.params.exceptionDetails.text));
  assert.deepEqual(exceptions,[],'Browser has no uncaught JavaScript exceptions');
- t.diagnostic('Real Node/core + Chrome: eleven phone/tablet/desktop viewport sizes, compact navigation,125% text, prior-month Bank custody and partial deposit, verified11:59PM schedule, Users End of day, fictional one-payment change/renew wizard with zero/date pricing, lost-response recovery without repeated change, fresh full-total acknowledgement, one Whish payment and receipt, unknown denial, local-only succeeded-renewal finalization, stale permission quote denial, receipt/PDF/CSV and logout privacy passed.');
+ t.diagnostic('Real Node/core + Chrome: eleven phone/tablet/desktop viewport sizes, compact navigation,125% text, prior-month Bank custody and partial deposit, verified11:59PM schedule, Users End of day, pointer-operated Bills and Change Plan reseller searches with committed selection clearing and stale in-flight result rejection, fictional one-payment change/renew wizard with zero/date pricing, lost-response recovery without repeated change, fresh full-total acknowledgement, one Whish payment and receipt, unknown denial, local-only succeeded-renewal finalization, stale permission quote denial, receipt/PDF/CSV and logout privacy passed.');
 });

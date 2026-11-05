@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -40,8 +40,8 @@
     },
     {
       "name": "README.md",
-      "length": 13307,
-      "sha256": "54b7eee70672ec1697caa363188a3b3ec4a8e0062a7b075472a9bf90f0fde58f"
+      "length": 14257,
+      "sha256": "723fe19f109a7211f881a2bf82683b31e2759beb2e148a04465c82c80e40eaec"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -285,8 +285,8 @@
     },
     {
       "name": "app/proradius-api.cjs",
-      "length": 62053,
-      "sha256": "4d76430c3ed4b83c9fdc1e21ddce8537daf2b631b4ff80b7c497040c545468c4"
+      "length": 63700,
+      "sha256": "6b4754be9dc808b9a1ed36eaf9cc01238db0ac31e093595e7f71b1fa78dfecd1"
     },
     {
       "name": "app/proradius-validation.cjs",
@@ -415,8 +415,8 @@
     },
     {
       "name": "app/src/app.js",
-      "length": 363102,
-      "sha256": "d6765c812270a4b143a948b432d60060f0f3d51a757a55b8358b177ca8dd7c20"
+      "length": 365008,
+      "sha256": "a572cde7667af505fc9391f38eb6f21e4ad9b6ce3ff8bd2bfdc563f3e67ead6b"
     },
     {
       "name": "app/src/backups.js",
@@ -801,12 +801,12 @@
     {
       "name": "package-lock.json",
       "length": 1367,
-      "sha256": "c372f1670258368ad7d23d33c8f5b8fc9a3b04273140814a2a984ff95f0757c4"
+      "sha256": "88f2a5f76d1f8ab1adce65137906ec0f2b8eb30a8d28b78038d16a8b9156ef0b"
     },
     {
       "name": "package.json",
       "length": 508,
-      "sha256": "b40604d25492ad8751429d3e59281658b9745ca34b75cb115a9d0fd66de02338"
+      "sha256": "99061f153bfc89957c0efcf5ab360f9192f8232cbee890f7c8ca05aea77274d1"
     },
     {
       "name": "server.cjs",
@@ -840,8 +840,8 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 65712,
-      "sha256": "a0ad9208f33c9791e0859309ca59a3789e4440c7356dafb8a90fc2409eab656b"
+      "length": 74549,
+      "sha256": "08a05e93cb4b5669a3a7db69bf8af5405459b9dc566aa0a9a2b172e10d84dbd2"
     },
     {
       "name": "test/change-service-customer-pricing.test.cjs",
@@ -914,6 +914,11 @@
       "sha256": "9cbe29408b9ad16ffbc2bc877bd37b82c21cee2100847dc0781996a25e2db80c"
     },
     {
+      "name": "test/proradius-reseller-search.test.cjs",
+      "length": 17385,
+      "sha256": "ab0566b1966cc9d453eeb76126b3a25a6a199a0d8af431484bca50cd87a29221"
+    },
+    {
       "name": "test/proradius-validation-ledger.test.cjs",
       "length": 10731,
       "sha256": "e1a6b085ebbc0149a155b31d7a8b3fce8da992851e5f0ae72066591b42ba0baa"
@@ -929,6 +934,11 @@
       "sha256": "138bffa5ae9353e7a0a4bbc75ed83c54ee44b7db12e46070e172703762db7a73"
     },
     {
+      "name": "test/reseller-search-ui.test.cjs",
+      "length": 13116,
+      "sha256": "1df616e670dd7a6120f51c4f6c6c206dba1cecb67eaa96b79d02ff5d8568dc75"
+    },
+    {
       "name": "test/reseller-transaction-archive.test.cjs",
       "length": 9479,
       "sha256": "0029f372c17d9d89d2c597792c1ad495e9bcebe0fd4868cbb421fe2bc4e51e5b"
@@ -940,8 +950,8 @@
     },
     {
       "name": "test/retained/manifest.json",
-      "length": 19050,
-      "sha256": "0daa217799553adfa887e4308f65ae1fcddb078d54383aa05be6f10f6a64d318"
+      "length": 19226,
+      "sha256": "84033b42f54bc05161a242904fe037bfbd94d64706e4fe908d6ba9b4fcf04eef"
     },
     {
       "name": "test/retained/qa-admin-money-transfers.cjs",
@@ -1140,8 +1150,8 @@
     },
     {
       "name": "tools/run-retained-tests.cjs",
-      "length": 4596,
-      "sha256": "29ad9f848effd639d1896f5492e3ee99f673d5514bf3f371557e874536555766"
+      "length": 4613,
+      "sha256": "4d10b96ea861f9a154b0bb54b36250ba11ec677918a39d42f78fca2232c1e220"
     },
     {
       "name": "tools/verify-backup.cjs",

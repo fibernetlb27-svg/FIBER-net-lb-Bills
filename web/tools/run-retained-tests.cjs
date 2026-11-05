@@ -15,7 +15,7 @@ if(process.argv[2]==='--one'){
 }else{
  const adaptations=new Map(),acceptedAdaptations=new Set(['backup-manager.cjs','reseller-accounting.cjs','reseller-collected-revenue.cjs','reseller-collections.cjs','reseller-funding-service.cjs','month-closing.cjs','backup-archive.cjs','bank-accounts.cjs','internet-renewals.cjs','proradius-api.cjs','portal-operations.cjs']);
  for(const row of manifest.websiteAdaptations||[]){
-  assert(acceptedAdaptations.has(row.file),'Only the specifically reviewed website financial, scheduling, combined renewal and bounded provider-validation adaptations are accepted.');
+  assert(acceptedAdaptations.has(row.file),'Only the specifically reviewed website financial, scheduling, combined renewal, bounded provider-validation and reseller-search adaptations are accepted.');
   assert(!adaptations.has(row.file),'Duplicate website adaptation.');
   const original=manifest.modules.find(module=>module.file===row.file);
   assert(original&&original.sha256===row.sourceSha256,'Preserve the accepted desktop baseline for each adaptation.');

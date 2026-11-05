@@ -1917,17 +1917,22 @@ async function loadChangePlanView() {
   await loadPortalOperations("change");
 }
 async function searchChangeCustomers() {
-  const version=++changeVersion,term=$("#change-search").value.trim(),reseller=$("#change-reseller").value.trim();
-  const result=await api.portal.search({term,reseller});
-  if(version!==changeVersion)return;
+  const identity=portalWorkflowIdentity();if(changeBusy||!portalWorkflowCurrent(identity,'plans.manage')||state.currentView!=='change-plan')return;
+  invalidateChange(true);
+  const version=changeVersion,term=$("#change-search").value.trim(),reseller=$("#change-reseller").value.trim();
+  const current=()=>version===changeVersion&&portalWorkflowCurrent(identity,'plans.manage')&&state.currentView==='change-plan'&&term===$('#change-search').value.trim()&&reseller===$('#change-reseller').value.trim();
+  $('#change-search-results').textContent='Searching portal customers…';
+  let result;try{result=await api.portal.search({term,reseller});}catch(error){if(current()){$('#change-search-results').textContent=errorMessage(error);throw error;}return;}
+  if(!current())return;
   changeResults=result.customers;
-  $("#change-search-results").innerHTML=result.customers.map((item,index)=>`<button type="button" class="portal-customer-choice" data-change-customer="${index}"><span><strong>${escapeHtml(item.name||item.username)}</strong><small>${escapeHtml(item.username)} · ${escapeHtml(item.phone||"No phone")}</small></span>${icon("arrow-right")}</button>`).join("")||'<p class="field-note">No matching customers. Try an exact username.</p>';
+  $("#change-search-results").innerHTML=result.customers.map((item,index)=>`<button type="button" class="portal-customer-choice" data-change-customer="${index}"><span><strong>${escapeHtml(item.name||item.username)}</strong><small>${escapeHtml(item.username)} · ${escapeHtml(item.phone||"No phone")}</small></span>${icon("arrow-right")}</button>`).join("")||(result.truncated?'<p class="field-note">No verified customers in the first results. Narrow your search.</p>':'<p class="field-note">No matching customers. Try an exact username.</p>');
+  if(result.truncated)$('#change-search-results').insertAdjacentHTML('beforeend','<p class="field-note">More customers may match. Enter a longer name, phone number or exact username to narrow this reseller search.</p>');
 }
 async function selectChangeCustomer(username) {
   const identity=portalWorkflowIdentity();if(!portalWorkflowCurrent(identity,'plans.manage'))return;
   invalidateChange(true);const version=changeVersion,reseller=$("#change-reseller").value.trim();
   const customer=await api.portal.lookup({username,reseller});
-  if(version!==changeVersion||!portalWorkflowCurrent(identity,'plans.manage'))return;
+  if(version!==changeVersion||!portalWorkflowCurrent(identity,'plans.manage')||state.currentView!=='change-plan'||reseller!==$('#change-reseller').value.trim())return;
   changeCustomer=customer;
   $("#change-customer-summary").textContent=`${customer.name||customer.username} · ${customer.username} · ${customer.phone||"No phone"} · Current plan: ${customer.service} · Expiry: ${customer.expiry}${customer.blocked?" · BLOCKED":""}`;
   $("#change-search-results").innerHTML="";
@@ -1936,9 +1941,9 @@ async function selectChangeCustomer(username) {
 }
 async function calculateChange() {
   const identity=portalWorkflowIdentity();if(changeBusy||!changeCustomer||!portalWorkflowCurrent(identity,'plans.manage'))return;
-  invalidateChange();const version=changeVersion;$("#change-calculate").disabled=true;
-  const quote=await api.portal.quoteChange({username:changeCustomer.username,expectedId:changeCustomer.serviceId,targetId:Number($("#change-target").value),reseller:$("#change-reseller").value.trim()});
-  if(version!==changeVersion||!portalWorkflowCurrent(identity,'plans.manage'))return;
+  invalidateChange();const version=changeVersion,reseller=$('#change-reseller').value.trim();$("#change-calculate").disabled=true;
+  const quote=await api.portal.quoteChange({username:changeCustomer.username,expectedId:changeCustomer.serviceId,targetId:Number($("#change-target").value),reseller});
+  if(version!==changeVersion||!portalWorkflowCurrent(identity,'plans.manage')||state.currentView!=='change-plan'||reseller!==$('#change-reseller').value.trim())return;
   changeQuote=quote;
   const financial=Number.isFinite(quote.total);
   $('#change-quote-panel .eyebrow').textContent=financial?'PRORADIUS INTERNAL COST · NOT THE CUSTOMER PRICE':'CUSTOMER SERVICE ADJUSTMENT';
@@ -2050,7 +2055,7 @@ function bindPortalOperations() {
   $("#portal-operation-review .auth-copy").textContent="Check the exact transfer in Proradius: for top-ups use its FIBER Bills request reference; for plan changes match the customer, timestamp, service and quoted charge. A balance or current plan alone does not prove the financial outcome. APPLIED saves the original local payment once; NOT APPLIED allows a new confirmed attempt. This review never sends money or changes service.";
   $$('[data-close]').forEach(button=>button.addEventListener("click",()=>button.closest("dialog").close()));
   $("#topup-dialog").addEventListener("cancel",event=>{if(topupBusy)event.preventDefault();});
-  for(const selector of ["#change-reseller","#change-search"])$(selector).addEventListener("input",()=>{if(!changeBusy)invalidateChange(true);});
+  for(const selector of ["#change-reseller","#change-search"])for(const event of ['input','change'])$(selector).addEventListener(event,()=>{if(!changeBusy)invalidateChange(true);});
   $("#change-target").addEventListener("change",()=>invalidateChange());
   $("#change-amount").addEventListener("input",updateChangeProfitPreview);
   $("#change-method").addEventListener("change",updateChangeProfitPreview);
@@ -2145,27 +2150,28 @@ function updatePortalCustomerSummary() {
 let costRefreshPending=false;
 async function refreshPortalCustomerCosts(manual=false){
   if(costRefreshPending||billSaving||portalSelecting||!$("#bill-dialog").open||businessWorkspace.id!=="fiber-users"||!portalStatus.ready||!portalCustomer)return;
-  const username=portalCustomer.username,requestId=billRequestId,version=portalLookupVersion,reseller=$("#portal-reseller-search").value.trim();
+  const identity=portalWorkflowIdentity(),username=portalCustomer.username,requestId=billRequestId,version=portalLookupVersion,reseller=$("#portal-reseller-search").value.trim();
   costRefreshPending=true;
   try{
     const customer=await api.portal.lookup(reseller?{username,reseller}:username);
-    if(billSaving||requestId!==billRequestId||version!==portalLookupVersion||!$("#bill-dialog").open||portalCustomer?.username!==username)return;
+    if(identity!==portalWorkflowIdentity()||reseller!==$('#portal-reseller-search').value.trim()||billSaving||requestId!==billRequestId||version!==portalLookupVersion||!$("#bill-dialog").open||portalCustomer?.username!==username)return;
     if(customer.serviceId!==portalCustomer.serviceId){portalCustomer=null;updatePortalCustomerSummary();if(manual)showToast("The portal plan changed. Verify the customer again before saving.","error");return;}
     portalCustomer=customer;
     if(billAmountAutomatic)updateBillBundleOptions(true);
     updatePortalCustomerSummary();
     if(manual)showToast(billAmountAutomatic?"Proradius costs and automatic selling amount refreshed.":"Proradius costs refreshed; your edited amount is unchanged.");
-  }catch(error){if(requestId===billRequestId&&version===portalLookupVersion&&portalCustomer?.username===username){portalCustomer.costRefreshError=true;updateBillBundleNote();if(manual)showToast(errorMessage(error),"error");}}
+  }catch(error){if(identity===portalWorkflowIdentity()&&reseller===$('#portal-reseller-search').value.trim()&&requestId===billRequestId&&version===portalLookupVersion&&portalCustomer?.username===username){portalCustomer.costRefreshError=true;updateBillBundleNote();if(manual)showToast(errorMessage(error),"error");}}
   finally{costRefreshPending=false;}
 }
 async function selectPortalCustomer(username) {
   const identity=portalWorkflowIdentity(),version = ++portalLookupVersion, requestId = billRequestId, reseller = $("#portal-reseller-search").value.trim();
+  const current=()=>identity===portalWorkflowIdentity()&&version===portalLookupVersion&&requestId===billRequestId&&$('#bill-dialog').open&&reseller===$('#portal-reseller-search').value.trim();
   portalSelecting = true; portalCustomer = null; updatePortalCustomerSummary();
   try {
     const customer = await api.portal.lookup(reseller ? {username,reseller} : username);
-    if(identity!==portalWorkflowIdentity())return;
+    if(!current())return;
     await loadBundles();
-    if (identity!==portalWorkflowIdentity()||version !== portalLookupVersion || requestId !== billRequestId || !$("#bill-dialog").open) return;
+    if(!current())return;
     portalCustomer = customer; $("#bill-customer-account").value = customer.username;
     $("#bill-customer-name").value = customer.name || "";
     $("#bill-phone").value = customer.phone || "";
@@ -2177,10 +2183,24 @@ async function selectPortalCustomer(username) {
     else { $("#bill-amount").value = ""; updateBillBundleNote(); }
     $("#portal-search-results").innerHTML = "";
   } catch (error) {
-    if (identity===portalWorkflowIdentity()&&version === portalLookupVersion && requestId === billRequestId && $("#bill-dialog").open) throw error;
+    if(current())throw error;
   } finally {
     if (identity===portalWorkflowIdentity()&&version === portalLookupVersion) { portalSelecting = false; updatePortalCustomerSummary(); }
   }
+}
+async function searchPortalCustomers(){
+  const identity=portalWorkflowIdentity(),version=++portalSearchVersion,requestId=billRequestId;
+  const term=$('#portal-customer-search').value.trim(),reseller=$('#portal-reseller-search').value.trim();
+  const current=()=>version===portalSearchVersion&&identity===portalWorkflowIdentity()&&requestId===billRequestId&&$('#bill-dialog').open&&term===$('#portal-customer-search').value.trim()&&reseller===$('#portal-reseller-search').value.trim();
+  portalSearchCustomers=[];
+  $('#portal-search-button').disabled=true;$('#portal-search-results').textContent='Searching portal customers…';
+  try{
+    const result=await api.portal.search({term,reseller});if(!current())return;portalSearchCustomers=result.customers;
+    $('#portal-search-results').innerHTML=result.customers.map((customer,index)=>`<button type="button" class="portal-customer-choice" data-portal-index="${index}"><span><strong>${escapeHtml(customer.name||customer.username)}</strong><small>${escapeHtml(customer.username)} · ${escapeHtml(customer.phone||'No phone recorded')}</small></span>${icon('arrow-right')}</button>`).join('')||(result.truncated?'<p class="field-note">No verified customers in the first results. Narrow your search.</p>':'<p class="field-note">No matching customers. Try an exact username, another phone format or a longer name.</p>');
+    if(result.truncated)$('#portal-search-results').insertAdjacentHTML('beforeend','<p class="field-note">More customers may match. Enter a longer name, phone number or exact username to narrow this reseller search.</p>');
+    else if(result.total>result.customers.length)$('#portal-search-results').insertAdjacentHTML('beforeend',`<small>${Number(result.total)} matches. Showing the first 30; refine your search.</small>`);
+  }catch(error){if(current()){$('#portal-search-results').textContent=errorMessage(error);showToast(errorMessage(error),'error');}}
+  finally{if(identity===portalWorkflowIdentity()&&requestId===billRequestId)updatePortalCustomerSummary();}
 }
 async function openPortalSettings() {
   const settings = await api.portal.settings();
@@ -2919,27 +2939,17 @@ function bindEvents() {
   $("#portal-settings-dialog").addEventListener("close",()=>{$("#portal-api-password").value="";});
   $("#bill-dialog").addEventListener("cancel", event => { if(billSaving)event.preventDefault(); });
   $("#bill-customer-account").addEventListener("input", () => { portalLookupVersion++; portalSelecting = false; updatePortalCustomerSummary(); });
-  $("#portal-reseller-search").addEventListener("input", () => {
+  for(const event of ['input','change'])$("#portal-reseller-search").addEventListener(event, () => {
     portalLookupVersion++; portalSearchVersion++; portalSelecting=false; portalCustomer=null; portalSearchCustomers=[];
     $("#portal-search-results").innerHTML=""; updatePortalCustomerSummary();
   });
-  $("#portal-customer-search").addEventListener("input", () => { portalSearchVersion++; portalSearchCustomers=[]; $("#portal-search-results").innerHTML=""; });
+  for(const event of ['input','change'])$("#portal-customer-search").addEventListener(event, () => { portalSearchVersion++; portalSearchCustomers=[]; $("#portal-search-results").innerHTML=""; });
   $("#portal-plan-history").addEventListener("click", () => openPortalPlanHistory().catch(error=>showToast(errorMessage(error),"error")));
   $("#bill-service-type").addEventListener("change", updatePortalCustomerSummary);
   $("#bill-months").addEventListener("input",()=>{updateBillBundleOptions(true);updatePortalCustomerSummary();});
   $("#bill-amount").addEventListener("input",()=>{billAmountAutomatic=false;updateBillBundleNote();});
   $("#bill-use-prorated").addEventListener("click",()=>updateBillBundleOptions(true));
-  $("#portal-search-button").addEventListener("click", async () => {
-    const version=++portalSearchVersion, requestId=billRequestId;
-    const term=$("#portal-customer-search").value, reseller=$("#portal-reseller-search").value.trim();
-    const current=()=>version===portalSearchVersion && requestId===billRequestId && $("#bill-dialog").open;
-    const button=$("#portal-search-button"); button.disabled=true; $("#portal-search-results").textContent="Searching portal customers…";
-    try {
-      const result=await api.portal.search({term,reseller}); if(!current())return; portalSearchCustomers=result.customers;
-      $("#portal-search-results").innerHTML=result.customers.map((customer,index)=>`<button type="button" class="portal-customer-choice" data-portal-index="${index}"><span><strong>${escapeHtml(customer.name || customer.username)}</strong><small>${escapeHtml(customer.username)} · ${escapeHtml(customer.phone || "No phone recorded")}</small></span>${icon("arrow-right")}</button>`).join("") || `<p class="field-note">No matching customers. Try an exact username, another phone format or a longer name.</p>`;
-      if(result.total>result.customers.length)$("#portal-search-results").insertAdjacentHTML("beforeend",`<small>${Number(result.total)} matches. Showing the first 30; refine your search.</small>`);
-    } catch(error){if(current()){$("#portal-search-results").textContent=errorMessage(error);showToast(errorMessage(error),"error");}} finally{if(requestId===billRequestId)updatePortalCustomerSummary();}
-  });
+  $("#portal-search-button").addEventListener("click",searchPortalCustomers);
   $("#portal-customer-search").addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();if(!$("#portal-search-button").disabled)$("#portal-search-button").click();}});
   $("#portal-search-results").addEventListener("click",async event=>{
     const button=event.target.closest("[data-portal-index]"); if(!button)return;

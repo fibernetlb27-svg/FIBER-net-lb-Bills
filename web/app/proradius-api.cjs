@@ -133,6 +133,16 @@ function customerFromResponse(payload, expected) {
   }
   return customer;
 }
+function scopedCustomerOwner(payload, expected) {
+  const {found}=customerRecord(payload,expected);
+  const ids=['reseller_id','reseller','owner'].flatMap(key=>{
+    const value=found[key];
+    return (object(value)?[value.reseller_id,value.id]:[value]).map(positiveId).filter(Boolean);
+  });
+  // Directory aliases are not sufficient proof of ownership. Exact profiles
+  // must also agree when more than one supported owner ID is supplied.
+  return ids.length&&new Set(ids).size===1?ids[0]:null;
+}
 function planUpdateBody(payload, username, targetId) {
   const { found } = customerRecord(payload, username);
   const required = ["password", "shortname", "reseller", "collector", "switch", "duedate", "override_price", "discount", "service_expiry", "save_mac", "note", "phone", "email", "address", "region", "nationality", "building", "latitude", "longitude"];
@@ -305,8 +315,14 @@ class ProradiusApi {
   async customer(value) {
     const username = portalUsername(object(value) ? value.username : value);
     const scope = object(value) && value.reseller ? await this.resellerScope(value.reseller) : null;
-    const customer=customerFromResponse(await this.get(`/api/user/?${new URLSearchParams({ username })}`), username);
-    if(scope && customer.resellerId!==scope.id) throw new PortalError("This customer does not belong to the selected reseller. No plan change or renewal was sent.");
+    const payload=await this.get(`/api/user/?${new URLSearchParams({ username })}`),customer=customerFromResponse(payload, username);
+    if(scope) {
+      const owner=scopedCustomerOwner(payload,username);
+      if(owner!==scope.id) {
+        throw new PortalError("This customer does not belong to the selected reseller, or its owner could not be verified. No plan change or renewal was sent.");
+      }
+      customer.resellerId=owner;
+    }
     return customer;
   }
   async receiptCredentials(value) {
@@ -475,14 +491,27 @@ class ProradiusApi {
     if (resellerName.length > 128) throw new PortalError("The reseller name is too long.");
     const scope = resellerName ? await this.resellerScope(resellerName) : null;
     if (term.length < 3 || term.length > 128) throw new PortalError("Enter at least 3 characters of a username, phone number or customer name.");
-    const result = customers => {
+    const result = async customers => {
       const matches = customers.filter(item => customerMatches(item, term));
-      return { customers: matches.slice(0, 30), total: matches.length };
+      if(!scope)return {customers:matches.slice(0,30),total:matches.length};
+      const verified=[];
+      // Only displayed candidates are checked, so broad searches cannot cause
+      // hundreds of exact profile requests. Totals describe verified rows only.
+      for(const candidate of matches.slice(0,30)) {
+        if(Date.now()-started>30000)throw new PortalError("Reseller-scoped search took too long. Narrow it or verify an exact username.");
+        const payload=await this.get(`/api/user/?${new URLSearchParams({username:candidate.username})}`);
+        if(generation!==this.generation)throw new PortalError("The Internet API settings changed. Search again.");
+        const owner=scopedCustomerOwner(payload,candidate.username);
+        if(owner!==scope.id)continue;
+        const customer=customerFromResponse(payload,candidate.username);customer.resellerId=owner;
+        if(customer.resellerId===scope.id&&customerMatches(customer,term))verified.push(customer);
+      }
+      return {customers:verified,total:verified.length,...matches.length>30?{truncated:true}:{}};
     };
     const cacheKey = JSON.stringify([term, scope?.id ?? null]);
     if (this.directory?.until > Date.now() && this.directory.scope === (scope?.id ?? null)) return result(this.directory.customers);
     const cached = this.searchCache.get(cacheKey);
-    if (cached?.until > Date.now()) return cached.result;
+    if (!scope && cached?.until > Date.now()) return cached.result;
     const started = Date.now(), customers = [], seen = new Set(), generation = this.generation;
     const readPage = async route => {
       if (Date.now() - started > 30000) throw new PortalError("Customer search took too long. Narrow the search or use exact username lookup.");
@@ -492,21 +521,13 @@ class ProradiusApi {
         if (typeof item?.username !== "string") throw new PortalError("The customer directory contains an unrecognized username. Use exact username lookup.");
         const username = portalUsername(item.username);
         if (!seen.has(username)) {
-          let customer = customerFromResponse(item, username);
-          if (scope) {
-            if (!customer.resellerId && !customerMatches(customer, term)) continue;
-            if (!customer.resellerId) {
-              if(Date.now()-started>30000) throw new PortalError("Reseller-scoped search took too long. Narrow it or verify an exact username.");
-              customer = await this.customer(username);
-            }
-            if (customer.resellerId !== scope.id) continue;
-          }
+          const customer = customerFromResponse(item, username);
           customers.push(customer); seen.add(username);
         }
       }
       return page;
     };
-    const routeFor = (field, value, pageIndex) => `/api/users?${new URLSearchParams({ [field]: value, ...(scope ? { reseller: String(scope.id) } : {}), pageIndex: String(pageIndex), pageSize: "50" })}`;
+    const routeFor = (field, value, pageIndex) => `/api/users?${new URLSearchParams({ [field]: value, ...(scope ? { reseller: String(scope.id), resellername:scope.username } : {}), pageIndex: String(pageIndex), pageSize: "50" })}`;
     const first = await readPage(routeFor("username", term, 1));
     if (!first.native) {
       // Compatibility with older flat or next-link API responses. Never follow
@@ -516,6 +537,10 @@ class ProradiusApi {
         let next; try { next = new URL(page.next, PORTAL_URL); } catch { throw new PortalError("The portal returned an unsafe customer-list link."); }
         if (next.origin !== PORTAL_URL || next.username || next.password || !["/api/users", "/api/users/"].includes(next.pathname)) throw new PortalError("The portal returned an unsafe customer-list link.");
         if (scope && next.searchParams.get("reseller") !== String(scope.id)) throw new PortalError("The portal pagination lost the reseller filter. No unfiltered page was read.");
+        if(scope) {
+          if(next.searchParams.getAll('resellername').some(name=>name!==scope.username))throw new PortalError("The portal pagination changed the reseller name. No conflicting page was read.");
+          if(!next.searchParams.has('resellername'))next.searchParams.set('resellername',scope.username);
+        }
         const route = next.pathname + next.search;
         if (visited.has(route) || pages++ >= 5) throw new PortalError("The customer directory is too large or pagination repeated. Use exact username lookup.");
         visited.add(route); page = await readPage(route);
@@ -546,7 +571,8 @@ class ProradiusApi {
     // Searching a digit suffix accommodates local, +961 and formatted phone
     // numbers. The complete normalized number is still checked client-side.
     if (phoneTerm.length >= 3) await collectNative("phone", phoneTerm.slice(-3));
-    const found = result(customers);
+    const found = await result(customers);
+    if(scope)return found;
     for (const [key, entry] of this.searchCache) if (entry.until < Date.now()) this.searchCache.delete(key);
     if (this.searchCache.size >= 40) this.searchCache.delete(this.searchCache.keys().next().value);
     this.searchCache.set(cacheKey, { result: found, until: Date.now() + 30000 });

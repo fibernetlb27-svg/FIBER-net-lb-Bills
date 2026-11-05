@@ -1,8 +1,14 @@
 # FIBER net lb website preview
 
-Version 0.1.8 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.9 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 Use isolated staging and a copied-data rehearsal before a new deployment or upgrade. The existing authorized accounting server remains the sole authority until an agreed cutover; an already migrated website must not resume recording on its old desktop copy. The website uses the seven existing SQLite database formats. Fictional previews and their checks are separate from accepting live business data.
+
+## Customer search by reseller
+
+In Bills and Change Plan, selecting an exact reseller limits displayed search results to customers whose fresh Proradius profile confirms that owner. The current native reseller-name filter accompanies the compatibility numeric filter. List-row labels and cached ownership cannot establish a match, and conflicting owner IDs are rejected. Leaving the reseller field blank intentionally searches all accessible customers.
+
+Changing the reseller clears previous search and customer selections. Delayed search, lookup and quote responses are discarded when their reseller, search text or session no longer matches. Broad scoped searches verify at most 30 candidates; when more candidates remain, the interface asks for a longer name, phone number or exact username instead of claiming a complete total. This uses read-only provider requests and does not modify customer ownership, services, receipts or historical data.
 
 ## Proradius validation messages
 

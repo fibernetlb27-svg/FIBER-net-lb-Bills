@@ -446,8 +446,8 @@
     {
       "file": "proradius-api.cjs",
       "sourceSha256": "a7a3e6061b69579e10c900fc090c5f1e663d1987607a28e40dc29e3afc5ab56f",
-      "sha256": "4d76430c3ed4b83c9fdc1e21ddce8537daf2b631b4ff80b7c497040c545468c4",
-      "reason": "Only HTTP 422 responses from the native Change Service POST or its read-only preview may produce bounded allowlisted validation categories. Native payloads, credentials, sent/status semantics, other responses and the prohibition on write retries remain unchanged."
+      "sha256": "6b4754be9dc808b9a1ed36eaf9cc01238db0ac31e093595e7f71b1fa78dfecd1",
+      "reason": "Native Change Service HTTP 422 responses retain only bounded allowlisted validation categories. Reseller-scoped searches use the native reseller-name filter, verify displayed customers against fresh exact-profile ownership, reject conflicting owner IDs and unsafe pagination, and bypass stale scoped caches. Financial action payloads, credentials, sent/status semantics, existing data and the prohibition on write retries remain unchanged."
     },
     {
       "file": "portal-operations.cjs",
