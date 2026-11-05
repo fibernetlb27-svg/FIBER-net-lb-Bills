@@ -1095,7 +1095,10 @@ function completeFreeRenewal(row){
 function completePortalOperation(row){return row.kind==='free'?completeFreeRenewal(row):row.kind==='create'?completeCustomerRegistration(row):portalOperationBill(row);}
 function paymentFingerprint(bill,input,wantRenew) {
   const {bundleCost:_cost,...portalBill}=bill;
-  return renewalLedger.fingerprint(input.portalServiceId ? {...portalBill,portalServiceId:Number(input.portalServiceId),portalExpectedServiceId:Number(input.portalExpectedServiceId)} : bill,wantRenew);
+  if(input.renewOnCredit!==undefined&&typeof input.renewOnCredit!=='boolean')throw Error('Choose an explicit renewal-on-credit action.');
+  if(input.renewOnCredit===true&&(!wantRenew||bill.paymentMethod!=='Unpaid'||bill.serviceType!=='Internet'||!input.portalServiceId))throw Error('Renewal on credit requires Save & Renew on a verified Unpaid Internet bill.');
+  const identity=input.portalServiceId ? {...portalBill,portalServiceId:Number(input.portalServiceId),portalExpectedServiceId:Number(input.portalExpectedServiceId)} : bill;
+  return renewalLedger.fingerprint(input.renewOnCredit===true?{...identity,renewOnCredit:true}:identity,wantRenew);
 }
 function createBillPayment(input, wantRenew = false, portalPricing = null, combinedParentId = null) {
   if(input.portalServiceId && !portalPricing) throw new Error("Portal-priced bills must use the verified Proradius save action.");
@@ -1116,7 +1119,9 @@ function createBillPayment(input, wantRenew = false, portalPricing = null, combi
   if (wantRenew) {
     authorizeInternet();
     if(lateRenewalPolicy(undefined,portalPricing?.customerExpiry).free)throw Error('From the 11th through the 4th, use Free renewal for an unrenewed current cycle. Already-renewed customers may purchase additional full months. No paid renewal or bill was saved.');
-    if (bill.serviceType !== "Internet" || bill.paymentMethod === "Unpaid") throw new Error("Save & Renew requires a paid Internet bill. Unpaid bills are records only.");
+    if (bill.serviceType !== "Internet" || bill.paymentMethod === "Unpaid"&&input.renewOnCredit!==true) throw new Error("Save & Renew requires a paid Internet bill. Unpaid bills are records only.");
+    if(input.renewOnCredit===true&&(!portalPricing||combinedProof||bill.whishDestination||input.whishDestination))throw Error('Renewal on credit requires the verified current-service Internet flow with no received payment.');
+    if(one("SELECT b.id FROM fibernetlb_bills b LEFT JOIN internet_renewals r ON r.bill_id=b.id WHERE b.customer_account=? AND (r.state IN ('checking','processing','unknown') OR EXISTS(SELECT 1 FROM internet_renewal_events e WHERE e.bill_id=b.id AND e.state='unpaid_authorized') AND (r.bill_id IS NULL OR r.state='failed' AND r.completed_months<r.requested_months)) LIMIT 1",[bill.customerAccount]))throw Error('This customer has an unfinished renewal. Continue or review its original bill; no additional payment or debt was created.');
     if (!requestId) throw new Error("Save & Renew needs a unique payment request ID.");
     if (!portalApi.settings.status().ready) throw new Error("The main administrator must test and enable the Internet API first. No bill or renewal was saved.");
   }
@@ -1138,6 +1143,7 @@ function createBillPayment(input, wantRenew = false, portalPricing = null, combi
     if (bill.resellerId) database.run("UPDATE fibernetlb_bills SET reseller_id=? WHERE id=?",[bill.resellerId,billId]);
     if (bill.paymentMethod === "Cash") addDrawerMovement(bill.amount,"bill_payment","bill",billId,receiptNo,collector);
     renewalLedger.recordRequest(requestId,billId,fingerprint);
+    if(input.renewOnCredit===true)renewalLedger.authorizeOnCredit(billId,requestId,fingerprint,collector.full_name);
     if(combinedProof){database.run("UPDATE portal_operations SET bill_id=? WHERE request_id=? AND kind='change_renew' AND state='confirmed' AND bill_id IS NULL",[billId,combinedProof.requestId]);if(database.getRowsModified()!==1)throw Error("The exact combined payment parent changed before its receipt was saved.");}
     database.exec("COMMIT"); saveDatabase(); return billById(billId);
   } catch (error) { database.exec("ROLLBACK"); throw error; }
@@ -2977,7 +2983,7 @@ function registerHandlers() {
     const replay=renewalLedger.replay(requestId,paymentFingerprint(bill,input,wantRenew));
     if(replay) return {...billById(replay),idempotent:true};
     if(!portalApi.settings.status().ready) throw new Error("The main administrator must enable the Internet API first.");
-    if(wantRenew && bill.paymentMethod==="Unpaid") throw new Error("Unpaid bills are records only; no plan change or renewal was sent.");
+    if(wantRenew && bill.paymentMethod==="Unpaid"&&input.renewOnCredit!==true) throw new Error("Unpaid bills are records only; no plan change or renewal was sent.");
     const expectedId=Number(input.portalExpectedServiceId),targetId=Number(input.portalServiceId);
     if(!Number.isSafeInteger(expectedId)||expectedId<=0||!Number.isSafeInteger(targetId)||targetId<=0) throw new Error("Verify the customer's current portal plan first.");
     if(targetId!==expectedId)throw Error("Use Change service & renew for one customer collection, or use standalone Change Plan before a current-service renewal. No service change, bill or renewal was submitted.");

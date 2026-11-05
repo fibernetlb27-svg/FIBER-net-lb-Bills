@@ -2115,7 +2115,7 @@ function billRenewalBadge(bill) {
 function internetBillActions(bill) {
   if (businessWorkspace.id !== "fiber-users" || bill.serviceType !== "Internet") return "";
   const status = bill.renewal?.state || "not_requested", paid = bill.paymentStatus === "paid" && Number(bill.remainingAmount ?? 0) === 0;
-  const canRenew = paid && (has("bills.create") || has("bills.manage")) && ["not_requested","failed"].includes(status);
+  const canRenew = (paid || bill.renewal?.onCredit === true) && (has("bills.create") || has("bills.manage")) && ["not_requested","failed"].includes(status);
   const remaining=bill.renewal?.remainingMonths??bill.renewalMonths??1;
   return `${canRenew ? `<button class="button button-secondary renew-internet-bill" type="button" data-id="${bill.id}" ${portalStatus.ready ? "" : "disabled"} title="Only remaining, unconfirmed monthly cycles are submitted">${icon("update")}Renew ${remaining} month${remaining===1?"":"s"}</button>` : ""}${status !== "not_requested" ? `<button class="icon-button renewal-history" data-id="${bill.id}" aria-label="${status==='created'?'Account creation history':'Renewal history'}" title="${status==='created'?'Account creation history':'Renewal history'}">${icon("clock")}</button>` : ""}`;
 }
@@ -2133,13 +2133,14 @@ function updatePortalCustomerSummary() {
   const linked = businessWorkspace.id === "fiber-users" && $("#bill-service-type").value === "Internet" && portalStatus.ready;
   const freePolicy=billFreePolicy(),free=Boolean(freePolicy?.free);
   const target = selectedPortalPlan(), invalidPlan = valid && (!target || target.id!==portalCustomer.serviceId || (!free&&(target.cost === null || target.fixedCost === null || Boolean(portalCustomer.renewalQuoteError))));
-  $("#bill-save-only").textContent = businessWorkspace.kind === "reseller" ? "Save transfer" : "Save payment only";
-  $("#bill-renew-button").innerHTML = `${icon("update")}Save & Renew current service`;
+  const onCredit = $('#bill-payment-method').value === 'Unpaid';
+  $("#bill-save-only").textContent = businessWorkspace.kind === "reseller" ? "Save transfer" : onCredit ? "Save debt only" : "Save payment only";
+  $("#bill-renew-button").innerHTML = `${icon("update")}${onCredit ? 'Save debt & Renew current service' : 'Save & Renew current service'}`;
   $('#portal-change-plan-step').classList.toggle('hidden',!linked||!valid||!has('plans.manage'));
   $('#portal-change-plan-first').disabled=billSaving||portalSelecting||changeBusy||portalCustomer?.blocked;
   $('#portal-change-renew-open').disabled=billSaving||portalSelecting||changeBusy||portalCustomer?.blocked||!canChangeRenew();
   $("#bill-save-only").disabled = billSaving || portalSelecting || (linked && (!valid || invalidPlan || portalCustomer.blocked));
-  $("#bill-renew-button").disabled = billSaving || portalSelecting || !portalStatus.ready || !valid || invalidPlan || !$("#bill-bundle").value || portalCustomer?.blocked || $("#bill-payment-method").value === "Unpaid" || $("#bill-service-type").value !== "Internet";
+  $("#bill-renew-button").disabled = billSaving || portalSelecting || !portalStatus.ready || !valid || invalidPlan || !$("#bill-bundle").value || portalCustomer?.blocked || $("#bill-service-type").value !== "Internet";
   if(free&&valid&&portalCustomer.expiry.slice(0,10)>=freePolicy.expiry)$('#bill-renew-button').disabled=true;
   $("#portal-plan-history").classList.toggle("hidden", !valid);
   $("#portal-plan-history").disabled = billSaving || portalSelecting;
@@ -2242,7 +2243,7 @@ async function openRenewalHistory(id) {
   const bill = state.bills.find(item => Number(item.id) === id)||(archived?{...archived,renewal:{state:"archived",completedMonths:archived.completedMonths,requestedMonths:archived.requestedMonths,message:`Archived local test bill; portal action was not undone. Original state: ${archived.renewalState}. Unsent remaining cycles are abandoned.`}}:null); if (!bill) return;
   const events = await api.bills.renewalHistory(id);
   const created=bill.renewal?.source==='account_creation';
-  const eventLabel=value=>created?({checking:'Checking new customer',processing:'Creating customer',confirmed:'Customer confirmed',succeeded:'First bill recorded',unknown:'Creation outcome uncertain',failed:'Creation not confirmed'})[value]||value:value==='cost_quoted'?'Live cost quote saved':renewalLabel(value);
+  const eventLabel=value=>created?({checking:'Checking new customer',processing:'Creating customer',confirmed:'Customer confirmed',succeeded:'First bill recorded',unknown:'Creation outcome uncertain',failed:'Creation not confirmed'})[value]||value:value==='unpaid_authorized'?'Renewal on credit authorized':value==='cost_quoted'?'Live cost quote saved':renewalLabel(value);
   $("#renewal-history-summary").textContent = `${bill.receiptNo} · ${bill.customerAccount} · ${renewalLabel(bill.renewal?.state)}${bill.renewal?.state==='created'?'':` · ${bill.renewal?.completedMonths??0}/${bill.renewal?.requestedMonths??bill.renewalMonths??1} months confirmed`} · ${bill.renewal?.message || ""}`;
   $("#renewal-history-body").innerHTML = events.map(item => `<tr><td>${dateTimeFormatter.format(new Date(item.recordedAt))}</td><td>${escapeHtml(eventLabel(item.state))}</td><td>${escapeHtml(item.note)}</td><td>${escapeHtml(item.actor)}</td></tr>`).join("") || emptyRow(4,created?'No creation events recorded':'No renewal requests recorded');
   $("#renewal-review-form").reset(); $("#renewal-review-id").value = id;
@@ -2272,8 +2273,9 @@ async function openPortalPlanHistory() {
 }
 function billRenewalConfirmation(username, amount, customer, target, changing, wantRenew,months=1) {
   const quote=Number.isFinite(target?.renewalCost)&&Number.isFinite(target?.fixedCost)?target.renewalCost+target.fixedCost*(months-1):null;
+  const onCredit=wantRenew&&$('#bill-payment-method').value==='Unpaid';
   const whish=WhishPayments.preview(amount,$('#bill-payment-method').value),pricing=quote!==null?`\n${months>1?'Estimated total service cost':'Current Proradius service cost'}: ${formatMoney(quote)} · ${months>1?'Estimated':'Bill'} profit before other expenses: ${formatMoney(Number(amount)-quote-(whish?.fee||0))}${whish?`\n${whish.note}`:''}${months>1?'\nEach submitted renewal cycle gets its own live cost quote; reports update to the sum of those saved quotes. Unsubmitted cycles remain estimates.':''}`:'';
-  return `Save ${formatMoney(amount)} for ${username}?\n\nCurrent Proradius plan: ${customer?.service || "Current account plan"}\nCurrent expiry: ${customer?.expiry || "Not supplied"}\n${retailPriceNote(billRetailQuote())}${pricing}\n\n${wantRenew ? `Renew ${months} monthly cycle${months===1?"":"s"} of this current service after saving one payment. Future cycles may appear as pending refills. The app stops on an uncertain response; confirmed cycles are never repeated.` : "Save the payment or debt only. No service change or renewal will be sent."}\nSelling price remains the amount entered in the app. Customer Override Price is not used or modified. IPTV is not renewed.`;
+  return `Save ${formatMoney(amount)} ${onCredit?'as customer debt ':''}for ${username}?\n\nCurrent Proradius plan: ${customer?.service || "Current account plan"}\nCurrent expiry: ${customer?.expiry || "Not supplied"}\n${retailPriceNote(billRetailQuote())}${pricing}\n\n${wantRenew ? `Renew ${months} monthly cycle${months===1?"":"s"} of this current service after saving one ${onCredit?'unpaid bill. No money has been received. Cash or Whish is credited only when the debt is collected; collection does not renew the service again':'payment'}. Future cycles may appear as pending refills. The app stops on an uncertain response; confirmed cycles are never repeated.` : "Save the payment or debt only. No service change or renewal will be sent."}\nSelling price remains the amount entered in the app. Customer Override Price is not used or modified. IPTV is not renewed.`;
 }
 function billRenewalReview(bill,customer,target,changing,wantRenew){
   const months=Number(bill.renewalMonths),cost=Number.isFinite(target?.renewalCost)&&Number.isFinite(target?.fixedCost)?target.renewalCost+target.fixedCost*(months-1):null;
@@ -2281,7 +2283,8 @@ function billRenewalReview(bill,customer,target,changing,wantRenew){
   if(pricing)fields.push({label:"Billing coverage",value:pricing.advance?`Additional full month${months>1?'s':''} · existing subscription stays active`:`${pricing.remainingDays}/${pricing.cycleDays} days through ${pricing.cycleEnd}${pricing.additionalFullMonths?` + ${pricing.additionalFullMonths} full cycle(s)`:''}`});
   if(bill.whishDestinationId)fields.push({label:"Whish destination",value:$('#bill-payment-method-whish')?.selectedOptions[0]?.textContent||'Selected wallet'});
   const whish=WhishPayments.preview(bill.amount,bill.paymentMethod);
-  return {title:wantRenew?'Confirm current-service renewal':'Confirm payment',actionLabel:wantRenew?'Confirm renewal':'Confirm payment',icon:'update',subtitle:'Check the account and the exact amount collected before continuing.',subject:{name:bill.customerName||customer?.name,username:bill.customerAccount},fields,payments:[{label:bill.paymentMethod==='Unpaid'?'Customer debt':'Customer payment',amount:formatMoney(bill.amount),method:bill.paymentMethod,note:`Uses the amount you entered, including any manual edit.${whish?' '+whish.note:''}`}],metrics:cost===null?[]:[{label:months>1?'Estimated service cost':'Proradius service cost',value:formatMoney(cost)},{label:months>1?'Estimated profit before other expenses':'Profit before other expenses',value:formatMoney(Number(bill.amount)-cost-(whish?.fee||0))}],notice:wantRenew?`One payment is recorded for ${months} monthly cycle${months===1?'':'s'} of the verified current service. Each cycle uses a fresh Proradius quote. Confirmed cycles are not repeated; an uncertain result stops the request. IPTV is not renewed.`:'Records the payment or debt only. No service change or renewal is sent.'};
+  const onCredit=wantRenew&&bill.paymentMethod==='Unpaid';
+  return {title:onCredit?'Confirm renewal on credit':wantRenew?'Confirm current-service renewal':'Confirm payment',actionLabel:onCredit?'Save debt & Renew':wantRenew?'Confirm renewal':'Confirm payment',icon:'update',subtitle:onCredit?'No money received. Renew now and record the full amount owed.':'Check the account and the exact amount collected before continuing.',subject:{name:bill.customerName||customer?.name,username:bill.customerAccount},fields,payments:[{label:bill.paymentMethod==='Unpaid'?'Customer debt':'Customer payment',amount:formatMoney(bill.amount),method:bill.paymentMethod,note:onCredit?'Full amount remains due. Cash or Whish is credited only when actually collected.':`Uses the amount you entered, including any manual edit.${whish?' '+whish.note:''}`}],metrics:cost===null?[]:[{label:months>1?'Estimated service cost':'Proradius service cost',value:formatMoney(cost)},{label:months>1?'Estimated profit before other expenses':'Profit before other expenses',value:formatMoney(Number(bill.amount)-cost-(whish?.fee||0))}],notice:wantRenew?`One ${onCredit?'unpaid bill':'payment'} is recorded for ${months} monthly cycle${months===1?'':'s'} of the verified current service.${onCredit?' Collecting this debt later does not renew the service again.':''} Each cycle uses a fresh Proradius quote. Confirmed cycles are not repeated; an uncertain result stops the request. IPTV is not renewed.`:'Records the payment or debt only. No service change or renewal is sent.'};
 }
 
 async function openBillDialog() {
@@ -2545,7 +2548,7 @@ function updatePosPayment() {
 function updateBillPayment() {
   const method = $("input[name='bill-payment']:checked")?.value || "Cash";
   $("#bill-payment-method").value = method;
-  $("#bill-payment-note").textContent = method === "Cash" ? "Cash payments are added to the cash drawer." : method === "Whish Money" ? "The full customer payment settles the bill and enters the selected wallet. Its 1% fee reduces net profit only, not the wallet balance. Cash-out has no additional fee." : "This bill will be added to Outstanding Debts.";
+  $("#bill-payment-note").textContent = method === "Cash" ? "Cash payments are added to the cash drawer." : method === "Whish Money" ? "The full customer payment settles the bill and enters the selected wallet. Its 1% fee reduces net profit only, not the wallet balance. Cash-out has no additional fee." : "The full bill stays as customer debt. No cash or Whish is received until payment. Save debt & Renew renews now; Save debt only records it without renewing.";
   updatePortalCustomerSummary();
 }
 
@@ -3365,8 +3368,9 @@ function bindEvents() {
     if(billFreePolicy()?.free){await saveFreeRenewal();return;}
     const wantRenew=event.submitter?.id==="bill-renew-button";
     const account=normalizedBillAccount();
-    if(wantRenew && (!portalStatus.ready || portalCustomer?.username!==account || $("#bill-payment-method").value==="Unpaid"))return showToast("Verify the portal customer and choose Cash or Whish Money before renewal.","error");
+    if(wantRenew && (!portalStatus.ready || portalCustomer?.username!==account))return showToast("Verify the portal customer before renewal.","error");
     const bill = { requestId:billRequestId, exactPortalAccount:portalCustomer?.username===account, customerAccount:account, customerName:$("#bill-customer-name").value, phone:$("#bill-phone").value, serviceType:$("#bill-service-type").value, bundleCode:$("#bill-bundle").value, billingPeriod:$("#bill-period").value, renewalMonths:Number($("#bill-months").value), amount:$("#bill-amount").value, paymentMethod:$("#bill-payment-method").value, reference:$("#bill-reference").value };
+    if(wantRenew&&bill.paymentMethod==='Unpaid')bill.renewOnCredit=true;
     Object.assign(bill,WhishPayments.input('bill-payment-method'));
     const retailPricing=billRetailSelection();if(retailPricing)bill.retailPricing=retailPricing;
     if(businessWorkspace.kind==="reseller")bill.resellerId=Number($("#bill-reseller").value);
@@ -3448,7 +3452,8 @@ function bindEvents() {
       try {
         const customer=await api.portal.lookup(bill.customerAccount);
         const remaining=bill.renewal?.remainingMonths??bill.renewalMonths??1;
-        if(!await confirmPortalAction(`Renew Internet for ${customer.username}?\nCurrent plan: ${customer.service || "Current account plan"}\nCurrent expiry: ${customer.expiry || "Not supplied"}\n\nPayment ${bill.receiptNo} is already saved. Submit only the ${remaining} remaining monthly cycle${remaining===1?"":"s"}; never repeat confirmed cycles. No new payment or IPTV renewal is recorded.`))return;
+        const creditNote=bill.renewal?.onCredit===true&&bill.paymentStatus!=='paid'?`Unpaid bill ${bill.receiptNo} is already saved. Customer still owes ${formatMoney(bill.remainingAmount??bill.amount)}. No money is collected by this renewal; cash or Whish is credited only when paid.`:`Payment ${bill.receiptNo} is already saved.`;
+        if(!await confirmPortalAction(`Renew Internet for ${customer.username}?\nCurrent plan: ${customer.service || "Current account plan"}\nCurrent expiry: ${customer.expiry || "Not supplied"}\n\n${creditNote} Submit only the ${remaining} remaining monthly cycle${remaining===1?"":"s"}; never repeat confirmed cycles. No new payment or IPTV renewal is recorded.`))return;
         const updated=await api.bills.renew(id);await loadBills();
         if(!FiberActionFeedback.renewed(updated))FiberActionFeedback.incomplete(updated);
       }catch(error){showToast(errorMessage(error),"error");}finally{target.disabled=false;}return;

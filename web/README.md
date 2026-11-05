@@ -1,6 +1,6 @@
 # FIBER net lb website preview
 
-Version 0.1.10 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.11 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 Use isolated staging and a copied-data rehearsal before a new deployment or upgrade. The existing authorized accounting server remains the sole authority until an agreed cutover; an already migrated website must not resume recording on its old desktop copy. The website uses the seven existing SQLite database formats. Fictional previews and their checks are separate from accepting live business data.
 
@@ -80,6 +80,14 @@ Use the card's prior-month deposit action, choose the exact permitted holder and
 
 New encrypted backups include `automatic-month-closing.json` when it is present, along with the seven databases. Preserve that private journal when moving or restoring an existing website. Older archives without it remain supported; if it is absent, scheduling starts with the month of that first restored startup rather than guessing an older schedule.
 
+## Renew now with an unpaid customer bill
+
+For a verified Internet customer using their current service, select **Unpaid**, then **Save debt & Renew current service**. Review the full amount owed and confirm. The app saves one unpaid bill and renews the service immediately. No cash movement, Whish receipt, wallet credit or fee is created by this action. **Save debt only** still records the debt without sending a renewal.
+
+Collect the bill later from **Debts**, entering the amount actually received and Cash or the exact Whish wallet. Partial payments reduce the remaining debt and credit only that collected amount to its permitted money holder. A Whish fee is recorded only on the actual Whish collection. Collection never renews the service again. Existing revenue and service-cost reporting retain their accounting rules; an unpaid bill is not proof of money received.
+
+Only a new, explicitly confirmed renewal-on-credit request can receive this authorization. Historical unpaid bills do not become eligible automatically. The original request and authorization persist across restart. A failed pre-submission request may continue from its own bill; confirmed cycles are never repeated, and an uncertain provider result requires the existing Admin review. Free expiry extensions, combined Change service & renew and initial customer creation retain their existing payment rules. No saved bill, payment, customer balance or historical archive is rewritten by installing this update.
+
 ## Verification
 
 ```sh
@@ -91,7 +99,7 @@ Tests use fictional, temporary data. The suite covers the genuine headless core,
 
 Chrome must be installed for the UI test. Set `CHROME_BIN` to its absolute path if needed. `CHROME_TEST_NO_SANDBOX=1` is reserved for disposable CI runners, not normal deployment. There is no TypeScript build or configured lint tool in this plain JavaScript project; the source check verifies JavaScript syntax and public-package boundaries. No coverage percentage is claimed.
 
-The Ubuntu GitHub workflow also builds the production image and checks non-root container startup, encryption, writer locking, disabled providers and restart persistence using fictional mounts. A successful CI run is separate from acceptance on the user's future Ubuntu server and from checking actual data.
+The Ubuntu GitHub workflow also builds the production image and checks non-root container startup, encryption, writer locking, disabled providers and restart persistence using fictional mounts. A successful CI run is separate from acceptance on an operator's Ubuntu server and from checking actual data.
 
 Read [DEPLOYMENT.md](DEPLOYMENT.md) for hosting and [MIGRATION.md](MIGRATION.md) for preserving old data. No domain, live server or migration snapshot is included in this public package.
 

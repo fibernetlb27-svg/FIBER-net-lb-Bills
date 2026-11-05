@@ -139,6 +139,47 @@ async function resellerScopedSearchBrowser(page){
  }
 }
 
+async function unpaidRenewalBrowser(page){
+ // Pointer-operated UI acceptance uses a synthetic savePortal adapter only.
+ // No provider call, customer debt or cash/Whish mutation reaches the backend.
+ await evaluate(page,`(async()=>{
+  await loadBundles();const bundle=state.bundles.find(row=>row.serviceType==='Internet');if(!bundle)throw Error('A fictional Internet bundle is required');
+  window.__qaCreditRenewal={originalPortal:{...posApi.portal},originalBills:{...posApi.bills},oldUser:state.currentUser,oldView:state.currentView,oldStatus:portalStatus,oldOperations:structuredClone(portalOperations),saved:[],unexpected:[],plan:{id:401,name:bundle.name,cost:3,fixedCost:6,renewalCost:3}};
+  const qa=window.__qaCreditRenewal,noMutation=channel=>async()=>{qa.unexpected.push(channel);throw Error('Synthetic credit UI must not call '+channel);};
+  for(const name of ['applyChange','createCustomer','resumeOperation','resolveOperation'])posApi.portal[name]=noMutation('portal.'+name);
+  for(const name of ['create','saveRenew','saveFreeRenewal','startChangeRenew','confirmChangeRenew','resumeChangeRenew','resolveChangeRenew','renew'])posApi.bills[name]=noMutation('bills.'+name);
+  posApi.portal.status=async()=>({ready:true});posApi.portal.resellers=async()=>[];posApi.portal.operations=async()=>[];
+  posApi.portal.lookup=async()=>({username:'fictional.credit.customer',name:'Fictional Credit Customer',phone:'03000005',serviceId:qa.plan.id,service:qa.plan.name,expiry:'2026-12-05T12:00:00',billingDate:'2026-11-05',blocked:false,plans:[qa.plan],costVerifiedAt:new Date().toISOString()});
+  posApi.bills.changeRenewStatus=async()=>({pending:[]});
+  posApi.bills.receiptCredentials=async()=>({username:'fictional.credit.customer',password:'fictional-credit-preview-only'});
+  posApi.bills.savePortal=async(input,wantRenew)=>{qa.saved.push({input:structuredClone(input),wantRenew});return {id:900011,receiptNo:'FICTIONAL-CREDIT-001',customerAccount:input.customerAccount,customerName:input.customerName,phone:input.phone,serviceType:'Internet',bundleName:qa.plan.name,bundleDetails:'Fictional Internet renewal on customer credit',billingPeriod:input.billingPeriod,amount:Number(input.amount),bundleCost:3,paymentMethod:'Unpaid',paymentStatus:'unpaid',paidAmount:0,remainingAmount:Number(input.amount),paidAt:new Date().toISOString(),cashierName:'Fictional Browser Admin',renewalMonths:1,renewal:{state:'succeeded',onCredit:true,completedMonths:1,requestedMonths:1}};};
+  clearChangeRenewal();switchView('bills',{deferLoad:true});await openBillDialog();document.querySelector('#bill-customer-account').value='fictional.credit.customer';await selectPortalCustomer('fictional.credit.customer');document.querySelector('#bill-months').value='1';document.querySelector('#bill-amount').value='25.00';document.querySelector('#bill-amount').dispatchEvent(new Event('input',{bubbles:true}));
+ })()`);
+ try{
+  await tap(page,'#bill-form .payment-choice:has(input[value="Unpaid"])');
+  await waitFor(page,"document.querySelector('#bill-payment-method').value==='Unpaid'&&!document.querySelector('#bill-renew-button').disabled",'Unpaid enables the verified current-service renewal');
+  assert.match(await evaluate(page,"document.querySelector('#bill-renew-button').textContent"),/Save debt & Renew current service/);
+  assert.equal(await evaluate(page,"document.querySelector('#bill-save-only').textContent"),'Save debt only','Debt-only save remains a separate action');
+  assert.match(await evaluate(page,"document.querySelector('#bill-payment-note').textContent"),/No cash or Whish is received until payment/);
+  await tap(page,'#bill-renew-button');await waitFor(page,"document.querySelector('#portal-confirm-dialog').open",'Credit renewal requires explicit debt confirmation');
+  const review=await evaluate(page,"({title:document.querySelector('#portal-confirm-title').textContent,subtitle:document.querySelector('#portal-confirm-subtitle').textContent,action:document.querySelector('#portal-confirm-accept').textContent,review:document.querySelector('#portal-confirm-review').textContent,message:document.querySelector('#portal-confirm-message').textContent})");
+  assert.equal(review.title,'Confirm renewal on credit');assert.equal(review.action,'Save debt & Renew');assert.match(review.subtitle,/No money received/);
+  assert.match(review.review,/Customer debt/);assert.match(review.review,/\$25\.00/);assert.match(review.review,/Full amount remains due/);assert.match(review.review,/Cash or Whish is credited only when actually collected/);
+  assert.doesNotMatch(review.review,/Customer payment/,'Credit review does not label the outstanding amount as collected payment');
+  assert.match(review.message,/No money has been received/);assert.match(review.review,/Collecting this debt later does not renew the service again/);
+  assert.equal(await evaluate(page,"__qaCreditRenewal.saved.length+__qaCreditRenewal.unexpected.length"),0,'Opening debt confirmation submits nothing');
+  await tap(page,'#portal-confirm-cancel');await waitFor(page,"!document.querySelector('#portal-confirm-dialog').open&&!billSaving",'Cancelling credit confirmation restores the form');
+  assert.equal(await evaluate(page,"__qaCreditRenewal.saved.length"),0,'Cancelling credit confirmation creates no synthetic debt or renewal');
+  await tap(page,'#bill-renew-button');await waitFor(page,"document.querySelector('#portal-confirm-dialog').open",'Credit renewal can be reviewed again');
+  await tap(page,'#portal-confirm-accept');await waitFor(page,"__qaCreditRenewal.saved.length===1&&document.querySelector('#receipt-dialog').open&&!billSaving",'Confirmed credit request reaches only the synthetic save adapter');
+  assert.deepEqual(await evaluate(page,"(()=>{const call=__qaCreditRenewal.saved[0];return {calls:__qaCreditRenewal.saved.length,wantRenew:call.wantRenew,onCredit:call.input.renewOnCredit,method:call.input.paymentMethod,amount:Number(call.input.amount),account:call.input.customerAccount,exact:call.input.exactPortalAccount,service:call.input.portalServiceId,expected:call.input.portalExpectedServiceId,wallet:Boolean(call.input.whishDestinationId),unexpected:__qaCreditRenewal.unexpected};})()"),{calls:1,wantRenew:true,onCredit:true,method:'Unpaid',amount:25,account:'fictional.credit.customer',exact:true,service:401,expected:401,wallet:false,unexpected:[]},'One explicit Unpaid request carries renewOnCredit:true and never calls another financial adapter');
+  assert.equal(await evaluate(page,"document.querySelector('#receipt-number').textContent"),'FICTIONAL-CREDIT-001');
+  assert.match(await evaluate(page,"document.querySelector('#receipt-payment').textContent"),/UNPAID.*CUSTOMER DEBT/,'Synthetic receipt retains unpaid debt status rather than claiming a collection');
+ }finally{
+  await evaluate(page,"(()=>{const qa=window.__qaCreditRenewal;if(!qa)return;for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();Object.assign(posApi.portal,qa.originalPortal);Object.assign(posApi.bills,qa.originalBills);state.currentUser=qa.oldUser;portalStatus=qa.oldStatus;portalOperations=qa.oldOperations;portalCustomer=null;portalSearchCustomers=[];portalLookupVersion++;portalSearchVersion++;portalSelecting=false;clearChangeRenewal();invalidateChange(true);applyPermissions();switchView(qa.oldView,{deferLoad:true});delete window.__qaCreditRenewal;})()");
+ }
+}
+
 async function paidCycleServiceChangeBrowser(page){
  // Fictional paid-period quotes exercise actual bound controls without opening
  // a financial confirmation or permitting any mutation adapter to run.
@@ -414,6 +455,8 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
   await responsive(page,section+' dashboard');
  }
  await resellerScopedSearchBrowser(page);
+ await unpaidRenewalBrowser(page);
+ t.diagnostic('Genuine Chrome credit renewal: selecting Unpaid enables Save debt & Renew, the modal confirms customer debt and no cash or Whish received, cancellation submits nothing, and one synthetic confirmed request carries renewOnCredit:true with no live mutations.');
  await paidCycleServiceChangeBrowser(page);
  t.diagnostic('Genuine Chrome v2 paid-cycle pricing: Beirut day 5 retains the fixed $5 combined upgrade, warns that a new renewal is added, directs adjustment-only use to Change Plan, and standalone calculate retains a $5 upgrade and -$10 downgrade credit with zero financial submissions.');
  await combinedServiceChangeBrowser(page);

@@ -1,5 +1,7 @@
 const crypto = require("node:crypto");
 const LIVE_COST_SOURCE='Proradius live renewal quotes';
+const CREDIT_EVENT='unpaid_authorized';
+const CREDIT_HISTORY_NOTE='Renewal on credit authorized; full amount remains customer debt. No cash or wallet payment received.';
 const roundCost=value=>Math.round((value+Number.EPSILON)*100)/100;
 function portalBillCost(pricing,months){
   if(!Number.isSafeInteger(months)||months<1||months>12||!Number.isFinite(pricing.cost)||pricing.cost<0||!Number.isFinite(pricing.fixedMonthlyCost)||pricing.fixedMonthlyCost<0)throw Error('A current Proradius cost, fixed monthly reference and 1–12 months are required.');
@@ -123,6 +125,30 @@ class PlanChangeLedger {
 class RenewalLedger {
   constructor(db, api, save, authorize, combinedSupport = null) { this.db = db; this.api = api; this.save = save; this.authorize = authorize; this.combinedSupport = combinedSupport; }
   one(sql, params = []) { return query(this.db, sql, params)[0] || null; }
+  creditIdentity(id){
+    const bill=this.one("SELECT b.id,b.receipt_no,b.customer_account,b.service_type,b.bundle_code,b.amount,b.payment_method,b.paid_at,b.user_id,u.account_key AS creator_key,b.portal_service_id,b.renewal_months FROM fibernetlb_bills b LEFT JOIN users u ON u.id=b.user_id WHERE b.id=?",[Number(id)]);
+    if(!bill||bill.service_type!=='Internet'||bill.payment_method!=='Unpaid'||!Number.isFinite(bill.amount)||bill.amount<=0||bill.amount>1000000||Math.abs(bill.amount*100-Math.round(bill.amount*100))>0.00001||!Number.isSafeInteger(bill.portal_service_id)||bill.portal_service_id<=0||!Number.isSafeInteger(bill.renewal_months)||bill.renewal_months<1||bill.renewal_months>12||!bill.customer_account||!bill.receipt_no||!bill.paid_at||!bill.creator_key)throw Error('The original Unpaid Internet renewal authorization could not be verified. Review this bill; no renewal was sent.');
+    return bill;
+  }
+  creditHash(bill){return crypto.createHash('sha256').update(JSON.stringify(bill)).digest('hex');}
+  creditAuthorization(id){
+    const events=query(this.db,'SELECT note FROM internet_renewal_events WHERE bill_id=? AND state=?',[Number(id),CREDIT_EVENT]);
+    if(!events.length)return null;
+    const invalid=()=>{throw Error('The saved Unpaid renewal authorization is invalid or conflicting. Review this bill; no renewal was sent.');};
+    if(events.length!==1)invalid();
+    let proof;try{proof=JSON.parse(events[0].note);}catch{invalid();}
+    const keys=['type','version','billId','requestId','requestFingerprint','billFingerprint','originalAmount'];
+    if(!proof||typeof proof!=='object'||Array.isArray(proof)||Object.keys(proof).length!==keys.length||keys.some(key=>!Object.hasOwn(proof,key))||proof.type!=='unpaid_internet_renewal'||proof.version!==1||proof.billId!==Number(id)||typeof proof.requestId!=='string'||!/^[A-Za-z0-9_-]{8,100}$/.test(proof.requestId)||typeof proof.requestFingerprint!=='string'||!/^[a-f0-9]{64}$/.test(proof.requestFingerprint)||typeof proof.billFingerprint!=='string'||!/^[a-f0-9]{64}$/.test(proof.billFingerprint))invalid();
+    const bill=this.creditIdentity(id),request=this.one('SELECT bill_id,fingerprint FROM bill_requests WHERE request_id=?',[proof.requestId]);
+    if(!request||request.bill_id!==bill.id||request.fingerprint!==proof.requestFingerprint||proof.billFingerprint!==this.creditHash(bill)||proof.originalAmount!==bill.amount)invalid();
+    return {...proof,bill};
+  }
+  authorizeOnCredit(id,requestId,fingerprint,actor){
+    const bill=this.creditIdentity(id),request=this.one('SELECT bill_id,fingerprint FROM bill_requests WHERE request_id=?',[requestId]);
+    if(!request||request.bill_id!==bill.id||request.fingerprint!==fingerprint||!this.liveCostBill(id)||this.one('SELECT bill_id FROM internet_renewals WHERE bill_id=?',[id])||this.one('SELECT id FROM internet_renewal_events WHERE bill_id=? AND state=?',[id,CREDIT_EVENT])||this.one("SELECT id FROM debt_payments WHERE kind='bill' AND record_id=?",[id])||this.one("SELECT id FROM fibernetlb_bills WHERE id=? AND (payment_status<>'unpaid' OR settled_at IS NOT NULL)",[id]))throw Error('Renewal on credit requires a new verified Unpaid Internet bill with its full original debt.');
+    const proof={type:'unpaid_internet_renewal',version:1,billId:bill.id,requestId,requestFingerprint:fingerprint,billFingerprint:this.creditHash(bill),originalAmount:bill.amount};
+    this.event(id,CREDIT_EVENT,JSON.stringify(proof),actor);
+  }
   liveCostBill(id){return this.one('SELECT portal_cost_source AS source FROM fibernetlb_bills WHERE id=?',[id])?.source?.startsWith(LIVE_COST_SOURCE);}
   costQuotes(id){return query(this.db,'SELECT cycle_no AS cycle,quoted_cost AS cost,state,quoted_at AS quotedAt FROM internet_renewal_costs WHERE bill_id=? ORDER BY cycle_no',[id]);}
   syncBillCost(id){
@@ -142,9 +168,9 @@ class RenewalLedger {
     if(free){const result=JSON.parse(free.result_json);return {state:'free',source:'free_expiry',message:'Free service until the next 5th; expiry edited only. Received money is separate expense funding, not Internet revenue.',username:result.customer?.username,service:result.customer?.service,afterExpiry:result.customer?.expiry,requestedBy:free.actor,requestedAt:free.recorded_at,attempts:0,requestedMonths:0,completedMonths:0,remainingMonths:0};}
     const creation=this.creation(id);
     if(creation){const result=JSON.parse(creation.result_json);return {state:'created',source:'account_creation',message:'Proradius activated the selected service when creating this customer. Initial service payment recorded; no additional renewal was sent.',username:result.customer?.username,service:result.customer?.service,afterExpiry:result.customer?.expiry,requestedBy:creation.actor,requestedAt:creation.recorded_at,attempts:0,requestedMonths:0,completedMonths:0,remainingMonths:0};}
-    const row = this.one("SELECT * FROM internet_renewals WHERE bill_id = ?", [id]);
-    if (!row) return { state: "not_requested", message: "Payment record only — Internet not renewed." };
-    return { state: row.state, message: row.message, username: row.username, requestedBy: row.requested_by, requestedAt: row.requested_at, completedAt: row.completed_at, beforeExpiry: row.before_expiry, afterExpiry: row.after_expiry, service: row.portal_service, attempts: row.attempts, requestedMonths:row.requested_months, completedMonths:row.completed_months, remainingMonths:row.requested_months-row.completed_months,costQuotes:this.costQuotes(id) };
+    const row = this.one("SELECT * FROM internet_renewals WHERE bill_id = ?", [id]),onCredit=Boolean(this.creditAuthorization(id));
+    if (!row) return { state: "not_requested", message: onCredit?"Renewal on credit authorized; full customer debt is recorded. Internet renewal has not been submitted yet.":"Payment record only — Internet not renewed.",...onCredit?{onCredit:true}:{} };
+    return { state: row.state, message: row.message, username: row.username, requestedBy: row.requested_by, requestedAt: row.requested_at, completedAt: row.completed_at, beforeExpiry: row.before_expiry, afterExpiry: row.after_expiry, service: row.portal_service, attempts: row.attempts, requestedMonths:row.requested_months, completedMonths:row.completed_months, remainingMonths:row.requested_months-row.completed_months,costQuotes:this.costQuotes(id),...onCredit?{onCredit:true}:{} };
   }
   free(id){return this.one("SELECT name FROM sqlite_master WHERE name='portal_operations'")?this.one("SELECT request_id,result_json,actor,recorded_at FROM portal_operations WHERE bill_id=? AND kind='free' AND state IN ('confirmed','succeeded')",[id]):null;}
   enrich(bill) {const free=this.free(bill.id),funding=free?this.one('SELECT id,receipt_no AS receiptNo,customer_account AS customerAccount,customer_name AS customerName,amount,payment_method AS paymentMethod,paid_at AS paidAt,cashier_name AS cashierName FROM installation_payments WHERE request_id=?',[free.request_id]):null;return { ...bill, renewal: this.details(bill.id),...free?{expenseFunding:funding?{...funding,whishDestination:require('./whish-destinations.cjs').readSnapshot(this.db,'installation',funding.id)}:null}: {}}; }
@@ -175,10 +201,12 @@ class RenewalLedger {
     if(this.creation(bill.id))throw Error('This initial service was activated during customer creation. Record a new bill for an additional renewal; this first bill will not renew twice.');
     const combined=this.combinedSupport?.(bill.id);
     if(this.one("SELECT name FROM sqlite_master WHERE name='portal_operations'")&&query(this.db,"SELECT request_id FROM portal_operations WHERE entity=? AND state IN ('checking','processing','unknown','confirmed')",[`customer:${bill.customerAccount}`]).some(row=>row.request_id!==combined?.requestId))throw Error("Review the unfinished charged plan change before renewal.");
-    if (bill.serviceType !== "Internet" || Number(bill.remainingAmount) !== 0 || bill.paymentStatus !== "paid") throw new Error("Renewal is available for fully paid Internet bills only. Collect any remaining debt first.");
+    const credit=this.creditAuthorization(bill.id);
+    if(credit&&(bill.customerAccount!==credit.bill.customer_account||bill.serviceType!=='Internet'||Number(bill.amount)!==credit.bill.amount||Number(bill.renewalMonths??1)!==credit.bill.renewal_months||Number(bill.portalServiceId)!==credit.bill.portal_service_id))throw Error('This bill does not match its saved Unpaid renewal authorization. No renewal was sent.');
+    if (bill.serviceType !== "Internet" || !credit&&(Number(bill.remainingAmount) !== 0 || bill.paymentStatus !== "paid")) throw new Error("Renewal is available for fully paid Internet bills only. Collect any remaining debt first.");
     const existing = this.details(bill.id);
     if (["checking","processing","succeeded","unknown"].includes(existing.state)) return existing;
-    const other = this.one("SELECT r.bill_id,b.receipt_no FROM internet_renewals r JOIN fibernetlb_bills b ON b.id = r.bill_id WHERE r.username = ? AND r.bill_id != ? AND r.state IN ('checking','processing','unknown')", [bill.customerAccount,bill.id]);
+    const other = this.one("SELECT b.id AS bill_id,b.receipt_no FROM fibernetlb_bills b LEFT JOIN internet_renewals r ON r.bill_id=b.id WHERE b.id<>? AND (r.username=? AND r.state IN ('checking','processing','unknown') OR b.customer_account=? AND EXISTS(SELECT 1 FROM internet_renewal_events e WHERE e.bill_id=b.id AND e.state='unpaid_authorized') AND (r.bill_id IS NULL OR r.state='failed' AND r.completed_months<r.requested_months)) LIMIT 1", [bill.id,bill.customerAccount,bill.customerAccount]);
     if (other) throw new Error(`This account already has an unfinished renewal on ${other.receipt_no}. Review that bill before sending another renewal.`);
     const planChange=this.one("SELECT request_id FROM internet_plan_changes WHERE username=? AND state IN ('checking','processing','unknown')",[bill.customerAccount]);
     if(planChange) throw new Error("This customer has an unfinished plan change. Review Plan change history before renewal.");
@@ -253,6 +281,6 @@ class RenewalLedger {
     const row = this.one("SELECT state,attempts FROM internet_renewals WHERE bill_id = ?",[id]);
     if (row && (row.attempts > 0 || ["checking","processing","unknown"].includes(row.state))) throw new Error("This bill has a portal renewal audit trail and cannot be deleted. Removing a payment would not undo the Internet renewal.");
   }
-  history(id) { const operation=this.creation(id)||this.free(id);return operation?query(this.db,"SELECT state,note,actor,recorded_at AS recordedAt FROM portal_operation_events WHERE request_id=? ORDER BY id",[operation.request_id]):query(this.db,"SELECT state,note,actor,recorded_at AS recordedAt FROM internet_renewal_events WHERE bill_id=? ORDER BY id",[id]); }
+  history(id) { const operation=this.creation(id)||this.free(id);return operation?query(this.db,"SELECT state,note,actor,recorded_at AS recordedAt FROM portal_operation_events WHERE request_id=? ORDER BY id",[operation.request_id]):query(this.db,"SELECT state,note,actor,recorded_at AS recordedAt FROM internet_renewal_events WHERE bill_id=? ORDER BY id",[id]).map(event=>event.state===CREDIT_EVENT?{...event,note:CREDIT_HISTORY_NOTE}:event); }
 }
 module.exports = { initializeRenewals, RenewalLedger, PlanChangeLedger,portalBillCost,LIVE_COST_SOURCE };

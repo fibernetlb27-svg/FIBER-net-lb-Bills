@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -40,8 +40,8 @@
     },
     {
       "name": "README.md",
-      "length": 15173,
-      "sha256": "f0f336473407c4de851636a58ee2fefc5a3cd18d8bd5054d31134cd244a55556"
+      "length": 16660,
+      "sha256": "956a561666246acf7b4158e8e7d6e66ec03dd8b795e2a0ab6c79621aff53bfc2"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -155,8 +155,8 @@
     },
     {
       "name": "app/core.cjs",
-      "length": 387023,
-      "sha256": "5a508ac5ae13da824b497fd87a49bfb11bc34e2f2fa54d9fd08789652ad6526d"
+      "length": 388408,
+      "sha256": "c8346ec9ebc069b5f0c3db10e7347f70cbd9c4305f91781e94f3db77351cffde"
     },
     {
       "name": "app/customer-registration.cjs",
@@ -220,8 +220,8 @@
     },
     {
       "name": "app/internet-renewals.cjs",
-      "length": 28159,
-      "sha256": "a7984b3c08a37b24a65eca72e33aaa305727b047e46d2fccfa5786f5c78803c7"
+      "length": 32770,
+      "sha256": "137f54724bb8aa608a84fc4fd834f7a4db0b206634bd45b15e970273cfaab56f"
     },
     {
       "name": "app/invoice-voids.cjs",
@@ -415,8 +415,8 @@
     },
     {
       "name": "app/src/app.js",
-      "length": 366190,
-      "sha256": "6af5ac2c158d0978666fee9a3b325dd02cdec845c7c442a15592de783e8f0cf5"
+      "length": 367458,
+      "sha256": "a12fdbb751fb2741de78789d79006f15dd576a853dd0ba78e2d69d6a3620c751"
     },
     {
       "name": "app/src/backups.js",
@@ -801,12 +801,12 @@
     {
       "name": "package-lock.json",
       "length": 1369,
-      "sha256": "9cd63f09427e36f464b0d5aac1d77238a5bf56daa0d06b15ad70d32cacb352d3"
+      "sha256": "11160e139daa434984c3d5d554a8a1d777aeb5db91b13162f2863312af744de2"
     },
     {
       "name": "package.json",
       "length": 509,
-      "sha256": "45493b7b7879aaaffe9633bbc032b469b19e96ce42f435de7151188d32d4b92e"
+      "sha256": "48bca44bd048765a000005fa0e3d08cd6d1a8789620dcde40981035b4189874d"
     },
     {
       "name": "server.cjs",
@@ -840,8 +840,8 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 84374,
-      "sha256": "91ef24907320935229dfaa362c2e1fda168fe6e3a05f5eedd71505b438f5b671"
+      "length": 92058,
+      "sha256": "c04b6678fe7f3f5954a8a376663c95307ed94786a3033fac1fa22243e32d114d"
     },
     {
       "name": "test/change-service-customer-pricing.test.cjs",
@@ -950,8 +950,8 @@
     },
     {
       "name": "test/retained/manifest.json",
-      "length": 19226,
-      "sha256": "84033b42f54bc05161a242904fe037bfbd94d64706e4fe908d6ba9b4fcf04eef"
+      "length": 19422,
+      "sha256": "859c5131c7aa0c08297c013e25f7ffb31b55067d0939129e160e31549681e389"
     },
     {
       "name": "test/retained/qa-admin-money-transfers.cjs",
@@ -1117,6 +1117,16 @@
       "name": "test/server.test.cjs",
       "length": 15681,
       "sha256": "280669149942edbeb6a0e6808868b713182d810ec580705073e6b9b7937a1c3f"
+    },
+    {
+      "name": "test/unpaid-internet-renewals.test.cjs",
+      "length": 20767,
+      "sha256": "74f68278367f4f07fb758c951d9f8ac48cbc407ba487c8c2c2dfb3a9d4c21a5a"
+    },
+    {
+      "name": "test/unpaid-renewal-ui.test.cjs",
+      "length": 17945,
+      "sha256": "ddaaf3225723d3f2fc9a5b23f146fa3e275d60ca122a513a4bc65d4274001c67"
     },
     {
       "name": "tools/check-source.cjs",
