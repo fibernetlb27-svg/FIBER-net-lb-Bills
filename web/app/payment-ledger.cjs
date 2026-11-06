@@ -71,7 +71,7 @@ class PaymentLedger {
     if(!["Cash","Whish Money"].includes(method))throw new Error("Collect by Cash or Whish Money.");
     const key=requestId || crypto.randomUUID();
     if(!/^[a-zA-Z0-9-]{8,100}$/.test(key))throw new Error("Invalid payment request.");
-    const prior=query(this.db,"SELECT * FROM debt_payments WHERE id=?",[key])[0];
+    const preserved=require('./bill-payment-corrections.cjs').originalCollection(this.getRawDatabase(),key),prior=preserved?.payment||query(this.db,"SELECT * FROM debt_payments WHERE id=?",[key])[0];
     if(prior) {
       const user=this.getUser();if(user&&user.role!=='admin'&&Number(prior.user_id)!==Number(user.id))throw Error('This payment request belongs to another operator.');
       if(prior.kind!==kind || prior.record_id!==Number(id) || prior.payment_method!==method || (amountInput!==undefined && cents(amountInput)!==prior.amount_cents))throw new Error("This payment request was already used for another payment.");

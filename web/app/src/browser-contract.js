@@ -3,6 +3,7 @@ window.buildBrowserPosApi = invoke => {
 const api = {
   adminTransfers:Object.fromEntries(['access','sources','preview','transfer','status','resume','pending','history'].map(method=>[method,(input={})=>invoke('adminTransfers:'+method,input)])),
   notes:Object.fromEntries(['list','save','remove','restore','status','resume'].map(method=>[method,(input={})=>invoke('notes:'+method,input)])),
+  billPayments:Object.fromEntries(['options','preview','correct','status','history'].map(method=>[method,input=>invoke('billPayments:'+method,input)])),
   bank:Object.fromEntries(['access','overview','collectionOverview','sources','preview','transfer','status','resume','pending'].map(method=>[method,(input={})=>invoke('bank:'+method,input)])),
   mainOfficePayables:{overview:(...args)=>invoke('mainOfficePayables:overview',...args),details:(...args)=>invoke('mainOfficePayables:details',...args)},
   maintenance:Object.fromEntries(['list','save','checkoutOptions','checkout','status','pending','resume'].map(method=>[method,input=>invoke('maintenance:'+method,input)])),

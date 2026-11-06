@@ -832,6 +832,14 @@ html[data-theme="fibernetlb"] .combined-overview { background: #221710; border: 
 .paid-amount { color: var(--success, #16865f); }
 .whish-card { border-color: #d7668955; }
 .debt-payment-preview { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.bpc-dialog .modal-actions { flex-wrap:wrap; }
+.bpc-preview:not(:empty) { padding:16px; margin-top:18px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+.bpc-metric { display:flex; justify-content:space-between; gap:18px; padding:7px 0; overflow-wrap:anywhere; }
+.bpc-metric strong { text-align:right; }
+.bpc-check { display:flex; align-items:flex-start; gap:10px; margin-top:16px; }
+.bpc-check input { width:20px; height:20px; flex:0 0 20px; }
+.bpc-dialog details { margin-top:20px; overflow-wrap:anywhere; }
+@media(max-width:480px) { .bpc-dialog .modal-actions .button { flex:1 1 160px; } .bpc-metric { gap:10px; } }
 .receipt-balance { display: flex; justify-content: space-between; gap: 12px; margin: 8px 0; font-size: 13px; }
 @media (max-width: 1100px) { .payment-breakdown, .collection-breakdown { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 650px) { .payment-breakdown, .collection-breakdown { grid-template-columns: 1fr; } }

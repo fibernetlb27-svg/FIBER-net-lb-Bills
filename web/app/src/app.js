@@ -559,6 +559,7 @@ function showNetworkSetup(canCancel = false) {
 }
 
 function applyPermissions() {
+  window.BillPaymentCorrections?.syncAccess();
   if(['fixed-monthly','company-debts','bank'].includes(state.currentView)&&!isMainAdmin())switchView(defaultView());
   configureAdminInventory();
   $$('[data-permission]').forEach((element) => element.classList.toggle("hidden", !has(element.dataset.permission)));
@@ -674,6 +675,10 @@ async function startApp(user) {
     const receipt=state.activeReceipt,record=receipt?.record;
     if(receipt?.type==='sale'&&Number(record.id)===result.saleId&&(record.workspaceId||businessWorkspace.id)===result.workspaceId){clearReceiptCredentials();state.activeReceipt=null;if($('#receipt-dialog').open)$('#receipt-dialog').close();window.InvoiceVoids?.setReceipt(null,null);}
     await Promise.all([loadDashboard(),has('products.read')?loadProducts():Promise.resolve(),has('drawer.view')?loadDrawer():Promise.resolve(),has('debts.view')?loadDebts():Promise.resolve(),has('expenses.view')?loadExpenses():Promise.resolve(),has('reports.view')&&state.currentView==='reports'?loadReport():Promise.resolve()]);
+  }});
+  window.BillPaymentCorrections?.init({api,getUser:()=>state.currentUser,getWorkspace:()=>businessWorkspace,has,identity:portalWorkflowIdentity,toast:showToast,refresh:async bill=>{
+    if(state.activeReceipt?.type==='bill'&&Number(state.activeReceipt.record?.id)===Number(bill?.id)){clearReceiptCredentials();state.activeReceipt=null;if($('#receipt-dialog').open)$('#receipt-dialog').close();}
+    await Promise.all([has('bills.view')?loadBills():Promise.resolve(),has('debts.view')?loadDebts():Promise.resolve(),has('drawer.view')?loadDrawer():Promise.resolve(),has('dashboard.view')?loadDashboard():Promise.resolve(),has('reports.view')&&state.currentView==='reports'?loadReport():Promise.resolve()]);
   }});
   // A destination/catalog read must not invalidate a successful sign-in.
   const whishStartup=has('dashboard.view')?WhishPayments.start(api,isMainAdmin):Promise.resolve();
@@ -1445,7 +1450,7 @@ function renderBills() {
   $("#bills-internet-total").textContent = formatMoney(internet);
   $("#bills-satellite-total").textContent = formatMoney(satellite);
   $("#bills-body").innerHTML = filtered.length
-    ? filtered.map((bill) => `<tr><td><strong>${escapeHtml(bill.receiptNo)}</strong><small>Recorded by ${escapeHtml(bill.cashierName || "—")}</small>${bill.renewal?.requestedBy ? `<small>Renewed by ${escapeHtml(bill.renewal.requestedBy)}</small>` : ""}</td><td>${dateTimeFormatter.format(new Date(bill.paidAt))}</td><td><div class="user-cell"><strong>${escapeHtml(bill.customerName)}</strong><span>${escapeHtml(bill.customerAccount)}${bill.phone ? ` · ${escapeHtml(bill.phone)}` : ""}</span></div></td><td><span class="status status-ok">${escapeHtml(bill.serviceType)}</span>${billRenewalBadge(bill)}</td><td><div class="user-cell"><strong>${escapeHtml(bill.bundleName || "Custom / legacy")}</strong><span>${escapeHtml(bill.bundleDetails || "No saved bundle")}</span></div></td><td>${escapeHtml(bill.billingPeriod)}</td><td>${paymentBadge(bill.paymentMethod, bill.paymentStatus)}${Number(bill.amount)<0?"<small>Refund</small>":""}</td><td class="number"><strong>${formatMoney(bill.amount)}</strong></td><td><div class="row-actions"><button class="icon-button print-bill" data-id="${bill.id}" aria-label="Print ${escapeHtml(bill.receiptNo)}" title="Print receipt">${icon("print")}</button>${internetBillActions(bill)}${has("bills.manage") ? `<button class="icon-button delete delete-bill" data-id="${bill.id}" aria-label="Delete bill payment" title="Delete bill payment">${icon("trash")}</button>` : ""}</div></td></tr>`).join("")
+    ? filtered.map((bill) => `<tr><td><strong>${escapeHtml(bill.receiptNo)}</strong><small>Recorded by ${escapeHtml(bill.cashierName || "—")}</small>${bill.renewal?.requestedBy ? `<small>Renewed by ${escapeHtml(bill.renewal.requestedBy)}</small>` : ""}</td><td>${dateTimeFormatter.format(new Date(bill.paidAt))}</td><td><div class="user-cell"><strong>${escapeHtml(bill.customerName)}</strong><span>${escapeHtml(bill.customerAccount)}${bill.phone ? ` · ${escapeHtml(bill.phone)}` : ""}</span></div></td><td><span class="status status-ok">${escapeHtml(bill.serviceType)}</span>${billRenewalBadge(bill)}</td><td><div class="user-cell"><strong>${escapeHtml(bill.bundleName || "Custom / legacy")}</strong><span>${escapeHtml(bill.bundleDetails || "No saved bundle")}</span></div></td><td>${escapeHtml(bill.billingPeriod)}</td><td>${paymentBadge(bill.paymentMethod, bill.paymentStatus)}${Number(bill.amount)<0?"<small>Refund</small>":""}</td><td class="number"><strong>${formatMoney(bill.amount)}</strong></td><td><div class="row-actions"><button class="icon-button print-bill" data-id="${bill.id}" aria-label="Print ${escapeHtml(bill.receiptNo)}" title="Print receipt">${icon("print")}</button>${window.BillPaymentCorrections?.button(bill)||''}${internetBillActions(bill)}${has("bills.manage") ? `<button class="icon-button delete delete-bill" data-id="${bill.id}" aria-label="Delete bill payment" title="Delete bill payment">${icon("trash")}</button>` : ""}</div></td></tr>`).join("")
     : emptyRow(9, search ? "No matching payments" : "No bill payments in this period");
 }
 

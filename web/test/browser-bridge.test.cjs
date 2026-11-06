@@ -7,7 +7,7 @@ const root = path.join(__dirname,'..','app','src');
 const contract = fs.readFileSync(path.join(root,'browser-contract.js'),'utf8');
 const bridge = fs.readFileSync(path.join(root,'browser-api.js'),'utf8');
 const user = {id:1,username:'fictional-admin',fullName:'Fictional Admin',role:'admin',permissions:['dashboard.view']};
-const sections = [{id:'main',kind:'main',name:'Main dashboard'},{id:'printer',kind:'printing',name:'Printer'}];
+const sections = [{id:'main',kind:'main',name:'Main dashboard'},{id:'printer',kind:'printing',name:'Printer'},{id:'fiber-users',kind:'internet',name:'Fictional Users'}];
 function storage(initial = {}) {
   const values = new Map(Object.entries(initial));
   return {getItem:key => values.has(key) ? values.get(key) : null,setItem:(key,value) => values.set(key,String(value)),removeItem:key => values.delete(key),values};
@@ -92,6 +92,15 @@ test('collection balances and automatic closing status are read-only browser req
     {channel:'bank:collectionOverview',args:[{workspaceId:'fiber-users'}],workspaceId:'main'},
     {channel:'finance:autoMonthStatus',args:[],workspaceId:'main'}
   ]);
+});
+
+test('payment correction transport preserves one reviewed request and never retries a lost financial response',async()=>{
+  const h=harness({workspaceId:'fiber-users',rpc:()=>{throw Error('Fictional offline response');}});
+  for(const method of ['options','preview','status','history'])await assert.rejects(h.api.billPayments[method]({billId:7,requestId:'fictional-correction'}),error=>error.uncertain===false);
+  const input={billId:7,paymentKey:'fictional-collection',method:'Unpaid',requestId:'fictional-correction',token:'a'.repeat(64),reason:'Fictional payment entered incorrectly'};
+  await assert.rejects(h.api.billPayments.correct(input),error=>error.uncertain===true&&/Nothing was automatically retried/.test(error.message));
+  const calls=h.calls.filter(row=>row.route==='/api/rpc').map(row=>JSON.parse(row.options.body));
+  assert.equal(calls.length,5);assert.deepEqual(calls.at(-1),{channel:'billPayments:correct',args:[input],workspaceId:'fiber-users'});
 });
 test('logout clears local sign-in even on network failure and preserves pending request markers',async()=>{
   const marker='fiber-invoice-void-v1:existing-account:original';

@@ -112,6 +112,8 @@ const whishPolicyPendingSaves=new Set();
 let refreshingWhishReceiptPolicy=false;
 function activityUser(){const user=currentUser();return user?{...user,financial_ownership:supportAccountingReady}:user;}
 let paymentLedger;
+let billPaymentCorrections;
+const BillPaymentCorrectionService=require('./bill-payment-corrections.cjs');
 const {PaymentLedger,initializePayments}=require("./payment-ledger.cjs");
 const Whish=require('./whish-destinations.cjs');
 const Finance=require('./finance-ledger.cjs');
@@ -151,6 +153,7 @@ PORTAL_ASYNC_CHANNELS.push(...['list','save','remove','restore','status','resume
 PORTAL_ASYNC_CHANNELS.push('adminReceivables:payBill');
 PORTAL_ASYNC_CHANNELS.push('warehouse:create','warehouse:update','warehouse:purchase','warehouse:setOffer','warehouse:checkout','warehouse:collect','warehouse:resume');
 PORTAL_ASYNC_CHANNELS.push('invoiceVoids:preview','invoiceVoids:remove','invoiceVoids:resume');
+PORTAL_ASYNC_CHANNELS.push('billPayments:correct');
 PORTAL_ASYNC_CHANNELS.push(...['list','save','checkoutOptions','checkout','status','pending','resume'].map(name=>'maintenance:'+name));
 PORTAL_ASYNC_CHANNELS.push(...['options','preview','purchase','status','pending','resume','history'].map(name=>'stockPurchases:'+name));
 function activeSession() { return requestContext.getStore() || defaultSession; }
@@ -269,7 +272,8 @@ function whishSelection(input,method,previous=undefined){
 }
 function billWhishSelection(input,method,trustedSnapshot=undefined){
   const previous=input.requestId?one('SELECT bill_id FROM bill_requests WHERE request_id=?',[String(input.requestId)]):null;
-  const snapshot=whishSelection(input,method,previous?Whish.readSnapshot(database,'bill',previous.bill_id):trustedSnapshot);
+  const preserved=previous?BillPaymentCorrectionService.originalBill(database,previous.bill_id):null;
+  const snapshot=whishSelection(input,method,previous?(preserved?preserved.snapshot:Whish.readSnapshot(database,'bill',previous.bill_id)):trustedSnapshot);
   return snapshot?{whishDestination:snapshot}:{};
 }
 
@@ -416,6 +420,7 @@ function checkWorkspaceChannel(channel) {
     }else requireSectionAccess();
   }
   const kind = activeWorkspace().kind;
+  if(channel.startsWith('billPayments:')&&activeWorkspace().id!=='fiber-users')throw Error('Payment corrections belong to FIBER net lb Users only.');
   if (kind === "main" && currentUser()) {
     const access = sectionAccess.ids(currentUser(),"main");
     if ((channel.startsWith("expenses:") || channel.startsWith("expenseCategories:")) && !access.includes("main-expenses")) throw new Error("Company Expenses access is not assigned to this user.");
@@ -437,6 +442,7 @@ function checkWorkspaceChannel(channel) {
 function registerHandler(channel, handler) {
   const guarded = (event, ...args) => {
     checkWorkspaceChannel(channel);
+    if(!['billPayments:correct','billPayments:status'].includes(channel)&&!channel.startsWith('auth:'))billPaymentCorrections?.assertIdle();
     if(currentUser()&&/^notes:(save|remove|restore|resume)$/.test(channel)){bankAccounts?.assertIdle();monthClosing?.assertIdle();assertCommerceIdle();assertWarehouseIdle();assertInvoiceVoidIdle();assertNoFixedMonthlyPending('main');assertNoBandwidthPending('main');}
     if(currentUser()&&!channel.startsWith('adminTransfers:')&&(BANDWIDTH_GUARDED_WRITES.has(channel)||/^(warehouse:|invoiceVoids:|reports:|finance:|adminReceivables:|adminCatalog:|products:|purchases:|debts:|resellers:|bandwidth:|fixedMonthly:|companyDebts:|bank:|maintenance:|stockPurchases:|portal:|bills:|telecomPayments:|backups:|notes:save|notes:remove|notes:restore|notes:resume|updates:rollback)/.test(channel)))adminMoneyTransfers?.assertIdle();
     if(currentUser()&&!MONTH_CLOSING_CHANNELS.has(channel)&&(BANDWIDTH_GUARDED_WRITES.has(channel)||/^(warehouse:|invoiceVoids:|reports:|finance:|adminReceivables:|adminCatalog:|products:|purchases:|debts:|resellers:|bandwidth:|fixedMonthly:|companyDebts:|bank:|maintenance:|stockPurchases:|portal:|bills:|telecomPayments:|backups:|updates:rollback)/.test(channel)))monthClosing?.assertIdle();
@@ -1786,6 +1792,8 @@ function initializeBusinessSections(SQL) {
   for(const entry of workspaceDatabases.values()){WalletGross.initialize(entry.db);saveSectionEntry(entry);}
   refreshWhishReceiptPolicy();
   supportAccountingReady=true;
+  const correctionEntry=workspaceDatabases.get('fiber-users');
+  if(BillPaymentCorrectionService.needsMigration(correctionEntry.db)){backupAllSections('before-bill-payment-corrections');correctionEntry.db.exec('BEGIN');try{BillPaymentCorrectionService.initialize(correctionEntry.db);correctionEntry.db.exec('COMMIT');}catch(error){correctionEntry.db.exec('ROLLBACK');throw error;}saveSectionEntry(correctionEntry);}
   activityDatabase=scopedDatabase(database,activityUser,()=>workspaceDatabases.get(activeSession().workspaceId)?.db||database);
   paymentLedger=new PaymentLedger(activityDatabase,activityUser,()=>workspaceDatabases.get(activeWorkspace().id).db);
   const actorScope={key:()=>sectionAccess.key(currentUser(),activeSession().workspaceId),scope:()=>currentUser()?.role==='admin'?null:sectionAccess.key(currentUser(),activeSession().workspaceId)||'__no_owner__'};
@@ -1795,6 +1803,7 @@ function initializeBusinessSections(SQL) {
   planLedger = new PlanChangeLedger(database,portalApi,saveDatabase,()=>authorizeInternet('plans.manage'),actorScope);
   operationLedger = new PortalOperationLedger(database,saveDatabase,authorizePortalOperation,actorScope);
   initializeCombinedChangeRenew();
+  billPaymentCorrections=new BillPaymentCorrectionService.BillPaymentCorrections({db:correctionEntry.db,authorize:()=>{checkWorkspaceChannel('billPayments:options');const user=currentUser();if(!user||user.activity_inspection||!['admin','cashier','support'].includes(user.role))throw Error('Payment corrections are available to Admin, Cashier and Support in Users only.');requirePermission('bills.view');if(!hasPermission('bills.create')&&!hasPermission('bills.manage'))requirePermission('bills.create');return user;},readBill:billById,readDetail:id=>paymentLedger.details('bill',id),destinations:()=>Whish.listDestinations(workspaceDatabases.get('main').db,true),now:localIso,save:saveDatabase,backup:()=>backupAllSections('before-selected-bill-payment-correction'),ready:()=>{adminMoneyTransfers?.assertIdle();monthClosing?.assertIdle();bankAccounts?.assertIdle();assertCommerceIdle();assertInvoiceVoidIdle();assertWarehouseIdle();assertNoWalletReconciliationPending('fiber-users');assertNoBandwidthPending('fiber-users');assertNoFixedMonthlyPending('main');}});
   resellerFunding=new ResellerFundingService({entries:workspaceDatabases,api:()=>portalApi,ledger:()=>operationLedger,now:localIso,
     authorize:authorizeResellerFunding,canManage:()=>hasPermission('resellerFunding.manage')&&hasPermission('drawer.manage'),
     receiverKey:resellerRecipientKey,cashiers:resellerCashiers,
@@ -2708,6 +2717,7 @@ function registerAdminReceivablesHandlers(){
 }
 
 function registerHandlers() {
+  for(const method of ['options','preview','correct','status','history'])registerHandler('billPayments:'+method,(_event,input)=>billPaymentCorrections[method](input));
   registerCommerceHandlers();
   registerInvoiceVoidHandlers();
   registerWarehouseHandlers();
@@ -3653,8 +3663,8 @@ function registerHandlers() {
     requirePermission("debts.manage");
     if(kind==='sale'&&!warehouseBridge&&warehouseHasTable(activeWorkspace().id,'warehouse_sale_links')&&one('SELECT request_id FROM warehouse_sale_links WHERE sale_id=?',[Number(id)]))throw Error(warehouseDeferredReason||'Restart Main after restoring storage access before collecting an Admin-stock customer debt. Its custody and margin funding must be recorded together.');
     const method=paymentMethod(methodInput,{allowUnpaid:false});
-    const prior=one('SELECT id FROM debt_payments WHERE id=?',[String(requestId||'')]);
-    const destination=whishSelection({whishDestinationId:destinationId},method,prior?Whish.readSnapshot(database,'debt',prior.id):undefined);
+    const preserved=BillPaymentCorrectionService.originalCollection(database,String(requestId||'')),prior=preserved?.payment||one('SELECT id FROM debt_payments WHERE id=?',[String(requestId||'')]);
+    const destination=whishSelection({whishDestinationId:destinationId},method,prior?(preserved?preserved.snapshot:Whish.readSnapshot(database,'debt',prior.id)):undefined);
     const at=localIso(),user=currentUser();
     const result=paymentLedger.collect(kind,Number(id),method,amount,requestId,at,user.full_name,(value,reference)=>addDrawerMovement(value,"debt_settlement",kind,Number(id),reference),destination,
       saved=>warehouseBridge?.fundingAfterCollection({...saved,kind,id:Number(id),receivedAt:at,user:{...user,workspaceId:activeWorkspace().id}}));
@@ -3845,6 +3855,7 @@ function safeError(error){return String(error?.message||'The request could not b
 const pendingRequests=new Set();
 let backupTimer=null,scheduledBackup=Promise.resolve(),monthTimer=null,automaticMonthScheduler=null,scheduledMonthClose=Promise.resolve(),automaticMonthExclusive=false;
 async function executeAutomaticMonthClose({month,workspaces}){
+ billPaymentCorrections?.assertIdle();
  if(closed||automaticMonthExclusive)throw Error('Automatic monthly closing is not currently available.');
  automaticMonthExclusive=true;
  try{

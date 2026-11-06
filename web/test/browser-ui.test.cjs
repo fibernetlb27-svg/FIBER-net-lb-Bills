@@ -139,6 +139,50 @@ async function resellerScopedSearchBrowser(page){
  }
 }
 
+async function billPaymentCorrectionBrowser(page){
+ // The real mounted editor uses synthetic options/preview/correct adapters.
+ // Browser memory changes only; no accounting or provider write reaches RPC.
+ await evaluate(page,`(async()=>{
+  const qa=window.__qaPaymentCorrection={originalPayments:{...posApi.billPayments},originalBills:{...posApi.bills},originalPortal:{...posApi.portal},originalWhish:{...posApi.whish},oldView:state.currentView,oldBills:state.bills,oldOperations:structuredClone(portalOperations),oldSearch:document.querySelector('#bill-search').value,previews:[],corrections:[],unexpected:[]};
+  qa.storageKey='fibernetlb.bill-payment-correction.v1:'+businessWorkspace.id+':'+(state.currentUser.accountKey||state.currentUser.account_key||state.currentUser.username||'');qa.oldHeld=sessionStorage.getItem(qa.storageKey);if(qa.oldHeld)throw Error('Fictional correction acceptance requires no pending correction');
+  qa.bill={id:900012,receiptNo:'FICTIONAL-CORRECTION-001',customerAccount:'fictional.correction.customer',customerName:'Fictional Correction Customer',phone:'03000006',serviceType:'Internet',bundleName:'Fictional paid Internet',bundleDetails:'Synthetic Cash collection for editor acceptance',billingPeriod:'2026-11',amount:20,paymentMethod:'Cash',paymentStatus:'paid',paidAmount:20,remainingAmount:0,paidAt:new Date().toISOString(),cashierName:'Fictional Correction Cashier',renewal:{state:'succeeded',completedMonths:1,requestedMonths:1}};
+  const noMutation=channel=>async()=>{qa.unexpected.push(channel);throw Error('Payment correction acceptance must not call '+channel);};
+  for(const name of ['applyChange','createCustomer','resumeOperation','resolveOperation'])posApi.portal[name]=noMutation('portal.'+name);
+  for(const name of ['create','savePortal','saveRenew','saveFreeRenewal','renew','startChangeRenew','confirmChangeRenew','resumeChangeRenew','resolveChangeRenew','delete'])posApi.bills[name]=noMutation('bills.'+name);
+  posApi.bills.list=async()=>[structuredClone(qa.bill)];
+  posApi.bills.changeRenewStatus=async()=>({pending:[]});posApi.portal.operations=async()=>[];
+  posApi.whish.list=async()=>[{id:'fictional-correction-wallet',label:'Fictional Correction Wallet',number:'03000006'}];
+  posApi.billPayments.options=async input=>({billId:input.billId,receiptNo:qa.bill.receiptNo,paidAmount:20,remainingAmount:0,payments:[{paymentKey:'original',amount:20,method:'Cash',receivedAt:'2026-11-06T10:00:00',ownerName:'Fictional Correction Cashier',canCorrect:true,blockedReason:''}],history:[]});
+  posApi.billPayments.preview=async input=>{qa.previews.push(structuredClone(input));return {...input,oldMethod:'Cash',amount:20,ownerName:'Fictional Correction Cashier',feeBefore:0,feeAfter:.2,debtBefore:0,debtAfter:0,whishDestination:{label:'Fictional Correction Wallet',number:'03000006'},token:(qa.previews.length===1?'a':'b').repeat(64)};};
+  posApi.billPayments.correct=async input=>{qa.corrections.push(structuredClone(input));qa.bill={...qa.bill,paymentMethod:'Whish Money'};return {requestId:input.requestId,state:'completed',bill:structuredClone(qa.bill),correction:{oldMethod:'Cash',method:'Whish Money',amount:20,feeAfter:.2,reason:input.reason}};};
+  posApi.billPayments.status=async()=>null;posApi.billPayments.history=async()=>[];
+  switchView('bills',{deferLoad:true});document.querySelector('#bill-search').value='';await loadBills();
+ })()`);
+ try{
+  await waitFor(page,"document.querySelector('#bills-body [data-edit-bill-payment=\"900012\"]')",'Synthetic bill exposes its mounted correction action');
+  await tap(page,'#bills-body [data-edit-bill-payment="900012"]');
+  await waitFor(page,"document.querySelector('#bill-payment-correction-dialog').open&&document.querySelector('#bpc-payment').value==='original'",'Original Cash collection loads in the editor');
+  await evaluate(page,"document.querySelector('#bpc-method').value='Whish Money';document.querySelector('#bpc-method').dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#bpc-wallet').value='fictional-correction-wallet';document.querySelector('#bpc-wallet').dispatchEvent(new Event('change',{bubbles:true}))");
+  await tap(page,'#bpc-reason');await page.send('Input.insertText',{text:'Correct fictional Cash entry to Whish'});
+  await tap(page,'#bpc-submit');await waitFor(page,"document.querySelector('#bpc-submit').textContent==='Save correction'",'First correction preview renders before confirmation');
+  assert.deepEqual(await evaluate(page,"(()=>{const rows=Object.fromEntries([...document.querySelectorAll('#bpc-preview .bpc-metric')].map(row=>[row.querySelector('span').textContent,row.querySelector('strong').textContent]));return {amount:rows['Selected payment'],change:rows.Change,fee:rows['Whish fee after'],debt:rows['Customer debt after'],reviewed:document.querySelector('#bpc-reviewed').checked,disabled:document.querySelector('#bpc-submit').disabled,writes:__qaPaymentCorrection.corrections.length};})()"),{amount:'$20.00',change:'Cash → Whish Money',fee:'$0.20',debt:'$0.00',reviewed:false,disabled:true,writes:0},'Cash20 to Whish review shows its exact fee and unchanged debt before any write');
+  await tap(page,'#bpc-close');await waitFor(page,"!document.querySelector('#bill-payment-correction-dialog').open",'Closing a correction preview cancels without saving');
+  assert.equal(await evaluate(page,"__qaPaymentCorrection.corrections.length"),0,'Cancelled preview does not correct the collection');
+  await tap(page,'#bills-body [data-edit-bill-payment="900012"]');await waitFor(page,"document.querySelector('#bill-payment-correction-dialog').open&&document.querySelector('#bpc-payment').value==='original'",'Same original collection can be reviewed again');
+  await evaluate(page,"document.querySelector('#bpc-method').value='Whish Money';document.querySelector('#bpc-method').dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#bpc-wallet').value='fictional-correction-wallet';document.querySelector('#bpc-wallet').dispatchEvent(new Event('change',{bubbles:true}))");
+  await tap(page,'#bpc-reason');await page.send('Input.insertText',{text:'Correct fictional Cash entry to Whish'});await tap(page,'#bpc-submit');
+  await waitFor(page,"document.querySelector('#bpc-submit').textContent==='Save correction'",'Fresh preview is required after cancellation');
+  await tap(page,'#bpc-reviewed');assert.equal(await evaluate(page,"document.querySelector('#bpc-submit').disabled"),false,'Explicit reviewed checkbox enables Save correction');
+  await tap(page,'#bpc-submit');await waitFor(page,"__qaPaymentCorrection.corrections.length===1&&!document.querySelector('#bill-payment-correction-dialog').open&&state.bills.some(bill=>bill.id===900012&&bill.paymentMethod==='Whish Money')",'One synthetic correction completes and refreshes the bill');
+  const result=await evaluate(page,"(()=>{const qa=__qaPaymentCorrection,input=qa.corrections[0];return {previews:qa.previews,write:{billId:input.billId,paymentKey:input.paymentKey,method:input.method,wallet:input.whishDestinationId,token:input.token,reason:input.reason},requestId:input.requestId,pending:sessionStorage.getItem(qa.storageKey),unexpected:qa.unexpected};})()");
+  assert.deepEqual(result.previews,[{billId:900012,paymentKey:'original',method:'Whish Money',whishDestinationId:'fictional-correction-wallet'},{billId:900012,paymentKey:'original',method:'Whish Money',whishDestinationId:'fictional-correction-wallet'}]);
+  assert.deepEqual(result.write,{billId:900012,paymentKey:'original',method:'Whish Money',wallet:'fictional-correction-wallet',token:'b'.repeat(64),reason:'Correct fictional Cash entry to Whish'},'Save submits only the newly reviewed original collection, wallet, token and reason');
+  assert.match(result.requestId,/^[a-f0-9-]{36}$/);assert.equal(result.pending,null);assert.deepEqual(result.unexpected,[],'No renewal, collection, provider write or unrelated financial mutation is called');
+ }finally{
+  await evaluate(page,"(()=>{const qa=window.__qaPaymentCorrection;if(!qa)return;if(document.querySelector('#bill-payment-correction-dialog').open)document.querySelector('#bill-payment-correction-dialog').close();Object.assign(posApi.billPayments,qa.originalPayments);Object.assign(posApi.bills,qa.originalBills);Object.assign(posApi.portal,qa.originalPortal);Object.assign(posApi.whish,qa.originalWhish);if(qa.oldHeld===null)sessionStorage.removeItem(qa.storageKey);else sessionStorage.setItem(qa.storageKey,qa.oldHeld);state.bills=qa.oldBills;portalOperations=qa.oldOperations;document.querySelector('#bill-search').value=qa.oldSearch;switchView(qa.oldView,{deferLoad:true});renderBills();delete window.__qaPaymentCorrection;})()");
+ }
+}
+
 async function unpaidRenewalBrowser(page){
  // Pointer-operated UI acceptance uses a synthetic savePortal adapter only.
  // No provider call, customer debt or cash/Whish mutation reaches the backend.
@@ -455,6 +499,8 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
   await responsive(page,section+' dashboard');
  }
  await resellerScopedSearchBrowser(page);
+ await billPaymentCorrectionBrowser(page);
+ t.diagnostic('Genuine Chrome payment correction: a selected Cash $20 collection is reviewed as Whish with a $0.20 fee and unchanged debt, cancelled without saving, then explicitly confirmed once with the exact wallet, reason and fresh token through a synthetic adapter; no live financial mutation occurs.');
  await unpaidRenewalBrowser(page);
  t.diagnostic('Genuine Chrome credit renewal: selecting Unpaid enables Save debt & Renew, the modal confirms customer debt and no cash or Whish received, cancellation submits nothing, and one synthetic confirmed request carries renewOnCredit:true with no live mutations.');
  await paidCycleServiceChangeBrowser(page);

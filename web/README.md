@@ -1,6 +1,6 @@
 # FIBER net lb website preview
 
-Version 0.1.11 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.12 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 Use isolated staging and a copied-data rehearsal before a new deployment or upgrade. The existing authorized accounting server remains the sole authority until an agreed cutover; an already migrated website must not resume recording on its old desktop copy. The website uses the seven existing SQLite database formats. Fictional previews and their checks are separate from accepting live business data.
 
@@ -88,6 +88,18 @@ Collect the bill later from **Debts**, entering the amount actually received and
 
 Only a new, explicitly confirmed renewal-on-credit request can receive this authorization. Historical unpaid bills do not become eligible automatically. The original request and authorization persist across restart. A failed pre-submission request may continue from its own bill; confirmed cycles are never repeated, and an uncertain provider result requires the existing Admin review. Free expiry extensions, combined Change service & renew and initial customer creation retain their existing payment rules. No saved bill, payment, customer balance or historical archive is rewritten by installing this update.
 
+## Correct a Users bill payment method
+
+In **FIBER net lb Users → Bills**, use the receipt's **Edit payment method** button. Admin, Cashier and Support can review permitted payments in their business. Staff retain their existing activity ownership; Admin can correct another permitted money holder's receipt without moving it to Admin's own drawer.
+
+Select one actual received payment, choose Cash, Whish Money or Unpaid, and enter a reason. Choosing Whish requires the exact active destination wallet. Review the amount, holder, fee and resulting customer debt, tick the review confirmation and save. Cash and Whish swap only that payment's recorded custody; Whish fees affect profit once and never reduce wallet principal. Unpaid removes the selected received amount and returns it to customer debt. Other partial payments stay recorded. Collect a new payment through **Debts** when the customer actually pays.
+
+Corrections retain before/after evidence, the operator and reason in an immutable audit. They do not renew the service, change its plan or send an external refund or transfer. The original request remains reserved so a delayed payment request cannot collect the money again after correction. If a response is lost, open the editor and use **Check saved correction**; do not create a replacement request.
+
+A direct original payment must belong to an open month. An open-month collection against an older closed unpaid bill may be corrected without reopening its archived month. Closed payments, handed-over funds, insufficient source funds, unresolved provider or money operations and older Whish payments with linked fee-adjustment audits require review and show a specific reason. The system never substitutes another employee's money. Free-renewal bill amounts are zero; their separate expense-funding receipts are outside this editor.
+
+On upgrade, an empty correction journal, index and two immutable-audit triggers are added only to the Users database. Existing receipt, collection, custody and archive rows are not recalculated. Only an explicitly confirmed selected correction changes the current payment record; its previous record stays in the audit.
+
 ## Verification
 
 ```sh
@@ -95,7 +107,7 @@ node tools/check-source.cjs
 npm test
 ```
 
-Tests use fictional, temporary data. The suite covers the genuine headless core, real HTTP sessions, roles and business isolation, funding and monthly closing, copied-data preservation, and a real Chrome browser. Thirty unchanged accepted financial fixtures run against 55 unchanged accounting modules and eleven explicitly hashed website adaptations recorded in `test/retained/manifest.json`. The reviewed adaptations cover backups, reseller monthly reporting/carry-forward, the trusted automatic close boundary, prior-month Bank deposit limits, exact-parent combined renewal recovery/costs and safe Proradius validation reporting; the original desktop sources stay unchanged. Dedicated tests also check bounded validation parsing, fixed safe messages, unchanged native payloads, uncertain-outcome replay protection, preserved audit rows and literal browser error rendering. Provider tests use mocked responses and do not submit a live service change, renewal, payment or refund. Existing coverage retains Support handover visibility and authorization, reseller collection dates and monthly totals, immutable archives, protected carried funds, automatic Beirut month closing and restart recovery, prior-month-only Bank balances, partial deposits and stale-request rejection, local-only daily backups and blocked external delivery while providers are disabled.
+Tests use fictional, temporary data. The suite covers the genuine headless core, real HTTP sessions, roles and business isolation, funding and monthly closing, copied-data preservation, and a real Chrome browser. Thirty unchanged accepted financial fixtures run against 54 unchanged accounting modules and twelve explicitly hashed website adaptations recorded in `test/retained/manifest.json`. The reviewed adaptations cover backups, reseller monthly reporting/carry-forward, the trusted automatic close boundary, prior-month Bank deposit limits, exact-parent combined renewal recovery/costs safe Proradius validation reporting and original-request replay after selected payment corrections; the original desktop sources stay unchanged. Dedicated tests also check bounded validation parsing, fixed safe messages, unchanged native payloads, uncertain-outcome replay protection, preserved audit rows and literal browser error rendering. Provider tests use mocked responses and do not submit a live service change, renewal, payment or refund. Existing coverage retains Support handover visibility and authorization, reseller collection dates and monthly totals, immutable archives, protected carried funds, automatic Beirut month closing and restart recovery, prior-month-only Bank balances, partial deposits and stale-request rejection, local-only daily backups and blocked external delivery while providers are disabled.
 
 Chrome must be installed for the UI test. Set `CHROME_BIN` to its absolute path if needed. `CHROME_TEST_NO_SANDBOX=1` is reserved for disposable CI runners, not normal deployment. There is no TypeScript build or configured lint tool in this plain JavaScript project; the source check verifies JavaScript syntax and public-package boundaries. No coverage percentage is claimed.
 
