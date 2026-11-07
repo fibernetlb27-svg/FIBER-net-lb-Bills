@@ -2,7 +2,7 @@
 // Explicit public-source export. Never recurse through runtime data or dependencies.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'..');
-const top=['package.json','package-lock.json','server.cjs','Dockerfile','.dockerignore','.gitignore','.gitattributes','README.md','DEPLOYMENT.md','MIGRATION.md','DOMAIN-SETUP.md'];
+const top=['package.json','package-lock.json','server.cjs','Dockerfile','.dockerignore','.gitignore','.gitattributes','README.md','DEPLOYMENT.md','MIGRATION.md','DOMAIN-SETUP.md','RECEIPTS-PRINTING-GUIDE.md'];
 const toolNames=['demo.cjs','data-audit.cjs','verify-backup.cjs','run-retained-tests.cjs','container-smoke.cjs','package-source.cjs','check-source.cjs','prepare-domain-config.cjs'];
 const testHelpers=['test/helpers/bill-payment-corrections-fixture.cjs'];
 const safeAsset=/\.(?:js|css|html|svg|png|jpg|jpeg|ico|woff2?|ttf|txt)$/i;

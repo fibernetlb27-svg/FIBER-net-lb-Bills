@@ -585,6 +585,7 @@ function applyPermissions() {
 }
 
 function clearNativeAccountData(){
+  window.ReceiptSharing?.clear();
   clearChangeRenewal();
   invalidateChange(true);
   for(const key of ['products','expenses','expenseCategories','purchases','purchaseDraft','reportCategories','users','employees','attendance','bills','bundles','telecomCatalog','telecomPayments','debts','cart'])state[key]=[];
@@ -2634,6 +2635,7 @@ function showReceipt(type, record, adminReceivableReadOnly = false) {
   if(type==='sale'&&(record?.deleted||record?.invoiceDeleted))return showToast('This invoice was deleted and reversed. Use its preserved audit copy instead of an active receipt.','error');
   if(adminReceivableReadOnly&&(!isMainAdmin()||record?.adminReceivableReadOnly!==true||!record.workspaceId||!record.workspaceName||!record.debtKey))return showToast("The original debt receipt could not be verified.","error");
   if(!adminReceivableReadOnly&&isMainCatalogAdmin()&&type==='sale'&&(!catalogWorkspace(record?.workspaceId)||!record.workspaceName))return showToast("The receipt's original business is missing. Open that business's Reports instead.","error");
+  window.ReceiptSharing?.clear();
   clearReceiptCredentials();
   state.activeReceipt = { type, record: JSON.parse(JSON.stringify(record)), adminReceivableReadOnly };
   window.InvoiceVoids?.setReceipt(type,record);
@@ -2712,34 +2714,26 @@ async function printCurrentReceipt() {
   void paper.offsetHeight;
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   if (state.activeReceipt !== receipt || !$("#receipt-dialog").open) return;
-  if (businessWorkspace.id === 'fiber-users') {
-    document.body.dataset.printTarget = 'receipt';
+  if (api.web || businessWorkspace.id === 'fiber-users') {
+    if (!api.web) document.body.dataset.printTarget = 'receipt';
     try { await window.ReceiptPaper.print(); }
-    finally { if (document.body.dataset.printTarget === 'receipt') delete document.body.dataset.printTarget; }
+    finally { if (!api.web && document.body.dataset.printTarget === 'receipt') delete document.body.dataset.printTarget; }
   } else printTarget("receipt");
   } finally { receiptPrintPending = false; window.ReceiptPaper.setBusy(false); }
 }
 
-let whatsappDraft=null;
-async function prepareWhatsAppReceipt(){
-  whatsappDraft=null;
-  const receipt=state.activeReceipt;if(!receipt)throw Error('Open a saved receipt first.');
-  if(receipt.adminReceivableReadOnly)throw Error('Open the original business to share this debt receipt.');
-  const phone=$('#whatsapp-phone').value,draft=isMainCatalogAdmin()&&receipt.type==='sale'
-    ? await api.adminCatalog.whatsapp({workspaceId:receipt.record.workspaceId,saleId:receipt.record.id,phone})
-    : await api.receipts.whatsapp({kind:receipt.type,id:receipt.record.id,phone});
-  // Never share a different receipt if another form opened while preparing.
-  if(receipt!==state.activeReceipt||phone!==$('#whatsapp-phone').value||!$('#whatsapp-dialog').open)throw Error('The receipt or phone number changed. Preview it again.');
-  whatsappDraft=draft;$('#whatsapp-preview').value=draft.message;return draft;
-}
 async function showWhatsAppReceipt(){
   if(!state.activeReceipt)return showToast('Open a receipt first.','error');
   if(state.activeReceipt.adminReceivableReadOnly)return showToast('Open the original business to share this debt receipt.','error');
-  whatsappDraft=null;$('#whatsapp-preview').value='Enter the customer phone number, then preview the saved receipt.';
-  const record=state.activeReceipt.record;$('#whatsapp-phone').value=record.customerPhone||record.phone||'';
-  $('#whatsapp-dialog').showModal();
-  if($('#whatsapp-phone').value)try{await prepareWhatsAppReceipt();}catch(error){showToast(errorMessage(error),'error');}
-  $('#whatsapp-phone').focus();
+  const receipt=state.activeReceipt,record=receipt.record,session=authSessionVersion,identity=portalWorkflowIdentity();
+  window.ReceiptSharing.open({
+    number:record.invoiceNo||record.receiptNo,
+    phone:record.customerPhone||record.phone||'',
+    isCurrent:()=>state.activeReceipt===receipt&&authSessionVersion===session&&portalWorkflowIdentity()===identity&&Boolean(state.currentUser)&&$('#receipt-dialog').open,
+    getDraft:phone=>isMainCatalogAdmin()&&receipt.type==='sale'
+      ? api.adminCatalog.whatsapp({workspaceId:record.workspaceId,saleId:record.id,phone})
+      : api.receipts.whatsapp({kind:receipt.type,id:record.id,phone})
+  });
 }
 
 function formatBytes(value) {
@@ -3176,9 +3170,6 @@ function bindEvents() {
   $("#retry-receipt-credentials").addEventListener("click", () => loadReceiptCredentials(state.activeReceipt));
   $("#receipt-dialog").addEventListener("close", () => { if (!$("#receipt-dialog").open) { clearReceiptCredentials(); state.activeReceipt = null; window.InvoiceVoids?.setReceipt(null,null); } });
   $('#share-receipt').addEventListener('click',()=>showWhatsAppReceipt().catch(error=>showToast(errorMessage(error),'error')));
-  $('#whatsapp-phone').addEventListener('input',()=>{whatsappDraft=null;$('#whatsapp-preview').value='Preview the receipt for this phone number before sending.';});
-  $('#whatsapp-preview-button').addEventListener('click',()=>prepareWhatsAppReceipt().catch(error=>showToast(errorMessage(error),'error')));
-  $('#whatsapp-open').addEventListener('click',async()=>{const button=$('#whatsapp-open');button.disabled=true;try{const draft=await prepareWhatsAppReceipt();await api.sharing.openWhatsApp(draft.url);showToast('WhatsApp opened. Review the message there and press Send.');}catch(error){showToast(errorMessage(error),'error');}finally{button.disabled=false;}});
   $("#print-bills-report").addEventListener("click", () => printTarget("bills-report"));
   window.addEventListener("afterprint", () => delete document.body.dataset.printTarget);
 

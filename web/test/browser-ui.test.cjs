@@ -346,6 +346,29 @@ async function combinedServiceChangeBrowser(page){
  await evaluate(page,"Object.assign(posApi.portal,__qaCombined.originalPortal);Object.assign(posApi.bills,__qaCombined.originalBills);state.currentUser=__qaCombined.oldUser;applyPermissions();clearChangeRenewal();portalCustomer=null;portalStatus={ready:false};invalidateChange(true);delete window.__qaCombined;");
 }
 
+async function receiptImageBrowser(page,downloads){
+ await evaluate(page,"document.querySelector('#share-receipt').click()");
+ await waitFor(page,"document.querySelector('#whatsapp-dialog').open",'Receipt picture dialog');
+ await evaluate(page,"document.querySelector('#whatsapp-phone').value='70000000';document.querySelector('#whatsapp-phone').dispatchEvent(new Event('input'));document.querySelector('#whatsapp-preview-button').click()");
+ await waitFor(page,"!document.querySelector('#whatsapp-download').disabled&&document.querySelector('#whatsapp-image').src.startsWith('blob:')",'Actual receipt PNG');
+ const image=await evaluate(page,"(async()=>{const image=document.querySelector('#whatsapp-image');await image.decode();return {width:image.naturalWidth,height:image.naturalHeight,message:document.querySelector('#whatsapp-preview').value};})()");
+ assert.equal(image.width,1000);assert.ok(image.height>600&&image.height<=12000);
+ assert.match(image.message,/Fictional Browser Customer/);assert.match(image.message,/Total: \$5\.00/);assert.doesNotMatch(image.message,/password|PreviewOnly|fixture-secret/i);
+ await responsive(page,'WhatsApp receipt picture');await enlargedText(page,'WhatsApp receipt picture');
+ await navigationScreenshot(page,'receipt-picture-preview');
+ await evaluate(page,"document.querySelector('#whatsapp-download').click()");
+ for(let index=0;index<40&&!fs.readdirSync(downloads).some(name=>/^FIBER-.*\.png$/.test(name));index++)await pause(100);
+ const file=fs.readdirSync(downloads).find(name=>/^FIBER-.*\.png$/.test(name));assert.ok(file,'Actual browser receipt image downloads');
+ const bytes=fs.readFileSync(path.join(downloads,file));assert.deepEqual([...bytes.subarray(0,8)],[137,80,78,71,13,10,26,10]);assert.equal(bytes.readUInt32BE(16),1000);assert.ok(bytes.length>5000);
+ // The OS chooser and WhatsApp are not opened during QA; only their file handoff is simulated.
+ await evaluate(page,"window.__qaReceiptShares=[];Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});Object.defineProperty(navigator,'share',{configurable:true,value:input=>{window.__qaReceiptShares.push({active:navigator.userActivation.isActive,files:input.files.map(file=>({name:file.name,type:file.type,size:file.size})),text:input.text,url:input.url});return Promise.resolve();}});document.querySelector('#whatsapp-preview-button').click()");
+ await waitFor(page,"!document.querySelector('#whatsapp-open').disabled",'Prepared file handoff');await tap(page,'#whatsapp-open');
+ await waitFor(page,"window.__qaReceiptShares.length===1",'One image file handoff');
+ const share=await evaluate(page,"window.__qaReceiptShares[0]");assert.equal(share.active,true);assert.equal(share.files.length,1);assert.equal(share.files[0].type,'image/png');assert.ok(share.files[0].size>5000);assert.equal(share.text,undefined);assert.equal(share.url,undefined);
+ await evaluate(page,"document.querySelector('#whatsapp-dialog').close();delete navigator.share;delete navigator.canShare;delete window.__qaReceiptShares");
+ await waitFor(page,"!document.querySelector('#whatsapp-image').hasAttribute('src')",'Closing picture preview clears its private object URL');
+}
+
 test('genuine browser signs in, uses accounting routes, prints paper layouts, and clears private views',{timeout:180000},async t=>{
  const chrome=process.env.CHROME_BIN||['C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','/usr/bin/google-chrome','/usr/bin/chromium'].find(file=>fs.existsSync(file));
  assert.ok(chrome,'Set CHROME_BIN to a Chromium browser to run browser validation.');
@@ -532,7 +555,18 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
   assert.ok(Buffer.from(pdf.data,'base64').length>1000);
  }
  await page.send('Emulation.setEmulatedMedia',{media:'screen'});
- await evaluate(page,"delete document.body.dataset.printTarget;document.querySelector('#receipt-dialog').close()");
+ await evaluate(page,"delete document.body.dataset.printTarget");
+ await receiptImageBrowser(page,downloads);
+ t.diagnostic('Genuine Chrome receipt output: local authorized saved receipt PNG previews and downloads, eleven responsive sizes, activated one-file native share simulation, A4/A5 and58/80mm/XP235B print PDFs; no WhatsApp message or physical print was sent.');
+ // Every browser business uses the same fluid receipt styles, including Main/Studio POS.
+ await page.send('Emulation.setEmulatedMedia',{media:'print'});
+ for(const business of ['main','studio','fiber-resellers']){
+  await evaluate(page,`ReceiptPaper.apply('${business}');document.querySelector('#receipt-paper-size').value='a5';document.querySelector('#receipt-paper-size').dispatchEvent(new Event('change'));document.body.dataset.printTarget='receipt'`);
+  assert.equal(await evaluate(page,"document.querySelector('#receipt-paper-settings').classList.contains('hidden')"),false,business+' paper controls visible');
+  const pdf=await page.send('Page.printToPDF',{printBackground:true,preferCSSPageSize:true});const size=pdfSize(Buffer.from(pdf.data,'base64'));assert.ok(Math.abs(size[0]-420)<2&&Math.abs(size[1]-595)<2,business+' A5 paper');
+ }
+ await page.send('Emulation.setEmulatedMedia',{media:'screen'});
+ await evaluate(page,"ReceiptPaper.apply('fiber-users');delete document.body.dataset.printTarget;document.querySelector('#receipt-dialog').close()");
  await page.send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
  const overflow=await evaluate(page,"document.documentElement.scrollWidth>innerWidth+2");assert.equal(overflow,false,'Phone dashboard fits its viewport');
  await evaluate(page,"(async()=>{const date=new Date().toISOString().slice(0,10);return posApi.reports.export(date,date,'','');})()");

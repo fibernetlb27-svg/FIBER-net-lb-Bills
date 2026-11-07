@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -40,8 +40,13 @@
     },
     {
       "name": "README.md",
-      "length": 18895,
-      "sha256": "4d089a3aacf496028fcf099bdbb240f3a5e7c65736c2435eddacb03fa2962a9c"
+      "length": 20034,
+      "sha256": "1adb78f5d5c239817950d39d357318c30b9d34850b681b198d7a7a85641ff279"
+    },
+    {
+      "name": "RECEIPTS-PRINTING-GUIDE.md",
+      "length": 4854,
+      "sha256": "43dde20a43c8824ddca9b6114c714f449efc22f8ddc1b3838e8cefae019b540f"
     },
     {
       "name": "app/admin-catalog.cjs",
@@ -420,8 +425,8 @@
     },
     {
       "name": "app/src/app.js",
-      "length": 368267,
-      "sha256": "31c1ee2b9578a0392f7963241b1fd0c831c4aced53a2af889b8e0d0dfbfe863b"
+      "length": 367037,
+      "sha256": "b73abc02001aca12484213f5522aaa0d342a6c9476c0542ba7fb4775b32a27f6"
     },
     {
       "name": "app/src/backups.js",
@@ -550,8 +555,8 @@
     },
     {
       "name": "app/src/index.html",
-      "length": 150732,
-      "sha256": "e17df6de20b6b9deb5f7fa02deab2a6c51a0415f8e11f9e78458e640538afd62"
+      "length": 151571,
+      "sha256": "5a7bc4037b5e1262659cf3f5a43c62a2c16bcf9849012ce49446347af61b3395"
     },
     {
       "name": "app/src/internet-pricing.js",
@@ -629,14 +634,29 @@
       "sha256": "2dcecd1ec1f5c820c9bea965240403f7ed4f8c8108e89c47a736c92b0cb661b7"
     },
     {
+      "name": "app/src/receipt-image.js",
+      "length": 8234,
+      "sha256": "98768e8a6642a7332303ed492dfd2940149507a94d355ce51a08782aa9b0b196"
+    },
+    {
       "name": "app/src/receipt-paper.css",
-      "length": 9925,
-      "sha256": "b57135222d9b07583fd6cbbc3f2cfaec61104b488c80ec86a257e21fe2f9fb57"
+      "length": 10291,
+      "sha256": "7cd04f61b420cb27bf0adc6d835bd927131d2a4733ce81a6fbe3a44adb4406b9"
     },
     {
       "name": "app/src/receipt-paper.js",
-      "length": 9213,
-      "sha256": "5c696218deea81242a608d0dc04c93629e1cc7915a1cc513403498b7370d8df5"
+      "length": 12700,
+      "sha256": "9a7352f4297d1f4455c44fd0d48a39ffc6ec6887e10a9e098cce66b1a706fa86"
+    },
+    {
+      "name": "app/src/receipt-share.css",
+      "length": 943,
+      "sha256": "a15a7f10fd62ca1162e7d9e71c730f2b608a5de9636638e28ce71e1036c1f7f6"
+    },
+    {
+      "name": "app/src/receipt-share.js",
+      "length": 7572,
+      "sha256": "76a88b262ca72818e744132f7680bede036c8cb3f1aa28f4e3693a0268e52244"
     },
     {
       "name": "app/src/reseller-funding.js",
@@ -811,12 +831,12 @@
     {
       "name": "package-lock.json",
       "length": 1369,
-      "sha256": "969624b2c5ce3494f3622275815e4d30aa48831d0be576c201f3c11bc6cbbf2b"
+      "sha256": "858e3757a433956a2985ae48276559066361026f7340576385d233502059f897"
     },
     {
       "name": "package.json",
       "length": 509,
-      "sha256": "8d447a5f6dbf848ed5f63fcb464dcec3b2abb29c2971ab7d7c251833d03e8989"
+      "sha256": "9380eddc49b1dc6cc0670b86cc0da71ea17467b9ed12b4210b633c9d1fb7b03d"
     },
     {
       "name": "server.cjs",
@@ -865,8 +885,8 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 101121,
-      "sha256": "53a9dd1ef804b09cc570b1ff24e391a4f6ade76d07960103df4bdf89e11892a5"
+      "length": 105626,
+      "sha256": "9cb1c19f6ae2fae39a453719b215ba74b29aefb92333837b4a8dd5332031bad7"
     },
     {
       "name": "test/change-service-customer-pricing.test.cjs",
@@ -957,6 +977,21 @@
       "name": "test/proradius-validation.test.cjs",
       "length": 11360,
       "sha256": "cdb0955b3bbfbd82707039bbab65a3b132aab9e70c8e19ba7c63404bf0874bc4"
+    },
+    {
+      "name": "test/receipt-browser-printing.test.cjs",
+      "length": 8309,
+      "sha256": "a273c43c28cb3041c869c7af705f908eb7c4d608f410a4e16c7ead8556d924ed"
+    },
+    {
+      "name": "test/receipt-image.test.cjs",
+      "length": 6082,
+      "sha256": "66e436858a6552435cfd8237678bac5a0290b62f051fde021e09c514737bdedf"
+    },
+    {
+      "name": "test/receipt-share.test.cjs",
+      "length": 14245,
+      "sha256": "90da620c7274bd889c07614be942716793dc0a22c4e538c5256dbf44a6f4a91c"
     },
     {
       "name": "test/reseller-month-report.test.cjs",
@@ -1180,8 +1215,8 @@
     },
     {
       "name": "tools/package-source.cjs",
-      "length": 3903,
-      "sha256": "eb636336e15098fab4f3bab56dfbec40d255a49ad2b71697726b599b78dd88ec"
+      "length": 3932,
+      "sha256": "f60b9aae7db412569c7e1b36522da4183eb790ef8917c83aaeaf06f4c5342914"
     },
     {
       "name": "tools/prepare-domain-config.cjs",

@@ -1,5 +1,7 @@
-/* Fiber net lb Users receipts only; other businesses/print targets keep their layouts. */
+/* Native Users receipts and every browser receipt share the selected paper layout.
+   The legacy scope name is retained for local paper-preference compatibility. */
 .receipt-paper-settings { display: grid; gap: 7px; margin-top: 16px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.receipt-paper-settings [hidden] { display: none !important; }
 .receipt-paper-settings label { display: grid; grid-template-columns: auto minmax(190px,1fr); align-items: center; gap: 14px; font-size: .8rem; }
 .receipt-paper-settings select { min-width: 0; }
 .receipt-paper-settings small { color: var(--muted); line-height: 1.5; }
@@ -68,6 +70,8 @@ body[data-receipt-paper-scope="users"][data-receipt-paper="xp-235b"] #printable-
   body[data-print-target="receipt"][data-receipt-paper-scope="users"][data-receipt-paper="thermal-58"] #printable-receipt { max-width: 52mm; margin-inline: auto; }
   body[data-print-target="receipt"][data-receipt-paper-scope="users"][data-receipt-paper="xp-235b"] #printable-receipt { max-width: 48mm; margin-inline: auto; }
   body[data-print-target="receipt"][data-receipt-paper-scope="users"] .receipt-items tr { break-inside: avoid; }
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] #printable-receipt > header,
+  body[data-print-target="receipt"][data-receipt-paper-scope="users"] #printable-receipt .receipt-title { break-inside: avoid; }
   body[data-print-target="receipt"][data-receipt-paper-scope="users"] #printable-receipt :is(.receipt-total,.receipt-balance,.receipt-payment,footer) { break-inside: avoid; }
   @container users-receipt (min-width: 90mm) and (max-width: 160mm) {
     body[data-receipt-paper-scope="users"] #printable-receipt > header { padding-bottom: 10px; }

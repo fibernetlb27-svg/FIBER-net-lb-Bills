@@ -1,0 +1,13 @@
+.receipt-share-dialog { width: min(780px, calc(100vw - 32px)); }
+.receipt-image-preview { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #e9eef5; }
+.receipt-image-preview:has(img[hidden]) { display: none; }
+.receipt-image-preview img { display: block; width: min(100%, 500px); height: auto; margin-inline: auto; box-shadow: 0 3px 16px #142a4520; }
+.receipt-image-preview img[hidden] { display: none; }
+.receipt-share-details { display: grid; gap: 8px; margin-top: 10px; }
+.receipt-share-dialog .modal-actions { flex-wrap: wrap; }
+@media (max-width: 650px) {
+  .receipt-share-dialog .modal-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .receipt-share-dialog .modal-actions button { min-width: 0; white-space: normal; min-height: 44px; padding: 10px; }
+  .receipt-share-dialog #whatsapp-open { grid-column: 1 / -1; }
+  .receipt-image-preview { padding: 6px; }
+}

@@ -1,6 +1,6 @@
 # FIBER net lb website preview
 
-Version 0.1.12 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.13 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 Use isolated staging and a copied-data rehearsal before a new deployment or upgrade. The existing authorized accounting server remains the sole authority until an agreed cutover; an already migrated website must not resume recording on its old desktop copy. The website uses the seven existing SQLite database formats. Fictional previews and their checks are separate from accepting live business data.
 
@@ -46,9 +46,11 @@ The preview binds only to loopback, disables external providers, and creates ind
 - Existing business modules, shared stock/POS, customer debts, supplier payments, fixed monthly payments, Company debts, Bank, funding carry-forward, monthly closing and sticky notes remain available according to each user's permissions.
 - Phones and smaller tablets use a compact header with a Menu button. Navigation opens as a vertical list and closes after choosing a destination, tapping outside or pressing Escape. Desktop screens retain the sidebar. Large financial tables scroll inside their cards; dialogs and the POS cart adapt to the available width.
 - Browser sessions use protected cookies, same-origin CSRF checks and separate business authorization per tab. An outdated tab must reload before submitting accounting changes. Financial requests are never automatically replayed after an uncertain response.
-- Receipts use the browser print dialog with A4, A5 and thermal layouts, including 58 mm, 80 mm and XP-235B. The browser cannot silently select a Windows printer or confirm physical print completion.
+- Every browser receipt offers Auto, A4, A5 and thermal layouts, including 58 mm, 80 mm and XP-235B. **Print receipt** opens the current device's print dialog. Select an installed or available printer under Destination / Printer and match its paper to the selected receipt layout. The browser does not enumerate or silently select Windows printers, change their defaults or confirm physical print completion. Its receipt layout remains active while an asynchronous print dialog is open; **Print dialog closed** unlocks controls if a browser omits its completion event, without repeating a print.
 - CSV export downloads a file. Native installers, Windows folders and live restore/reset are not browser operations. Admin backup settings/history and encrypted backup creation remain available; restoration is an operator task.
-- WhatsApp receipt sharing retains its normal browser sharing/link flow. This package does not activate or send API reminders.
+- WhatsApp receipts are prepared as PNG pictures from the server-authorized saved receipt details. **Share image** opens the device's file-sharing menu where supported; choose WhatsApp and the customer, review and send there. Otherwise use **Download image**, then **Open WhatsApp chat** and attach the downloaded PNG manually. A WhatsApp chat link cannot attach a file. The website does not substitute a text receipt, send a message automatically or activate API reminders. Internet passwords displayed in the printing receipt are excluded from the share picture.
+
+Read [RECEIPTS-PRINTING-GUIDE.md](RECEIPTS-PRINTING-GUIDE.md) for printer setup, paper choices, receipt images and browser limitations. This update changes receipt presentation and local output only; backend accounting, saved transactions and customer balances retain the accepted 0.1.12 implementation.
 
 ## Add a domain while keeping the IP address
 
