@@ -85,6 +85,72 @@ async function enlargedText(page,label){
  }
 }
 
+async function forgottenMonthlyPaymentBrowser(page, currentMonth) {
+  const fixture = await evaluate(page, `(async () => {
+    const saved = await posApi.fixedMonthly.saveTemplate({
+      requestId: crypto.randomUUID(), name: 'Fictional antenna lease', recipient: 'Fictional billing office',
+      description: 'Browser-only monthly payment recovery fixture', amount: 24, dueDay: 1,
+      participants: [{workspaceId: 'main', basisPoints: 10000}], profitBasisPoints: 0, active: true
+    });
+    const overview = await posApi.fixedMonthly.overview({month: ${JSON.stringify(currentMonth)}});
+    const bill = overview.bills.find(row => row.templateId === saved.templateId);
+    const account = state.currentUser.accountKey;
+    const requestId = crypto.randomUUID(), otherRequestId = crypto.randomUUID();
+    const markerKey = (account, requestId) => 'fiber-fixed-monthly-v1:' + encodeURIComponent(JSON.stringify(['main', String(account)])) + ':' + requestId;
+    const key = markerKey(account, requestId), otherKey = markerKey('fictional-other-admin', otherRequestId);
+    const marker = JSON.stringify({requestId, kind: 'payment', billId: bill.billId});
+    const otherMarker = JSON.stringify({requestId: otherRequestId, kind: 'payment', billId: bill.billId});
+    localStorage.setItem(key, marker);
+    localStorage.setItem(otherKey, otherMarker);
+    return {billId: bill.billId, requestId, key, marker, otherKey, otherMarker};
+  })()`);
+  await page.send('Page.reload');
+  await waitFor(page, "document.querySelector('#ap-monthly-open')?.offsetParent && !document.querySelector('#app-shell').classList.contains('hidden')", 'Reloaded Main dashboard restores browser payment request');
+  await evaluate(page, `(() => {
+    const original = window.fetch;
+    window.__qaMonthlyCalls = [];
+    window.__qaRestoreMonthlyFetch = () => {window.fetch = original;};
+    window.fetch = async (...args) => {
+      const payload = typeof args[1]?.body === 'string' ? JSON.parse(args[1].body) : null;
+      if (payload?.channel?.startsWith('fixedMonthly:')) window.__qaMonthlyCalls.push(payload);
+      return original(...args);
+    };
+  })()`);
+  const payButton = '#ap-list-dialog[open] ' + await evaluate(page, `'[data-ap-pay=' + CSS.escape(${JSON.stringify(fixture.billId)}) + ']'`);
+  const exactMarker = `localStorage.getItem(${JSON.stringify(fixture.key)})`;
+  try {
+    await tap(page, '#ap-monthly-open');
+    await waitFor(page, `document.querySelector(${JSON.stringify(payButton)})?.disabled === false`, 'Unpaid monthly payment appears on Dashboard');
+    await tap(page, payButton);
+    await waitFor(page, "document.querySelector('#fm-dialog[open] #fm-held-exact')", 'Held monthly payment appears above the unpaid list');
+    assert.equal(await evaluate(page, exactMarker), fixture.marker);
+    assert.equal(await evaluate(page, "document.querySelector('#fm-dialog[open] #fm-dialog-release')?.hidden"), true, 'Release is unavailable before checking the server');
+    await tap(page, '#fm-held-exact');
+    await waitFor(page, "document.querySelector('#fm-dialog[open] #fm-dialog-release')?.hidden === false", 'Exact missing request can be released from Dashboard');
+    assert.match(await evaluate(page, "document.querySelector('#fm-dialog-recovery-note').textContent"), /no saved/i);
+    assert.equal(await evaluate(page, exactMarker), fixture.marker, 'Checking alone preserves the saved request');
+
+    await tap(page, '#fm-dialog-release');
+    await waitFor(page, "document.querySelector('#fm-dialog[open] #fm-release-confirm')?.disabled === true", 'Release requires explicit review');
+    await tap(page, '#fm-release-ack');
+    assert.equal(await evaluate(page, "document.querySelector('#fm-release-confirm').disabled"), false);
+    await tap(page, '#fm-release-confirm');
+    await waitFor(page, `${exactMarker} === null && !document.querySelector('#fm-dialog[open]')`, 'Rechecked browser hold clears after confirmation');
+    assert.equal(await evaluate(page, `localStorage.getItem(${JSON.stringify(fixture.otherKey)})`), fixture.otherMarker, 'Other Admin’s marker is preserved');
+
+    await tap(page, payButton);
+    await waitFor(page, "document.querySelector('#fm-dialog[open] #fm-payment-form') && document.querySelector('#fm-dialog-title').textContent === 'Pay Fictional antenna lease'", 'The same unpaid bill opens a fresh review');
+    const calls = await evaluate(page, 'window.__qaMonthlyCalls');
+    assert.deepEqual(calls.filter(row => row.channel === 'fixedMonthly:status').map(row => row.args), [[{requestId:fixture.requestId}], [{requestId:fixture.requestId}]], 'Check and release each read the exact request once');
+    assert.ok(calls.some(row => row.channel === 'fixedMonthly:preview' && String(row.args[0].billId) === String(fixture.billId)), 'Payment review reopened the selected bill');
+    assert.ok(calls.every(row => ['fixedMonthly:status','fixedMonthly:overview','fixedMonthly:pending','fixedMonthly:preview','fixedMonthly:sources','fixedMonthly:categoryOverview'].includes(row.channel)), 'Releasing the browser hold and reviewing the bill send only reads');
+    await tap(page, '#fm-dialog[open] [data-fm-close]');
+    await tap(page, '#ap-list-close');
+  } finally {
+    await evaluate(page, `window.__qaRestoreMonthlyFetch(); delete window.__qaRestoreMonthlyFetch; delete window.__qaMonthlyCalls; localStorage.removeItem(${JSON.stringify(fixture.otherKey)});`);
+  }
+}
+
 async function bandwidthMonthlyPurchaseBrowser(page) {
   const fixture = await evaluate(page, `(async () => {
     const api = posApi.bandwidth;
@@ -558,6 +624,8 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  await mobileNavigation(page);
  assert.equal(await evaluate(page,"document.querySelector('#network-settings-button').classList.contains('website-only-hidden')"),true);
  assert.equal(await evaluate(page,"Boolean(window.posApi.printing)"),false);
+ await forgottenMonthlyPaymentBrowser(page,financeDate.slice(0,7));
+ t.diagnostic('Genuine Chrome monthly payment recovery checked an unsaved request twice and cleared its exact browser marker after confirmation, then opened the original bill review without writing a payment.');
  await evaluate(page,"window.__qaPending=0;window.__qaFailures=[];const qaFetch=window.fetch;window.fetch=async(...args)=>{window.__qaPending++;try{const response=await qaFetch(...args);if(!response.ok)window.__qaFailures.push({channel:args[1]?.body?JSON.parse(args[1].body).channel:String(args[0]),status:response.status});return response;}finally{window.__qaPending--;}};");
  assert.equal(await evaluate(page,"Boolean(document.querySelector('#month-collections'))"),false,'Money-to-collect section is removed from Main dashboard');
  await evaluate(page,"switchView('bank')");

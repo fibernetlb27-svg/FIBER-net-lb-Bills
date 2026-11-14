@@ -181,11 +181,26 @@ window.FixedMonthlyPayments = (() => {
       if(reversed){const marker=document.createElement('p');marker.className='fm-warning';marker.textContent='Reversed · original receipt retained · '+(saved?.reversalRequestId||payment.reversalRequestId||'');node?.append(marker);}else{const button=undoButton(payment,bill);if(button)node?.append(button);}
     }
     el('fm-review-panel').querySelector('.fm-note strong')?.setAttribute('id','fm-review-profit');
-    if(modal){modal.querySelectorAll('[data-fm-close]').forEach(button=>button.disabled=busy);if(el('fm-dialog-check')){el('fm-dialog-recovery').hidden=!held;el('fm-dialog-check').disabled=busy||Boolean(held?.corrupt);el('fm-dialog-pending').disabled=busy||Boolean(held?.corrupt);}if(dialogKind==='template')updateEditor();if(dialogKind==='payment')updatePayment();if(dialogKind==='reversal')updateReversal();updateCategoryControls();}
+    if(modal){
+      modal.querySelectorAll('[data-fm-close]').forEach(button=>button.disabled=busy);
+      if(el('fm-dialog-check')){
+        el('fm-dialog-recovery').hidden=!held||dialogKind==='release';
+        el('fm-dialog-recovery-note').textContent=held?.corrupt?held.error:held?.notFound
+          ? 'Main found no saved result for this exact request. Check the bill and its payment history, then release this browser’s hold.'
+          : 'Result not confirmed. Check the exact saved request before entering another payment or template.';
+        el('fm-dialog-check').disabled=busy||Boolean(held?.corrupt);
+        el('fm-dialog-pending').disabled=busy||Boolean(held?.corrupt);
+        el('fm-dialog-release').hidden=!held?.notFound;
+        el('fm-dialog-release').disabled=busy||!held?.notFound;
+      }
+      if(el('fm-release-ack'))el('fm-release-ack').disabled=busy||!held?.notFound;
+      if(el('fm-release-confirm'))el('fm-release-confirm').disabled=busy||!held?.notFound||!el('fm-release-ack').checked;
+      if(dialogKind==='template')updateEditor();if(dialogKind==='payment')updatePayment();if(dialogKind==='reversal')updateReversal();updateCategoryControls();
+    }
   }
   function closeDialog() { if(busy)return;dialogTicket++;sourceTicket++;if(modal){modal.close();modal.remove();modal=null;}editing=null;paying=null;categoryEditing=null;dialogKind='';dialogContext=null; }
   function dialog(title,kind,content) {
-    closeDialog();dialogKind=kind;dialogContext=capture();modal=document.createElement('dialog');modal.id='fm-dialog';modal.className='modal fm-dialog';modal.setAttribute('aria-labelledby','fm-dialog-title');modal.innerHTML=`<div class="modal-heading"><div><p class="eyebrow">MAIN OFFICE · ADMIN ONLY</p><h2 id="fm-dialog-title">${esc(title)}</h2></div><button type="button" class="button button-secondary" data-fm-close>Close</button></div>${content}<p id="fm-form-error" class="form-error" role="alert"></p><div id="fm-dialog-recovery" hidden><p class="fm-warning">Result not confirmed. Do not submit another payment or template. Check the exact saved request.</p><div class="fm-actions"><button id="fm-dialog-check" type="button" class="button button-secondary">Check saved request</button><button id="fm-dialog-pending" type="button" class="button button-secondary">Review unfinished requests</button></div></div>`;document.body.append(modal);modal.querySelector('[data-fm-close]').onclick=closeDialog;modal.addEventListener('cancel',event=>{if(busy)event.preventDefault();else{sourceTicket++;dialogTicket++;}});el('fm-dialog-check').onclick=()=>check();el('fm-dialog-pending').onclick=openPending;modal.showModal();return modal;
+    closeDialog();dialogKind=kind;dialogContext=capture();modal=document.createElement('dialog');modal.id='fm-dialog';modal.className='modal fm-dialog';modal.setAttribute('aria-labelledby','fm-dialog-title');modal.innerHTML=`<div class="modal-heading"><div><p class="eyebrow">MAIN OFFICE · ADMIN ONLY</p><h2 id="fm-dialog-title">${esc(title)}</h2></div><button type="button" class="button button-secondary" data-fm-close>Close</button></div>${content}<p id="fm-form-error" class="form-error" role="alert"></p><div id="fm-dialog-recovery" hidden><p id="fm-dialog-recovery-note" class="fm-warning" role="status"></p><div class="fm-actions"><button id="fm-dialog-check" type="button" class="button button-secondary">Check saved request</button><button id="fm-dialog-pending" type="button" class="button button-secondary">Review unfinished requests</button><button id="fm-dialog-release" type="button" class="button button-secondary" hidden>Release after checking records</button></div></div>`;document.body.append(modal);modal.querySelector('[data-fm-close]').onclick=closeDialog;modal.addEventListener('cancel',event=>{if(busy)event.preventDefault();else{sourceTicket++;dialogTicket++;}});el('fm-dialog-check').onclick=()=>check();el('fm-dialog-pending').onclick=openPending;el('fm-dialog-release').onclick=openRelease;modal.showModal();return modal;
   }
   function decimal(value,places,label,maximum) { const raw=String(value).trim();if(!new RegExp('^\\d+(?:\\.\\d{1,'+places+'})?$').test(raw))throw Error('Enter a valid '+label+'.');const [whole,fraction='']=raw.split('.'),scaled=BigInt(whole)*10n**BigInt(places)+BigInt(fraction.padEnd(places,'0'));if(scaled>BigInt(maximum))throw Error('The '+label+' is too large.');return Number(scaled); }
   function profitCents(amount,bps) { return Number((BigInt(amount)*BigInt(bps)+5000n)/10000n); }
@@ -443,7 +458,39 @@ window.FixedMonthlyPayments = (() => {
     catch(error){if(current(state)&&dialogKind==='pending')el('fm-form-error').textContent=message(error);}finally{if(current(state))render();}
   }
   function openRelease() {
-    if(!allowed()||busy||!held?.notFound)return;const operation={...held};dialog('Release an unsaved monthly request','release',`<p class="fm-warning">Main reports no saved operation for request ${esc(operation.requestId)}. Releasing this hold does not retry or record a payment.</p><label class="fm-check"><input id="fm-release-ack" type="checkbox" />I checked the monthly bill/template, payment history, drawer/wallet and profit records. No change was saved for this exact request.</label><div class="fm-actions"><button id="fm-release-confirm" class="button button-secondary" type="button" disabled>Release request — do not repeat it</button></div>`);el('fm-release-ack').onchange=()=>el('fm-release-confirm').disabled=!el('fm-release-ack').checked;el('fm-release-confirm').onclick=async()=>{if(!allowed()||busy||!el('fm-release-ack').checked||held?.requestId!==operation.requestId||!held.notFound)return;try{forget(operation.requestId);closeDialog();await load();notify('Unsaved request released after review. No payment was retried.');}catch(error){storageFailure(error);render();}};
+    if(!allowed()||busy||!held?.notFound)return;
+    const operation=operationFor(held);
+    dialog('Release an unsaved monthly request','release',`<p class="fm-warning">Main found no saved operation for request ${esc(operation.requestId)}. Releasing it clears this browser’s hold.</p><label class="fm-check"><input id="fm-release-ack" type="checkbox" />I checked the monthly bill/template, payment history, drawer/wallet and profit records. No change was saved for this exact request.</label><div class="fm-actions"><button id="fm-release-confirm" class="button button-secondary" type="button" disabled>Release request</button></div>`);
+    el('fm-release-ack').onchange=()=>{el('fm-release-confirm').disabled=!el('fm-release-ack').checked;};
+    el('fm-release-confirm').onclick=()=>releaseAfterReview(operation);
+  }
+  async function releaseAfterReview(operation) {
+    if(!allowed()||busy||!el('fm-release-ack')?.checked||held?.requestId!==operation.requestId||!held.notFound)return;
+    const state=capture();
+    busy=true;el('fm-form-error').textContent='';render();
+    try {
+      const result=await api().status({requestId:operation.requestId});
+      if(!current(state)||held?.requestId!==operation.requestId)return;
+      if(result?.requestId!==operation.requestId)throw Error('The saved request response does not match.');
+      if(result.state==='completed'){
+        held={...held,notFound:false};
+        await completed(result,operation);
+        return;
+      }
+      if(result.state!=='not_found'){
+        held={...held,notFound:false};
+        if(!['prepared','save_required'].includes(result.state)||result.kind!==operation.kind)throw Error('The saved request state could not be verified.');
+        busy=false;
+        await openPending();
+        if(current(state)&&dialogKind==='pending')el('fm-form-error').textContent='Main now has this saved request. Review the original operation.';
+        return;
+      }
+      try{forget(operation.requestId);}catch(error){storageFailure(error);throw error;}
+      busy=false;closeDialog();await load();
+      if(current(state))notify('Browser hold released. You can open a fresh payment review.');
+    }catch(error){
+      if(current(state)&&el('fm-form-error'))el('fm-form-error').textContent=held?.corrupt?held.error:message(error);
+    }finally{if(current(state)){busy=false;render();}}
   }
   async function openFreeze(id) {
     if(!allowed()||locked()||!api().freeze)return;const listed=findBill(id);if(!listed||listed.state!=='unpaid'||listed.companyDebtId||listed.paymentHistory?.length||listed.month>currentMonth())return;
