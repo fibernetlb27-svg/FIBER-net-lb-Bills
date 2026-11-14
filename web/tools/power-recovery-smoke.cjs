@@ -98,6 +98,7 @@ async function main(args) {
   const jobs = path.join(directory, 'jobs'), config = path.join(directory, 'config.json');
   for (const [source, target] of [['power-recovery.cjs', guard], ['power-recovery-audit.cjs', auditor]]) {
     fs.copyFileSync(path.join(__dirname, '..', 'deploy', source), target, fs.constants.COPYFILE_EXCL);
+    fs.chownSync(target, 0, 0);
     fs.chmodSync(target, 0o644);
   }
   fs.writeFileSync(guardLock, '', {flag: 'wx', mode: 0o600});

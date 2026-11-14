@@ -1270,8 +1270,8 @@
     },
     {
       "name": "tools/power-recovery-smoke.cjs",
-      "length": 21565,
-      "sha256": "fb691375fb63ba26ba011be8bd14caad99dc858096e8d4ea2c561ee53baaa784"
+      "length": 21597,
+      "sha256": "a4adc7eb692408d7fc55018a6b359bf7a6257bc12b4e844c158422a085868ab3"
     },
     {
       "name": "tools/prepare-domain-config.cjs",
