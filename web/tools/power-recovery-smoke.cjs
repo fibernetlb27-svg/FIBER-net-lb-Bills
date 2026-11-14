@@ -128,6 +128,19 @@ async function main(args) {
     if (result.status !== 0) {
       let code;
       try { code = JSON.parse(result.stderr.trim()).code; } catch {}
+      if (code === 'UNTRUSTED_PATH' || code === 'UNTRUSTED_PERMISSIONS' || code === 'UNTRUSTED_DOCKER_PATH') {
+        const candidates = new Set();
+        for (const guardedPath of [config, record, auditor, guardLock, '/usr/bin/docker', fs.realpathSync('/usr/bin/docker')]) {
+          for (let file = guardedPath; ; file = path.dirname(file)) {
+            candidates.add(file);
+            if (file === '/') break;
+          }
+        }
+        for (const file of candidates) {
+          const info = fs.lstatSync(file);
+          process.stderr.write(`${file}: uid=${info.uid} mode=${(info.mode & 0o777).toString(8)} nlink=${info.nlink} canonical=${file === fs.realpathSync(file)}\n`);
+        }
+      }
       throw Error(`Host recovery fixture failed (${/^[A-Z_]+$/.test(code || '') ? code : 'UNKNOWN_FAILURE'}).`);
     }
     const value = JSON.parse(result.stdout.trim()); assert.equal(value.success, true); return value;

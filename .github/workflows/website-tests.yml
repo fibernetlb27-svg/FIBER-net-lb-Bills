@@ -39,8 +39,6 @@ jobs:
         run: npm run check
       - name: Check production dependency advisories
         run: npm audit --omit=dev --audit-level=moderate
-      - name: Check fixture-only accounting, HTTP security, and genuine Chrome flows
-        run: npm test
       - name: Validate the Compose template with fictional inputs
         env:
           APP_HOSTNAME: ci.invalid
@@ -54,3 +52,5 @@ jobs:
         run: node tools/container-smoke.cjs --image fibernetlb-web-ci:fixture
       - name: Check guarded power-reboot recovery with isolated Linux fixtures
         run: node tools/power-recovery-smoke.cjs --image fibernetlb-web-ci:fixture
+      - name: Check fixture-only accounting, HTTP security, and genuine Chrome flows
+        run: npm test
