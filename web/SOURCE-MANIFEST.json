@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -40,8 +40,8 @@
     },
     {
       "name": "README.md",
-      "length": 22085,
-      "sha256": "3eb886796f3a5a8a95844b8d28369d258bb5e0837088b346aafdec6afb2b38a5"
+      "length": 22452,
+      "sha256": "c74aa02ed201596ca857f33fac0a9719d6120b440b3a48124e2e7dd13a921b54"
     },
     {
       "name": "RECEIPTS-PRINTING-GUIDE.md",
@@ -170,8 +170,8 @@
     },
     {
       "name": "app/core.cjs",
-      "length": 391614,
-      "sha256": "56bf1c20448f44cc134a0ecead8cdea01c386dc47b65209df7d6486bc6e49af0"
+      "length": 391901,
+      "sha256": "f5e622422ca230f5f626ae315bc596292ee5cff9b55d0d7d68cb92ab4d9c2ba4"
     },
     {
       "name": "app/customer-registration.cjs",
@@ -540,8 +540,8 @@
     },
     {
       "name": "app/src/finance-dashboard.js",
-      "length": 65354,
-      "sha256": "5655b5a9766ed0c39352533acdc9172465ce3131ee16873da64f5123f630ee3c"
+      "length": 65497,
+      "sha256": "4b8d6d8a92682c310ef4bc0b1546acfa627686bcf7176bb69613fdb969efdd7f"
     },
     {
       "name": "app/src/finance-workspace.css",
@@ -866,12 +866,12 @@
     {
       "name": "package-lock.json",
       "length": 1369,
-      "sha256": "3c4848ae2b067bf7e1b0b55fc369e53faab2cf8aba47892aff0b86f98930210c"
+      "sha256": "8b60f3d2e289e2e6b7511da4bc461299fa09db406f9753151490c14883cf7439"
     },
     {
       "name": "package.json",
       "length": 509,
-      "sha256": "387b9563886f42e56c8005e92e3bf8007d3966a94f34d7b8c72e970217076954"
+      "sha256": "0112ca72544593d594110327c06e31a160c4c21f916629ec204b39b232c19a34"
     },
     {
       "name": "server.cjs",
@@ -925,8 +925,8 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 119519,
-      "sha256": "af6ccffceab8a9e8eed1489e0de374dcf73df802345b7a2b90e29d30768d9016"
+      "length": 120465,
+      "sha256": "c865124ec71b47eb55d5a9140f6e791733a869743589d706ca7f65e93e34a348"
     },
     {
       "name": "test/change-service-customer-pricing.test.cjs",
@@ -1055,8 +1055,8 @@
     },
     {
       "name": "test/reseller-transaction-archive.test.cjs",
-      "length": 9479,
-      "sha256": "0029f372c17d9d89d2c597792c1ad495e9bcebe0fd4868cbb421fe2bc4e51e5b"
+      "length": 10884,
+      "sha256": "8560381efb22db777e0ce6d52ab25d5003ab73618cfbf98c7f68a02553212ba2"
     },
     {
       "name": "test/reseller-wallet-carry.test.cjs",

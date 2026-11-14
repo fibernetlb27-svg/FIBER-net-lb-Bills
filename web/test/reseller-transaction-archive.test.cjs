@@ -36,10 +36,36 @@ test('new Resellers month archives preserve the distinct combined transaction ba
  const full=await report(month+'-01',month+'-31');assert.equal(full.revenue,100,'Users external payment remains the sole transaction revenue.');assert.equal(full.expenses,30,'Main records the bandwidth purchase once.');assert.equal(full.costOfGoods,0);assert.equal(full.netProfit,70);
  const partial=await report(month+'-26',month+'-31');assert.equal(partial.revenue,0,'The later Admin custody collection is not another external payment.');assert.equal(partial.expenses,0);assert.equal(partial.costOfGoods,0);assert.equal(partial.netProfit,0);
  const includingPurchase=await report(month+'-25',month+'-31');assert.equal(includingPurchase.revenue,100);assert.equal(includingPurchase.expenses,30);assert.equal(includingPurchase.netProfit,70);
- // A later collection settles the old claim in the current open period.
- const now=(await good('finance:overview',[{workspaceId:'fiber-resellers'}],tokens.main)).today,late={requestId:crypto.randomUUID(),resellerId,fundRequestId:fundId},preview=await good('resellers:collectionPreview',[late],tokens.resellers,'fiber-resellers');
+ // Main dashboard revenue follows the dates the Admin actually collects funds.
+ const dashboard=accountKey=>good('finance:overview',[{workspaceId:'fiber-resellers',accountKey}],tokens.main);
+ const beforeCollection=await dashboard();
+ const now=beforeCollection.today,start=now.slice(0,7)+'-01';
+ const expected=(amount,accountKey=null)=>({basis:'reseller_bill_collections_period',scope:'all_resellers',start,end:now,accountKey,available:true,amount});
+ assert.deepEqual(beforeCollection.resellerCollectionsRevenue,expected(0),'The closed month’s $80 collection is outside the dashboard period.');
+ const late={requestId:crypto.randomUUID(),resellerId,fundRequestId:fundId},preview=await good('resellers:collectionPreview',[late],tokens.resellers,'fiber-resellers');
  await good('resellers:payBill',[{...late,token:preview.token,confirm:true,confirmation:'PAY BILL'}],tokens.resellers,'fiber-resellers');
+ assert.deepEqual((await dashboard()).resellerCollectionsRevenue,expected(20),'The remaining $20 counts in the month it was collected, even though its bill is from the closed month.');
+ assert.deepEqual((await dashboard(cashierKey)).resellerCollectionsRevenue,expected(20,cashierKey),'The original funding employee keeps their collection attribution.');
+ const ownerKey=beforeCollection.employees.find(employee=>employee.username==='report.owner').accountKey;
+ assert.deepEqual((await dashboard(ownerKey)).resellerCollectionsRevenue,expected(0,ownerKey),'The receiving Admin is not credited as the employee who took the reseller funding.');
  const after=await good('finance:archive',[{workspaceId:'fiber-resellers',month}],tokens.main);assert.equal(after.report.revenue,80);assert.deepEqual(after.closing,archived.closing);assert.equal(after.requestId,archived.requestId);
  // The stored archive itself is unchanged, not silently replaced by a repair.
- await core.close();const db=new SQL.Database(fs.readFileSync(resellersFile));try{const stored=F.query(db,'SELECT * FROM finance_months WHERE month=?',[month])[0],audit=F.query(db,'SELECT * FROM month_close_requests WHERE month=?',[month])[0];assert.deepEqual({month:stored,request:audit},originalProof);assert.equal(JSON.parse(stored.archive_json).all.report.revenue,80);assert.equal(JSON.parse(audit.plan_json).archiveJson,stored.archive_json);assert.equal(JSON.parse(audit.result_json).report.revenue,80);const Revenue=require('../app/reseller-collected-revenue.cjs');assert.equal(Revenue.period(db,{start:now.slice(0,7)+'-01',end:now}).amount,20);assert.equal(Revenue.period(db,{start:month+'-01',end:month+'-31'}).amount,80);assert.equal(require('../app/reseller-collections.cjs').summary(db).total.pending,0);assert.equal(F.query(db,'SELECT * FROM reseller_funds')[0].actor_key,cashierKey);}finally{db.close();}
+ await core.close();
+ const db=new SQL.Database(fs.readFileSync(resellersFile));
+ try{
+  const stored=F.query(db,'SELECT * FROM finance_months WHERE month=?',[month])[0];
+  const audit=F.query(db,'SELECT * FROM month_close_requests WHERE month=?',[month])[0];
+  assert.deepEqual({month:stored,request:audit},originalProof);
+  assert.equal(JSON.parse(stored.archive_json).all.report.revenue,80);
+  assert.equal(JSON.parse(audit.plan_json).archiveJson,stored.archive_json);
+  assert.equal(JSON.parse(audit.result_json).report.revenue,80);
+  const Revenue=require('../app/reseller-collected-revenue.cjs');
+  assert.equal(Revenue.period(db,{start,end:now}).amount,20);
+  assert.equal(Revenue.period(db,{start:month+'-01',end:month+'-31'}).amount,80);
+  const collections=require('../app/reseller-collections.cjs').summary(db).total;
+  assert.equal(collections.pending,0);
+  assert.equal(collections.moneyCollected,100,'Both saved collections are still included in the all-date ledger summary.');
+  assert.equal(F.query(db,'SELECT * FROM reseller_funds')[0].actor_key,cashierKey);
+ }finally{db.close();}
+ t.diagnostic('Resellers dashboard revenue uses the current collection month and the selected employee while preserving the all-date ledger.');
 });

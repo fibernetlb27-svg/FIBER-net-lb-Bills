@@ -1,8 +1,12 @@
 # FIBER net lb website preview
 
-Version 0.1.15 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.16 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 Use isolated staging and a copied-data rehearsal before a new deployment or upgrade. The existing authorized accounting server remains the sole authority until an agreed cutover; an already migrated website must not resume recording on its old desktop copy. The website uses the seven existing SQLite database formats. Fictional previews and their checks are separate from accepting live business data.
+
+## Reseller revenue on the Main Dashboard
+
+Select **FIBER net lb Resellers** to see confirmed reseller bill collections from the first day of this month through today in Beirut time. Collections count on the day Admin receives the money. When you select an employee, the total shows the collections attributed to that employee’s original reseller funding records.
 
 ## Monthly payment recovery from the dashboard
 

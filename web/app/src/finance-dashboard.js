@@ -26,10 +26,17 @@ window.FinanceDashboard=(()=>{
   return {known,amount:known?amount:null,count:known?proof.count:null};
  }
  function resellerRevenueDisplay(){
-  const proof=data?.resellerCollectionsRevenue,selected=selections(),allEmployees=data?.accountKey===null&&selected.accountKey==='',scope=mainAdminView()&&data?.admin===true&&data.workspaceId==='fiber-resellers'&&selected.workspaceId==='fiber-resellers',amount=exactCents(proof?.amount,true);
-  const known=Boolean(scope&&allEmployees&&proof?.basis==='reseller_bill_collections'&&proof.scope==='all_resellers'&&proof.period==='all_recorded_dates'&&proof.available===true&&amount!==null);
-  const reason=!allEmployees?'Select All employees to view the company-wide reseller bill collections.':proof?.available===false&&typeof proof.reason==='string'&&proof.reason.trim()&&proof.reason.length<=500?proof.reason:'Verified reseller bill collections unavailable. Update Main and this PC together.';
-  return {amount:known?amount:null,note:known?'Reseller bills · Money collected · all recorded dates':esc(reason)};
+  const proof=data?.resellerCollectionsRevenue,selected=selections();
+  const scope=mainAdminView()&&data?.admin===true&&data.workspaceId==='fiber-resellers'&&selected.workspaceId==='fiber-resellers';
+  const monthMatches=validDay(data?.today)&&proof?.start===data.today.slice(0,7)+'-01'&&proof.end===data.today;
+  const employeeMatches=proof?.accountKey===data?.accountKey&&(data?.accountKey??'')===selected.accountKey;
+  const verified=scope&&monthMatches&&employeeMatches&&proof.basis==='reseller_bill_collections_period'&&proof.scope==='all_resellers';
+  const amount=exactCents(proof?.amount,true);
+  if(verified&&proof.available===true&&amount!==null){
+   return {amount,note:'Reseller bills · Money collected this month'+(selected.accountKey?' · selected employee':'')};
+  }
+  const reason=verified&&proof.available===false&&typeof proof.reason==='string'&&proof.reason.trim()&&proof.reason.length<=500?proof.reason:'Verified reseller bill collections unavailable for this month. Refresh the dashboard.';
+  return {amount:null,note:esc(reason)};
  }
  function movementParty(event,to=false){const r=event.result;if(r.resellerCollection&&r.destinationType==='wallet')return (to?[r.receiverName||r.recipient,r.targetWalletLabel||r.toWallet,r.targetWalletNumber]:[r.sourceName||r.owner,r.sourceWalletLabel||r.fromWallet,r.sourceWalletNumber]).filter(Boolean).join(' · ');return to?r.to||r.toWallet||r.recipient||'':r.from||r.fromWallet||r.owner||'';}
  function options(select,list,value){const html=list.map(x=>option(x.id,x.name)).join('');if(select.innerHTML!==html)select.innerHTML=html;select.value=list.some(x=>x.id===value)?value:list[0]?.id||'';}

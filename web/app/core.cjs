@@ -2523,7 +2523,16 @@ function registerFinanceHandlers(){
       }
       result.monthlyPayments=FixedMonthlyDashboard.summarize({overview,workspaceId:result.workspaceId,accountKey:result.accountKey,owners,asOf:result.today});
       result.companyDebtPayments=CompanyDebtSpending.dashboardPaid({entries:workspaceDatabases,workspaceId:result.workspaceId,accountKey:result.accountKey,start:result.today.slice(0,7)+'-01',end:result.today,asOf:result.today});
-      if(result.workspaceId==='fiber-resellers')result.resellerCollectionsRevenue=result.accountKey?{basis:'reseller_bill_collections',scope:'all_resellers',period:'all_recorded_dates',available:false,reason:'Select All employees to view the company-wide reseller bill collection total.'}:ResellerCollectedRevenue.summary(workspaceDatabases.get('fiber-resellers').db);
+      if(result.workspaceId==='fiber-resellers'){
+        const period={start:result.today.slice(0,7)+'-01',end:result.today,accountKey:result.accountKey};
+        const scope={basis:'reseller_bill_collections_period',scope:'all_resellers',...period};
+        try{
+          const {amount}=ResellerCollectedRevenue.period(workspaceDatabases.get('fiber-resellers').db,period);
+          result.resellerCollectionsRevenue={...scope,available:true,amount};
+        }catch{
+          result.resellerCollectionsRevenue={...scope,available:false,reason:'This month’s reseller bill collections could not be verified. Refresh the dashboard.'};
+        }
+      }
     }
     return result;
   });

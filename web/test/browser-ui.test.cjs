@@ -620,6 +620,11 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  await evaluate(page,`document.querySelector('#login-username').value='browser.fixture.admin';document.querySelector('#login-password').value=${JSON.stringify(password)};document.querySelector('#login-form').requestSubmit();`);
  await waitFor(page,"!document.querySelector('#app-shell').classList.contains('hidden')&&document.querySelector('#current-user-name').textContent==='Fictional Browser Admin'",'Administrator dashboard');
  await waitFor(page,"document.querySelector('#updates-button-label').textContent==='Website version'",'Website version controls');
+ await waitFor(page,"document.querySelector('#finance-business')?.value==='all'&&document.querySelector('#finance-scope-note').textContent.includes('All businesses')",'Consolidated finances');
+ await evaluate(page,"(()=>{const business=document.querySelector('#finance-business');business.value='fiber-resellers';business.dispatchEvent(new Event('change',{bubbles:true}));})()");
+ await waitFor(page,`document.querySelector('[data-finance-metric="revenue"] strong')?.textContent==='$0.00'&&document.querySelector('[data-finance-metric="revenue"] small')?.textContent==='Reseller bills · Money collected this month'`,'Current-month reseller revenue');
+ t.diagnostic('Genuine Chrome Main dashboard reseller revenue showed $0.00 with the current-month collection label.');
+ await evaluate(page,"(()=>{const business=document.querySelector('#finance-business');business.value='all';business.dispatchEvent(new Event('change',{bubbles:true}));})()");
  await responsive(page,'Main dashboard');
  await mobileNavigation(page);
  assert.equal(await evaluate(page,"document.querySelector('#network-settings-button').classList.contains('website-only-hidden')"),true);
