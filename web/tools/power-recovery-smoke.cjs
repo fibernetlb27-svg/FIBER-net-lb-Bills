@@ -251,7 +251,7 @@ async function main(args) {
       fs.copyFileSync(path.join(data, file), path.join(restartedCopy, file));
     }
     const restartedAudit = await auditCopiedData(restartedCopy, {copiedData: true});
-    const contents = ({files}) => files.map(({name, schemaSha256, tables, custody}) => ({name, schemaSha256, tables, custody}));
+    const contents = ({files}) => files.map(({name, schemaSha256, tables, custody}) => ({name, schemaSha256, tables: {...tables}, custody}));
     assert.deepEqual(contents(restartedAudit), contents(report), 'All seven databases keep their schema, rows and custody after restart.');
     assert.equal(JSON.parse(fs.readFileSync(state, 'utf8')).boot.id, firstClaim.boot.id, 'Recovery re-attests the genuine current boot.');
 
