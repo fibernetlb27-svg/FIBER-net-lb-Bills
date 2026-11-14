@@ -6,14 +6,17 @@ window.BandwidthAccounting = (() => {
   const number = value => new Intl.NumberFormat('en-US', {maximumFractionDigits:6}).format(Number(value || 0));
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
   const amount = value => Math.round(Number(value || 0) * 100);
+  const maxDraftLines = 100;
+  const maxSafeCents = BigInt(Number.MAX_SAFE_INTEGER);
   function purchaseCents(quantity,unitPrice) {
     const scaled=(value,places)=>{const raw=String(value).trim();if(!new RegExp('^\\d+(?:\\.\\d{1,'+places+'})?$').test(raw))return null;const [whole,fraction='']=raw.split('.');return BigInt(whole)*10n**BigInt(places)+BigInt(fraction.padEnd(places,'0'));};
     const quantityMicros=scaled(quantity,6),priceCents=scaled(unitPrice,2);if(quantityMicros===null||priceCents===null)return null;
-    const total=(quantityMicros*priceCents+500000n)/1000000n;return total>BigInt(Number.MAX_SAFE_INTEGER)?null:Number(total);
+    if(quantityMicros>maxSafeCents||priceCents>maxSafeCents)return null;
+    const total=(quantityMicros*priceCents+500000n)/1000000n;return total>maxSafeCents?null:Number(total);
   }
   const names = {dashboard:'Dashboard',suppliers:'Suppliers',types:'Bandwidth types',purchases:'Bandwidth purchases'};
   let config = null, host = null, data = null, sources = [], view = 'dashboard', epoch = 0, loadTicket = 0, sourceTicket = 0, dashboardTicket = 0, busy = false, loaded = false;
-  let dialog = null, requestId = '', editId = null, payingSupplier = null, frozenPayment = null;
+  let dialog = null, requestId = '', editId = null, payingSupplier = null, frozenPayment = null, unconfirmedPurchase = null;
   const user = value => value?.getUser?.() ?? value?.user;
   const workspace = value => value?.getWorkspace?.() ?? value?.workspace;
   const identity = value => {const owner=user(value);return JSON.stringify([owner?.accountKey||owner?.account_key,owner?.role,owner?.active,workspace(value)?.id,[...(owner?.permissions||[])].sort(),[...(owner?.allowedSections||[])].sort()]);};
@@ -28,7 +31,7 @@ window.BandwidthAccounting = (() => {
   function options(rows,label,selected='') { return rows.map(row => `<option value="${esc(row.id)}"${String(row.id)===String(selected)?' selected':''}>${esc(label(row))}</option>`).join(''); }
   function empty(columns,message) { return `<tr><td colspan="${columns}" class="ba-empty">${esc(message)}</td></tr>`; }
   function reset() {
-    epoch++; loadTicket++; sourceTicket++; dashboardTicket++; data=null; sources=[]; loaded=false; busy=false; frozenPayment=null; requestId=''; editId=null; payingSupplier=null;
+    epoch++; loadTicket++; sourceTicket++; dashboardTicket++; data=null; sources=[]; loaded=false; busy=false; frozenPayment=null; unconfirmedPurchase=null; requestId=''; editId=null; payingSupplier=null;
     if(dialog?.open) dialog.close();
     dialog?.remove(); dialog=null;
     if(host) { host.removeEventListener('click',handleClick); host.replaceChildren(); host.classList.remove('ba-root'); host.hidden=true; }
@@ -44,7 +47,7 @@ window.BandwidthAccounting = (() => {
   function mount() {
     host.innerHTML=`<div class="ba-topline"><div><p class="eyebrow">MAIN OFFICE · ADMIN ONLY</p><h2>Bandwidth Accounting</h2><p class="field-note">Supplier purchases, outstanding balances and payments in one place.</p></div><button type="button" id="ba-return" class="button button-secondary">← Return to Main</button></div>
       <nav class="ba-nav" aria-label="Bandwidth accounting views">${Object.entries(names).map(([id,label])=>`<button type="button" class="button button-secondary${id===view?' active':''}" data-ba-view="${id}" aria-current="${id===view?'page':'false'}">${label}</button>`).join('')}</nav>
-      <form id="ba-filter" class="ba-filter panel"><div><strong>Accounting period</strong><small>Balances include earlier unpaid purchases through the end date.</small></div><label>From<input type="date" id="ba-from" aria-label="Accounting period from" /></label><label>To<input type="date" id="ba-to" aria-label="Accounting period to" /></label><button type="submit" class="button button-secondary">Apply</button><button type="button" id="ba-all-dates" class="button button-secondary">All dates</button><button type="button" id="ba-refresh" class="button button-secondary">Refresh</button></form>
+      <form id="ba-filter" class="ba-filter panel"><div><strong>Accounting period</strong><small>The summary cards follow these dates. Supplier statements include earlier unpaid purchases through the end date.</small></div><label>From<input type="date" id="ba-from" aria-label="Accounting period from" /></label><label>To<input type="date" id="ba-to" aria-label="Accounting period to" /></label><button type="submit" class="button button-secondary">Apply</button><button type="button" id="ba-all-dates" class="button button-secondary">All dates</button><button type="button" id="ba-refresh" class="button button-secondary">Refresh</button></form>
       <p id="ba-status" class="ba-status" role="status" aria-live="polite" hidden></p><article id="ba-pending-panel" class="panel ba-pending" hidden><div class="panel-heading"><div><p class="eyebrow">SAVED PAYMENT RECOVERY</p><h3>Payments awaiting completion</h3><p class="field-note">Finish the original saved payment with its original source. Do not enter it again as a new payment.</p></div></div><div class="table-wrap"><table><thead><tr><th>Reference / supplier</th><th>Method / saved source</th><th class="number">Amount USD</th><th>Status</th><th></th></tr></thead><tbody id="ba-pending-body"></tbody></table></div></article>
       <section id="ba-dashboard" aria-label="Bandwidth dashboard"><div id="ba-metrics" class="ba-metrics metric-grid"></div><article class="panel"><div class="panel-heading"><div><p class="eyebrow">SUPPLIER STATEMENTS</p><h3>Bandwidth purchased &amp; money owed</h3><p class="field-note" id="ba-period-note"></p></div><button type="button" class="button button-primary" data-ba-new="purchase">Add purchase</button></div><div id="ba-statements"></div></article><article class="panel ba-history"><div class="panel-heading"><div><p class="eyebrow">PAYMENT AUDIT</p><h3>Payments to suppliers</h3><p class="field-note">Saved source and supplier details are kept with each payment.</p></div></div><div class="table-wrap"><table><thead><tr><th>Receipt / date</th><th>Supplier</th><th>Payment source</th><th>Destination</th><th class="number">Paid USD</th><th></th></tr></thead><tbody id="ba-payment-body"></tbody></table></div></article></section>
       <section id="ba-suppliers" hidden aria-label="Suppliers"><article class="panel"><div class="panel-heading"><div><p class="eyebrow">SUPPLIER DIRECTORY</p><h3>Suppliers</h3><p class="field-note">Contact and receiving-wallet details. Editing a supplier does not change earlier receipts.</p></div><button type="button" class="button button-primary" data-ba-new="supplier">Add supplier</button></div><div class="table-wrap"><table><thead><tr><th>Name / address</th><th>Phone</th><th>Whish receiving number</th><th>Status</th><th></th></tr></thead><tbody id="ba-supplier-body"></tbody></table></div></article></section>
@@ -65,6 +68,7 @@ window.BandwidthAccounting = (() => {
     else if(button.dataset.baSupplier) openForm('supplier',button.dataset.baSupplier);
     else if(button.dataset.baType) openForm('type',button.dataset.baType);
     else if(button.dataset.baPay) openPayment(button.dataset.baPay).catch(error=>setStatus(errorText(error),true));
+    else if(button.dataset.baRepeatPurchase) openPurchaseDraft(button.dataset.baRepeatPurchase);
     else if(button.dataset.baReceipt) showReceipt(data.payments.find(row=>String(row.id)===button.dataset.baReceipt));
     else if(button.dataset.baResume) openRecovery(button.dataset.baResume);
   }
@@ -106,15 +110,24 @@ window.BandwidthAccounting = (() => {
     const d=data||{suppliers:[],types:[],purchases:[],payments:[],pending:[],totals:{}},t=d.totals;
     $('ba-pending-panel').hidden=!d.pending?.length;
     $('ba-pending-body').innerHTML=(d.pending||[]).map(row=>`<tr><td><strong>${esc(row.requestId)}</strong><small>${esc(findSupplier(row.supplierId)?.name||row.supplierId)} · ${esc(row.actorName||row.actorKey)}</small></td><td>${esc(row.paymentMethod)}<small>${esc(row.sourceWorkspaceId)}${row.sourceWalletId?' · wallet '+esc(row.sourceWalletId):' · Admin cash drawer'}</small></td><td class="number">${money(row.amount)}</td><td>${esc(row.state)}</td><td><button type="button" class="button button-secondary" data-ba-resume="${esc(row.requestId)}"${row.actorKey!==(config.user.accountKey||config.user.account_key)?' disabled title="Only the original Admin can finish this payment"':''}>Review &amp; finish</button></td></tr>`).join('');
-    $('ba-metrics').innerHTML=[['Total purchased','totalCost','Supplier purchase cost'],['Paid to suppliers','totalPaid','Recorded payments'],['Still owed to suppliers','remaining','Outstanding supplier balance']].map(([label,key,note])=>`<article class="metric-card${key==='remaining'?' debt-card':''}" data-ba-metric="${key}"><span>${label}</span><strong>${loaded?money(t[key]):'—'}</strong><small>${note}</small></article>`).join('');
-    const period=[$('ba-from').value||'the beginning',$('ba-to').value||'today'].join(' → ');
-    $('ba-period-note').textContent=loaded?`${period}. Period purchases ${money(t.periodCost)} · period payments ${money(t.periodPaid)}. Supplier balances include earlier purchases through the end date.`:'Load the ledger to see verified supplier balances.';
-    $('ba-statements').innerHTML=d.suppliers.map(row=>`<section class="ba-supplier-statement"><div class="ba-statement-heading"><div class="ba-supplier-name"><h4>${esc(row.name)}</h4><small>${esc(row.phone||'No phone')} · Whish ${esc(row.whishNumber||'not set')}</small>${row.address?`<small>${esc(row.address)}</small>`:''}${row.active===false?'<span class="ba-badge">Inactive supplier</span>':''}</div><dl class="ba-balances"><div><dt>Purchase cost</dt><dd>${money(row.totalCost)}</dd></div><div><dt>Paid</dt><dd>${money(row.totalPaid)}</dd></div><div class="ba-remaining"><dt>Remaining</dt><dd>${money(row.remaining)}</dd></div></dl><button type="button" data-ba-pay="${esc(row.id)}" class="button button-primary"${amount(row.remaining)<=0||(d.pending||[]).some(p=>String(p.supplierId)===String(row.id))?' disabled':''}>Pay supplier</button></div><details><summary>Purchase lines <span>${esc((row.purchaseLines||[]).length)}</span></summary>${lineTable(row.purchaseLines||[])}</details></section>`).join('')||`<p class="ba-empty">${loaded?'No suppliers yet. Add a supplier, then record a bandwidth purchase.':'No supplier information loaded.'}</p>`;
+    const metrics = [
+      ['Total purchased','totalCost',t.periodCost,'Purchases dated within the selected period'],
+      ['Paid to suppliers','totalPaid',t.periodPaid,'Payments dated within the selected period'],
+      ['Still owed to suppliers','remaining',t.periodRemaining,'Unpaid balance of purchases in the selected period']
+    ];
+    $('ba-metrics').innerHTML=metrics.map(([label,key,value,note])=>`<article class="metric-card${key==='remaining'?' debt-card':''}" data-ba-metric="${key}"><span>${label}</span><strong>${loaded&&Number.isFinite(value)?money(value):'—'}</strong><small>${note}</small></article>`).join('');
+    const period = [d.start==='2000-01-01'?'The beginning':d.start,d.end].join(' → ');
+    $('ba-period-note').textContent=loaded?`${period}. Supplier statements include earlier purchases through the end date.`:'Load the ledger to see verified supplier balances.';
+    $('ba-statements').innerHTML=d.suppliers.map(row=>`<section class="ba-supplier-statement"><div class="ba-statement-heading"><div class="ba-supplier-name"><h4>${esc(row.name)}</h4><small>${esc(row.phone||'No phone')} · Whish ${esc(row.whishNumber||'not set')}</small>${row.address?`<small>${esc(row.address)}</small>`:''}${row.active===false?'<span class="ba-badge">Inactive supplier</span>':''}</div><dl class="ba-balances"><div><dt>Purchase cost</dt><dd>${money(row.totalCost)}</dd></div><div><dt>Paid</dt><dd>${money(row.totalPaid)}</dd></div><div class="ba-remaining"><dt>Remaining</dt><dd>${money(row.remaining)}</dd></div></dl><div class="ba-statement-actions"><button type="button" data-ba-pay="${esc(row.id)}" class="button button-primary">Pay supplier</button><button type="button" data-ba-repeat-purchase="${esc(row.id)}" class="button button-secondary">Add purchase</button></div></div><details><summary>Purchase lines <span>${esc((row.purchaseLines||[]).length)}</span></summary>${lineTable(row.purchaseLines||[])}</details></section>`).join('')||`<p class="ba-empty">${loaded?'No suppliers yet. Add a supplier, then record a bandwidth purchase.':'No supplier information loaded.'}</p>`;
     $('ba-supplier-body').innerHTML=d.suppliers.map(row=>`<tr><td><strong>${esc(row.name)}</strong><small>${esc(row.address||'No address')}</small>${row.note?`<small>${esc(row.note)}</small>`:''}</td><td>${esc(row.phone||'—')}</td><td>${esc(row.whishNumber||'Not set')}</td><td><span class="ba-badge">${row.active===false?'Inactive':'Active'}</span></td><td><button type="button" data-ba-supplier="${esc(row.id)}" class="button button-secondary">Edit</button></td></tr>`).join('')||empty(5,loaded?'No suppliers yet.':'No supplier information loaded.');
     $('ba-type-body').innerHTML=d.types.map(row=>`<tr><td><strong>${esc(row.name)}</strong></td><td>${esc(row.unit)}</td><td>${esc(number(row.totalQuantity))} ${esc(row.unit)}</td><td><span class="ba-badge">${row.active===false?'Inactive':'Active'}</span></td><td><button type="button" data-ba-type="${esc(row.id)}" class="button button-secondary">Edit</button></td></tr>`).join('')||empty(5,loaded?'No bandwidth types yet.':'No type information loaded.');
     $('ba-purchase-body').innerHTML=d.purchases.map(row=>`<tr><td>${esc(row.purchaseDate)}<small>${esc(row.supplierName)}</small></td><td>${esc(row.typeName)}</td><td class="number">${esc(number(row.quantity))} ${esc(row.unit)}</td><td class="number">${money(row.unitPrice)}</td><td class="number">${money(row.totalCost??row.total)}</td><td class="number">${money(row.paidAmount)}</td><td class="number">${money(row.remaining)}</td><td>${esc(row.actorName||'—')}<small>${esc(row.note||'')}</small></td></tr>`).join('')||empty(8,loaded?'No bandwidth purchases in this period.':'No purchase information loaded.');
     $('ba-payment-body').innerHTML=d.payments.map(row=>`<tr><td><strong>${esc(row.receiptNo||row.requestId)}</strong><small>${esc(row.paymentDate||row.recordedAt)}</small></td><td>${esc(row.supplierName)}<small>${esc(row.note||'')}</small></td><td>${esc(row.paymentMethod)}<small>${esc(row.sourceWorkspaceName||row.sourceWorkspaceId)} · ${esc(row.sourceName||row.actorName||'Admin')}</small>${row.sourceWalletId?`<small>${esc(row.sourceWalletLabel)} · ${esc(row.sourceWalletNumber)}</small>`:''}</td><td>${row.paymentMethod==='Whish Money'?`Supplier Whish<small>${esc(row.supplierWhishNumber||'—')}</small>`:'Supplier cash payment'}</td><td class="number">${money(row.amount)}</td><td><button type="button" class="button button-secondary" data-ba-receipt="${esc(row.id)}">Receipt</button></td></tr>`).join('')||empty(6,loaded?'No supplier payments in this period.':'No payment information loaded.');
-    host.querySelectorAll('[data-ba-new],[data-ba-pay],[data-ba-supplier],[data-ba-type]').forEach(button=>{button.disabled=!loaded||Boolean(d.pending?.length)||(Boolean(button.dataset.baPay)&&amount(findSupplier(button.dataset.baPay)?.remaining)<=0);});
+    host.querySelectorAll('[data-ba-new],[data-ba-pay],[data-ba-repeat-purchase],[data-ba-supplier],[data-ba-type]').forEach(button=>{
+      button.disabled=!loaded||Boolean(d.pending?.length)||
+        (Boolean(button.dataset.baPay)&&amount(findSupplier(button.dataset.baPay)?.remaining)<=0)||
+        (Boolean(button.dataset.baRepeatPurchase)&&findSupplier(button.dataset.baRepeatPurchase)?.active===false);
+    });
   }
   function mountDialog(title,eyebrow,body,submitLabel) {
     if(dialog?.open)dialog.close();dialog?.remove();dialog=document.createElement('dialog');dialog.id='ba-dialog';dialog.className='modal ba-dialog';
@@ -139,6 +152,7 @@ window.BandwidthAccounting = (() => {
       mountDialog(id?'Edit bandwidth type':'Add bandwidth type','TYPE & UNIT',`<p class="field-note">Choose Mbps or Gbps. Past purchases retain their saved type and unit.</p><div class="form-grid"><label>Type name<input id="ba-name" required maxlength="120" value="${esc(row.name||'')}" /></label><label>Unit<select id="ba-unit" required${row.inUse?' disabled':''}><option${row.unit!=='Gbps'?' selected':''}>Mbps</option><option${row.unit==='Gbps'?' selected':''}>Gbps</option></select>${row.inUse?'<small>Unit is fixed after a purchase. Create a new type to use another unit.</small>':''}</label>${id?activeField(row.active!==false):''}</div>`,'Save bandwidth type');
       $('ba-form').onsubmit=event=>save(event,kind);
     } else if(kind==='purchase') {
+      if(unconfirmedPurchase){openPurchaseRetry();return;}
       const suppliers=data.suppliers.filter(row=>row.active!==false),types=data.types.filter(row=>row.active!==false);
       mountDialog('Add bandwidth purchase','MANUAL PURCHASE',`<p class="field-note">The purchase records its cost once in Main Office under “Bandwidth cost” and creates an amount owed to the supplier. Pay supplier settles that amount; it does not add a second cost. No stock or customer renewal is changed.</p><div class="form-grid"><label>Supplier<select id="ba-purchase-supplier" required><option value="">Select supplier</option>${options(suppliers,row=>row.name)}</select></label><label>Bandwidth type<select id="ba-purchase-type" required><option value="">Select bandwidth type</option>${options(types,row=>`${row.name} · ${row.unit}`)}</select></label><label>Purchase date<input id="ba-date" type="date" value="${today()}" required /></label><label>Quantity <span id="ba-quantity-unit"></span><input id="ba-quantity" type="number" min="0.000001" max="1000000000" step="any" required value="1" /></label><label>Unit price (USD)<input id="ba-unit-price" type="number" min="0.01" max="1000000000" step="0.01" required /></label><label class="wide">Description / note<textarea id="ba-note" maxlength="1000"></textarea></label></div><div class="ba-payment-preview"><span>Total purchase cost</span><strong id="ba-purchase-total">$0.00</strong></div>`, 'Save purchase');
       if(!suppliers.length||!types.length){$('ba-form-error').textContent='Add an active supplier and bandwidth type first.';$('ba-save').disabled=true;}
@@ -146,6 +160,165 @@ window.BandwidthAccounting = (() => {
       for(const field of ['ba-quantity','ba-unit-price'])$(field).oninput=()=>{const total=purchaseCents($('ba-quantity').value,$('ba-unit-price').value);$('ba-purchase-total').textContent=total===null?'—':money(total/100);};
       $('ba-form').onsubmit=event=>save(event,kind);
     }
+  }
+  function draftLine(types,line={}) {
+    const row = document.createElement('div');
+    row.className = 'ba-draft-line';
+    row.setAttribute('data-ba-draft-line','');
+    const selected = line.active!==false && types.some(type=>String(type.id)===String(line.typeId)) ? line.typeId : '';
+    const placeholder = line.typeId && !selected ? `${line.typeName} · inactive. Select a replacement.` : 'Select bandwidth type';
+    row.innerHTML = `<label>Bandwidth type<select data-ba-draft-type required><option value="">${esc(placeholder)}</option>${options(types,type=>`${type.name} · ${type.unit}`,selected)}</select></label>
+      <label><span>Quantity <span data-ba-draft-unit></span></span><input data-ba-draft-quantity type="number" min="0.000001" step="any" required value="${esc(line.quantity??'1')}" /></label>
+      <label>Unit price (USD)<input data-ba-draft-price type="number" min="0.01" step="0.01" required value="${esc(line.unitPrice??'')}" /></label>
+      <div class="ba-draft-line-amount"><small>Line total</small><strong data-ba-draft-line-total>—</strong></div>
+      <button type="button" class="button button-secondary" data-ba-draft-remove aria-label="Remove bandwidth line">Remove</button>
+      <details class="ba-draft-note"><summary>Purchase note${line.note?' · saved':''}</summary><label>Purchase note<textarea data-ba-draft-note rows="2" maxlength="1000">${esc(line.note||'')}</textarea></label></details>`;
+    return row;
+  }
+  function readDraftLine(row) {
+    const field = key => row.querySelector(`[data-ba-draft-${key}]`).value;
+    return {typeId:field('type'), quantity:field('quantity'), unitPrice:field('price'), note:field('note').trim()};
+  }
+  function reviewDraft(lines) {
+    let total = 0n;
+    for(const line of lines) {
+      const cents = purchaseCents(line.quantity,line.unitPrice);
+      if(!line.typeId || cents===null || cents<=0)return null;
+      total += BigInt(cents);
+    }
+    return total<=maxSafeCents ? Number(total) : null;
+  }
+  function openPurchaseDraft(id) {
+    if(!loaded||!allowed()||busy)return;
+    if(unconfirmedPurchase){openPurchaseRetry();return;}
+    const supplier = findSupplier(id);
+    if(!supplier || supplier.active===false)return;
+    const types = data.types.filter(row=>row.active!==false);
+    const draft = mountDialog('Add purchase','BANDWIDTH PURCHASE',`<div class="ba-payee"><strong>${esc(supplier.name)}</strong></div>
+      <div class="ba-draft-date"><label>Purchase date<input id="ba-draft-date" type="date" min="2000-01-01" max="2199-12-31" value="${esc(data.today||today())}" required /></label><button type="button" id="ba-draft-load" class="button button-secondary" hidden>Load previous month</button></div>
+      <p id="ba-draft-source" class="field-note" role="status"></p><div id="ba-draft-lines" class="ba-draft-lines"></div>
+      <button type="button" id="ba-draft-add" class="button button-secondary">+ Add bandwidth line</button>
+      <div class="ba-payment-preview"><span>Total purchase cost</span><strong id="ba-draft-total" aria-live="polite">—</strong></div>`, 'Save new purchase');
+    draft.classList.add('ba-purchase-draft');
+    const state = capture(), dateField = $('ba-draft-date'), list = $('ba-draft-lines'), source = $('ba-draft-source');
+    let loading = false, loadedMonth = '', sourceMessage = '';
+    const rows = () => [...list.children];
+    const month = () => dateField.value.slice(0,7);
+    function update() {
+      const entries = rows();
+      const correctMonth = Boolean(loadedMonth) && loadedMonth===month();
+      const lines = entries.map(row=>{
+        const line = readDraftLine(row);
+        const unit = types.find(type=>String(type.id)===line.typeId)?.unit;
+        const cents = purchaseCents(line.quantity,line.unitPrice);
+        row.querySelector('[data-ba-draft-unit]').textContent = unit ? `(${unit})` : '';
+        row.querySelector('[data-ba-draft-line-total]').textContent = cents>0 ? money(cents/100) : '—';
+        return line;
+      });
+      const total = reviewDraft(lines);
+      $('ba-draft-total').textContent = total===null ? '—' : money(total/100);
+      $('ba-draft-load').hidden = correctMonth;
+      $('ba-draft-load').disabled = loading || !dateField.validity.valid;
+      $('ba-draft-add').disabled = loading || entries.length>=maxDraftLines || !types.length;
+      $('ba-save').disabled = loading || !entries.length || entries.length>maxDraftLines || !types.length;
+      if(loading)source.textContent = 'Loading the previous month’s purchases…';
+      else if(correctMonth)source.textContent = sourceMessage;
+      else if(loadedMonth)source.textContent = `${sourceMessage} Load previous month to replace the lines for the new purchase date.`;
+      else source.textContent = 'Load the previous month’s purchases or add your own lines.';
+    }
+    async function loadPreviousMonth() {
+      if(loading || !dateField.reportValidity())return;
+      const purchaseDate = dateField.value;
+      loading = true;
+      $('ba-fields').disabled = true;
+      $('ba-form-error').textContent = '';
+      update();
+      try {
+        const result = await state.config.api.purchaseDraft({supplierId:supplier.id,purchaseDate});
+        if(!current(state) || dialog!==draft || !draft.open)return;
+        const lines = result.lines;
+        if(!Array.isArray(lines))throw Error('The previous month’s purchase lines could not be loaded.');
+        list.replaceChildren(...(lines.length?lines:[{}]).map(line=>draftLine(types,line)));
+        loadedMonth = purchaseDate.slice(0,7);
+        sourceMessage = lines.length
+          ? `Copied ${lines.length} ${lines.length===1?'line':'lines'} from ${result.sourceMonth}. Review the quantities and prices before saving.`
+          : `No purchases for this supplier in ${result.sourceMonth}. Add the lines for your new purchase.`;
+        if(lines.length>maxDraftLines)sourceMessage += ` Remove lines until ${maxDraftLines} or fewer remain before saving.`;
+        if(!types.length)$('ba-form-error').textContent = 'Add an active bandwidth type first.';
+      } catch(error) {
+        if(current(state) && dialog===draft && draft.open)$('ba-form-error').textContent = errorText(error);
+      } finally {
+        if(current(state) && dialog===draft && draft.open) {
+          loading = false;
+          $('ba-fields').disabled = false;
+          update();
+        }
+      }
+    }
+    $('ba-draft-load').onclick = loadPreviousMonth;
+    dateField.oninput = update;
+    list.oninput = update;
+    list.onchange = update;
+    list.onclick = event=>{
+      const button = event.target.closest('[data-ba-draft-remove]');
+      if(!button)return;
+      const row = button.closest('[data-ba-draft-line]');
+      const focusRow = row.nextElementSibling || row.previousElementSibling;
+      row.remove();
+      update();
+      (focusRow?.querySelector('[data-ba-draft-type]') || $('ba-draft-add')).focus();
+    };
+    $('ba-draft-add').onclick = ()=>{
+      const row = draftLine(types);
+      list.append(row);
+      update();
+      row.querySelector('[data-ba-draft-type]').focus();
+    };
+    $('ba-form').onsubmit = event=>{
+      event.preventDefault();
+      if(busy || !current(state))return;
+      if(unconfirmedPurchase){openPurchaseRetry();return;}
+      if($('ba-save').disabled || !$('ba-form').reportValidity())return;
+      const lines = rows().map(readDraftLine), total = reviewDraft(lines);
+      if(total===null || total<=0){
+        $('ba-form-error').textContent = 'Each line needs a positive quantity with up to 6 decimal places and a positive price with up to 2 decimal places. Use amounts within the supported range.';
+        return;
+      }
+      void savePurchaseDraft({payload:{requestId,supplierId:supplier.id,purchaseDate:dateField.value,lines}, supplierName:supplier.name,total});
+    };
+    void loadPreviousMonth();
+  }
+  function openPurchaseRetry() {
+    const saved = unconfirmedPurchase;
+    mountDialog('Check bandwidth purchase','PURCHASE SAVE',`<div class="ba-payee"><strong>${esc(saved.supplierName)}</strong><small>${esc(saved.payload.purchaseDate)} · ${saved.payload.lines.length} purchase ${saved.payload.lines.length===1?'line':'lines'}</small><span>Total purchase cost <b>${money(saved.total/100)}</b></span></div><p class="field-note">Retry the original request to confirm whether these lines were saved. The request reference keeps the retry from creating duplicate lines.</p>`, 'Retry original purchase');
+    $('ba-form').onsubmit = event=>{event.preventDefault();if(!busy && allowed())void savePurchaseDraft(saved);};
+  }
+  async function savePurchaseDraft(saved) {
+    const state = capture();
+    busy = true;
+    setDialogBusy(true);
+    $('ba-form-error').textContent = '';
+    let result;
+    try {
+      result = await state.config.api.createPurchases(saved.payload);
+    } catch(error) {
+      if(!current(state))return;
+      const uncertain = unconfirmedPurchase || error.uncertain || error.status>=500 || error.message==='The bandwidth purchase save could not be confirmed.';
+      busy = false;
+      if(uncertain){unconfirmedPurchase=saved;openPurchaseRetry();}
+      else setDialogBusy(false);
+      $('ba-form-error').textContent=errorText(error);
+      return;
+    }
+    if(!current(state))return;
+    unconfirmedPurchase = null;
+    const date = saved.payload.purchaseDate;
+    const inPeriod = date >= data?.start && date <= data?.end;
+    dialog.close();
+    notify(inPeriod?`Bandwidth purchase recorded for ${date}.`:`Bandwidth purchase recorded for ${date}. It falls outside the current filter.`);
+    try {await load();}
+    finally {if(current(state)){busy=false;setDialogBusy(false);}}
+    return result;
   }
   async function save(event,kind) {
     event.preventDefault();if(busy || !allowed() || !$('ba-form').reportValidity())return;

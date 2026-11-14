@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh FIBER healthy-writer evidence
+Wants=network-online.target
+After=network-online.target
+
+[Timer]
+OnBootSec=90s
+OnUnitInactiveSec=60s
+AccuracySec=5s
+Unit=fibernetlb-recovery-attest.service
+
+[Install]
+WantedBy=timers.target

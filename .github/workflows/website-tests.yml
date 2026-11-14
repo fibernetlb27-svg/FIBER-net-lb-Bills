@@ -52,3 +52,5 @@ jobs:
         run: docker build --tag fibernetlb-web-ci:fixture .
       - name: Check non-root container startup, sessions, provider blocking, writer lock and restart persistence
         run: node tools/container-smoke.cjs --image fibernetlb-web-ci:fixture
+      - name: Check guarded power-reboot recovery with isolated Linux fixtures
+        run: node tools/power-recovery-smoke.cjs --image fibernetlb-web-ci:fixture

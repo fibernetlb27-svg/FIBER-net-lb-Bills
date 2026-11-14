@@ -1,0 +1,47 @@
+[Unit]
+Description=FIBER guarded accounting recovery after host reboot
+Requires=docker.service
+Wants=network-online.target
+After=docker.service network-online.target
+StartLimitIntervalSec=300s
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/
+ExecStart=/usr/bin/flock --no-fork --nonblock /srv/fibernetlb/private/power-recovery.guard.lock /opt/fibernetlb/runtime/node24/bin/node /opt/fibernetlb/power-recovery/power-recovery.cjs --config /etc/fibernetlb/power-recovery.json --recover
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=30s
+TimeoutStartSec=1200s
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+Environment=DOCKER_HOST=unix:///var/run/docker.sock
+Environment=DOCKER_CONFIG=/etc/fibernetlb/docker-client
+Environment=NODE_OPTIONS=
+Environment=NODE_PATH=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/fibernetlb/private
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+# Recovery must inspect the host boot identity, lock table and process handles.
+ProtectProc=default
+ProcSubset=all
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

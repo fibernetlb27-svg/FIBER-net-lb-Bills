@@ -14,7 +14,7 @@ const groups = {
   companyDebts: 'access overview create assignBusiness assignBusinesses addMonthly sources preview pay status resume pending',
   invoiceVoids: 'preview remove status resume pending',
   finance: 'autoMonthStatus ledgerOverview closeMonthsPreview commitMonthsClose closeMonthsStatus resumeMonthsClose closeMonthPreview closeMonthStatus resumeMonthClose pendingMonthClose overview handoverPreview handover walletMove setCostRecipient payInternetCost archive commitMonthClose endDayTargets endDayPreview endDay receiptCopies receiptCopy',
-  bandwidth: 'access overview sources pending createSupplier updateSupplier createType updateType createPurchase pay resume',
+  bandwidth: 'access overview sources pending createSupplier updateSupplier createType updateType createPurchase purchaseDraft createPurchases pay resume',
   whish: 'list all save',
   receipts: 'whatsapp',
   adminCatalog: 'list generateBarcode create update remove sell receipt whatsapp',

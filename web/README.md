@@ -1,8 +1,22 @@
 # FIBER net lb website preview
 
-Version 0.1.13 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.14 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 Use isolated staging and a copied-data rehearsal before a new deployment or upgrade. The existing authorized accounting server remains the sole authority until an agreed cutover; an already migrated website must not resume recording on its old desktop copy. The website uses the seven existing SQLite database formats. Fictional previews and their checks are separate from accepting live business data.
+
+## Bandwidth Accounting
+
+Apply a date range to see purchases and payments recorded within those dates and the outstanding balance on the selected purchases through the end date. Supplier statements keep a running balance through the end date.
+
+Under a supplier’s **Pay supplier** button, choose **Add purchase** to start a draft using that supplier’s purchases from the preceding calendar month. The draft starts with today’s date. Review the lines, add or remove entries, and adjust each type, quantity, and unit price before saving the new purchase.
+
+## Recovery after a server power failure
+
+The optional Ubuntu boot-recovery service restarts the existing website after a verified power reboot. A separate healthy-site timer records which lock belongs to the current server and data directory. Recovery accepts only that previously attested lock from an earlier host boot, rules out another database writer, saves a private checkpoint and checks all seven database copies before archiving the abandoned lock and starting the same configured container.
+
+Missing or inconsistent ownership evidence, another writer, damaged data, unresolved financial requests or interrupted save files require operator review. Recovery preserves them and leaves a healthy website running. The server operator installs these host services and enrolls the healthy website separately from the application update.
+
+Read [deploy/POWER-RECOVERY.md](deploy/POWER-RECOVERY.md) for installation, healthy lock enrollment, validation, operation and recovery limits.
 
 ## Customer search by reseller
 

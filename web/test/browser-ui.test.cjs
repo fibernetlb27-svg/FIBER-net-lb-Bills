@@ -85,6 +85,126 @@ async function enlargedText(page,label){
  }
 }
 
+async function bandwidthMonthlyPurchaseBrowser(page) {
+  const fixture = await evaluate(page, `(async () => {
+    const api = posApi.bandwidth;
+    const {today} = await api.overview({start:'',end:''});
+    const firstDay = new Date(today.slice(0,7) + '-01T12:00:00Z');
+    const priorDay = new Date(firstDay);
+    priorDay.setUTCDate(0);
+    const priorEnd = priorDay.toISOString().slice(0,10);
+    const priorMonth = priorEnd.slice(0,7);
+    priorDay.setUTCDate(0);
+    const olderDate = priorDay.toISOString().slice(0,10);
+    const createSupplier = name => api.createSupplier({name,requestId:crypto.randomUUID()});
+    const createType = name => api.createType({name,unit:'Mbps',requestId:crypto.randomUUID()});
+    const alpha = await createSupplier('Fictional Bandwidth Alpha');
+    const beta = await createSupplier('Fictional Bandwidth Beta');
+    const metro = await createType('Fictional Metro');
+    const transit = await createType('Fictional Transit');
+    const regional = await createType('Fictional Regional');
+    const create = (supplier,type,purchaseDate,quantity,unitPrice) => api.createPurchase({
+      supplierId:supplier.id,typeId:type.id,purchaseDate,quantity,unitPrice,requestId:crypto.randomUUID()
+    });
+    await create(alpha,regional,olderDate,2,11);
+    await create(alpha,metro,priorMonth+'-11',10,5);
+    await create(alpha,transit,priorMonth+'-12',7,4);
+    await create(beta,regional,priorMonth+'-14',5,5);
+    await create(alpha,transit,today,10,2);
+    await create(beta,regional,today,1,17);
+    await posApi.drawer.setBalance({balance:99,note:'Fictional supplier payment source'});
+    await api.pay({requestId:crypto.randomUUID(),supplierId:alpha.id,paymentDate:today,
+      amount:45,paymentMethod:'Cash',sourceWorkspaceId:'main',note:'Fictional supplier payment'});
+    const nextDay = new Date(today+'T12:00:00Z');
+    nextDay.setUTCDate(nextDay.getUTCDate()+1);
+    return {today,tomorrow:nextDay.toISOString().slice(0,10),monthStart:today.slice(0,7)+'-01',priorMonth,priorEnd,olderDate,
+      alpha:alpha.id,beta:beta.id,metro:metro.id,transit:transit.id,regional:regional.id};
+  })()`);
+  const cardValues = `['totalCost','totalPaid','remaining'].map(key =>
+    document.querySelector('[data-ba-metric="'+key+'"] strong')?.textContent)`;
+  async function cards(expected, label) {
+    await waitFor(page, `JSON.stringify(${cardValues})===${JSON.stringify(JSON.stringify(expected))}`, label);
+  }
+  async function applyDates(start, end) {
+    await evaluate(page, `document.querySelector('#ba-from').value=${JSON.stringify(start)};
+      document.querySelector('#ba-to').value=${JSON.stringify(end)};document.querySelector('#ba-filter').requestSubmit()`);
+  }
+  const readOldPurchases = `(async () => (await posApi.bandwidth.overview({
+    start:${JSON.stringify(fixture.olderDate)},end:${JSON.stringify(fixture.priorEnd)}
+  })).purchases)()`;
+  const savedHistory = await evaluate(page, readOldPurchases);
+  assert.equal(savedHistory.length, 4);
+  await tap(page, '#ba-refresh');
+  await cards(['$162.00', '$45.00', '$117.00'], 'Bandwidth all-date cards');
+  await applyDates(fixture.priorMonth + '-01', fixture.priorEnd);
+  await cards(['$103.00', '$0.00', '$103.00'], 'Previous-month cards exclude a later supplier payment');
+  await applyDates(fixture.tomorrow, fixture.tomorrow);
+  await cards(['$0.00', '$0.00', '$0.00'], 'An empty range excludes all earlier purchases, payments and balances');
+  await applyDates(fixture.monthStart, fixture.today);
+  await cards(['$37.00', '$45.00', '$37.00'], 'Current-month cards exclude carried supplier debt');
+
+  const action = `[data-ba-repeat-purchase="${fixture.alpha}"]`;
+  assert.ok(await evaluate(page, `(() => {
+    const add = document.querySelector(${JSON.stringify(action)});
+    const pay = document.querySelector('[data-ba-pay="${fixture.alpha}"]');
+    return add.getBoundingClientRect().top >= pay.getBoundingClientRect().bottom;
+  })()`), 'Supplier Add purchase sits under its Pay supplier button');
+  await tap(page, action);
+  await waitFor(page, "document.querySelector('#ba-dialog')?.open&&document.querySelectorAll('[data-ba-draft-line]').length===2&&!document.querySelector('#ba-save').disabled", 'Two editable purchases copied from the selected supplier’s previous month');
+  assert.equal(await evaluate(page, "document.querySelector('#ba-draft-date').value"), fixture.today);
+  assert.match(await evaluate(page, "document.querySelector('#ba-dialog').textContent"), /Fictional Bandwidth Alpha/);
+  const lineValues = `(() => [...document.querySelectorAll('[data-ba-draft-line]')].map(line => ({
+    type:Number(line.querySelector('[data-ba-draft-type]').value),
+    quantity:Number(line.querySelector('[data-ba-draft-quantity]').value),
+    price:Number(line.querySelector('[data-ba-draft-price]').value)
+  })).sort((a,b) => a.type-b.type))()`;
+  assert.deepEqual(await evaluate(page, lineValues), [
+    {type:fixture.metro,quantity:10,price:5}, {type:fixture.transit,quantity:7,price:4}
+  ], 'Copies exact prior-month rows for Alpha, even with a current-month filter');
+  await responsive(page, 'Supplier monthly purchase draft');
+
+  await evaluate(page, `(() => {
+    const find = type => [...document.querySelectorAll('[data-ba-draft-line]')].find(line =>
+      Number(line.querySelector('[data-ba-draft-type]').value) === type);
+    const quantity = find(${fixture.metro}).querySelector('[data-ba-draft-quantity]');
+    quantity.value = '12';
+    quantity.dispatchEvent(new Event('input',{bubbles:true}));
+    find(${fixture.transit}).querySelector('[data-ba-draft-remove]').click();
+  })()`);
+  await tap(page, '#ba-draft-add');
+  await evaluate(page, `(() => {
+    for (const [field,value,event] of [['type','${fixture.regional}','change'],['quantity','3','input'],['price','6','input']]) {
+      const line = [...document.querySelectorAll('[data-ba-draft-line]')].at(-1);
+      const input = line.querySelector('[data-ba-draft-'+field+']');
+      input.value = value;
+      input.dispatchEvent(new Event(event,{bubbles:true}));
+    }
+  })()`);
+  assert.deepEqual(await evaluate(page, lineValues), [
+    {type:fixture.metro,quantity:12,price:5}, {type:fixture.regional,quantity:3,price:6}
+  ]);
+  assert.match(await evaluate(page, "document.querySelector('#ba-draft-total').textContent"), /\$78\.00/);
+  assert.deepEqual(await evaluate(page, readOldPurchases), savedHistory, 'The draft never edits original purchases');
+  await tap(page, '#ba-save');
+  await waitFor(page, "!document.querySelector('#ba-dialog')?.open", 'Save the new draft to the fictional accounting ledger');
+  await cards(['$115.00', '$45.00', '$115.00'], 'Current-month cards update after saving purchases');
+  const current = await evaluate(page, `(async () => {
+    const result = await posApi.bandwidth.overview({start:${JSON.stringify(fixture.monthStart)},end:${JSON.stringify(fixture.today)}});
+    return {purchases:result.purchases.map(row => ({supplier:row.supplierId,type:row.typeId,quantity:row.quantity,total:row.totalCost})),payments:result.payments.map(row => row.amount),cash:(await posApi.drawer.get()).balance};
+  })()`);
+  assert.deepEqual(current.purchases.sort((a,b) => b.supplier-a.supplier || a.type-b.type), [
+    {supplier:fixture.beta,type:fixture.regional,quantity:1,total:17},
+    {supplier:fixture.alpha,type:fixture.metro,quantity:12,total:60},
+    {supplier:fixture.alpha,type:fixture.transit,quantity:10,total:20},
+    {supplier:fixture.alpha,type:fixture.regional,quantity:3,total:18}
+  ]);
+  assert.deepEqual(current.payments, [45], 'Saving purchases leaves recorded supplier payments untouched');
+  assert.equal(current.cash, 54, 'Recording a purchase does not make another supplier payment');
+  assert.deepEqual(await evaluate(page, readOldPurchases), savedHistory);
+  await tap(page, '#ba-all-dates');
+  await cards(['$240.00', '$45.00', '$195.00'], 'Clearing the filter restores all three cumulative cards');
+}
+
 async function resellerScopedSearchBrowser(page){
  // Pointer interactions and real bound change events use fictional adapter
  // replies only. Deferred results can never contact a provider or collect money.
@@ -514,6 +634,8 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  await evaluate(page,"for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();void posApi.bandwidth.open()");
  await waitFor(page,"document.querySelector('#bandwidth-accounting-root')&&!document.querySelector('#bandwidth-accounting-root').hidden",'Supplier accounting route');
  await responsive(page,'Supplier accounting');
+ await bandwidthMonthlyPurchaseBrowser(page);
+ t.diagnostic('Genuine Chrome Bandwidth Accounting used all three date-filtered cards, edited a supplier’s previous-month draft, saved its new lines, and verified historical purchases and payments remained intact.');
  await evaluate(page,"document.querySelector('#bandwidth-window-close').click()");
  await waitFor(page,"document.querySelector('#app-shell')&&!document.querySelector('#app-shell').classList.contains('hidden')",'Return from supplier accounting');
  for(const section of ['printer','studio','mobile-ogero','iptv','fiber-resellers','fiber-users']){

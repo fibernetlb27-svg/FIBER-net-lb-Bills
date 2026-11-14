@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -20,8 +20,8 @@
     },
     {
       "name": "DEPLOYMENT.md",
-      "length": 26384,
-      "sha256": "239125f77c09b72ac57d315dfb840b8389e1818c5583374ed4a71389502d18a1"
+      "length": 27103,
+      "sha256": "81e240f0ffe8b2cc4fb6921efeea94cc388d226a289c748760ebba6887eee31f"
     },
     {
       "name": "DOMAIN-SETUP.md",
@@ -40,8 +40,8 @@
     },
     {
       "name": "README.md",
-      "length": 20034,
-      "sha256": "1adb78f5d5c239817950d39d357318c30b9d34850b681b198d7a7a85641ff279"
+      "length": 21580,
+      "sha256": "025206560d6a75018b85f11f302e7acde0f40f8be97b86111a16b25932b5d5b8"
     },
     {
       "name": "RECEIPTS-PRINTING-GUIDE.md",
@@ -92,6 +92,11 @@
       "name": "app/bandwidth-payments.cjs",
       "length": 18178,
       "sha256": "40656f7c7a4d978c0b8ef7bc62d6336d95853ef65e6360098d2e560336af3194"
+    },
+    {
+      "name": "app/bandwidth-purchase-drafts.cjs",
+      "length": 4902,
+      "sha256": "c9adcb0bf10fb894b0aaeed8eb903ef5ebd99c4c86b79a0bd0e7b98d04f84c68"
     },
     {
       "name": "app/bandwidth-spending.cjs",
@@ -165,8 +170,8 @@
     },
     {
       "name": "app/core.cjs",
-      "length": 390818,
-      "sha256": "743a6e7a2fb3f28435d41de2c1dc65478c2b97ee423eda8c7fb836073ca15bd9"
+      "length": 391614,
+      "sha256": "56bf1c20448f44cc134a0ecead8cdea01c386dc47b65209df7d6486bc6e49af0"
     },
     {
       "name": "app/customer-registration.cjs",
@@ -435,13 +440,13 @@
     },
     {
       "name": "app/src/bandwidth-accounting.css",
-      "length": 8302,
-      "sha256": "281a36c2b4fe3f7679b0960ea9f519816be2d25bcfa74f1af05b1a1f889f7723"
+      "length": 9592,
+      "sha256": "4b2c6d68ae6ec032d50960e3b7cfcd46b59b62d8cafa6c0aaca168cf1b5d73bf"
     },
     {
       "name": "app/src/bandwidth-accounting.js",
-      "length": 39453,
-      "sha256": "dd058072563b5b162da8c00aff317d0367b0ed448549bc95c4156042d4b101ce"
+      "length": 49856,
+      "sha256": "a60130f178d1b687c4e2af4773624931ac492b837431108f53a4a727c0f50751"
     },
     {
       "name": "app/src/bandwidth-window.css",
@@ -480,13 +485,13 @@
     },
     {
       "name": "app/src/browser-api.js",
-      "length": 11136,
-      "sha256": "2172d11f065c660420649af000a00c5708fb1355ee4c586c2d8159b7022a85e0"
+      "length": 11150,
+      "sha256": "a5fa83e3b36552ac9dd0ec9e037e44ef2549d43fac05c5ff7b35353af74742af"
     },
     {
       "name": "app/src/browser-contract.js",
-      "length": 16597,
-      "sha256": "a1fc80f006aba1b067f619907ecae26fcb7d7c67b1a5fac66c9bef40fb7cfdd9"
+      "length": 16723,
+      "sha256": "f07eb2d61983a5ac9348f88cac9968facb7a5fc463de77bada02cb30bef4206e"
     },
     {
       "name": "app/src/company-debts.css",
@@ -804,6 +809,11 @@
       "sha256": "2e13c7ba9ea355bce600a27548f0c2e1a0e56cc80e2ed69548bbb80ec6ad293d"
     },
     {
+      "name": "deploy/POWER-RECOVERY.md",
+      "length": 8808,
+      "sha256": "7f75eb58b609863e08db51fc7433a08c5bf4fe53cccb7ad20fb13e1d62e92e11"
+    },
+    {
       "name": "deploy/compose.yaml",
       "length": 1804,
       "sha256": "b1286b00226b9b74a2ecc55ec90588e43148876b4d8efa0cb85c385a22cf4f17"
@@ -814,9 +824,34 @@
       "sha256": "17d38552a862477fe3d04d0d34f8c4c83ac1facd648fe4f5f6951f6b278b032c"
     },
     {
+      "name": "deploy/fibernetlb-boot-recovery.service",
+      "length": 1332,
+      "sha256": "504fe2167646921e9e576862a21b17226d8b9d3dd2961d1dcf6bc6474832257a"
+    },
+    {
+      "name": "deploy/fibernetlb-recovery-attest.service",
+      "length": 1238,
+      "sha256": "0b2dad236f4ec562e5c58e86d2fdbbcf26491e509a1ce9ff607e9e413d602065"
+    },
+    {
+      "name": "deploy/fibernetlb-recovery-attest.timer",
+      "length": 247,
+      "sha256": "d4d96f25df78b06b725db3e39ac653f8223bd8efb3b28ab7b4b9595c7547314b"
+    },
+    {
+      "name": "deploy/power-recovery-audit.cjs",
+      "length": 12982,
+      "sha256": "1b5174bb1922e86cd5e5272a0e4e020f37d2c03ffc50df4949939b474227f706"
+    },
+    {
+      "name": "deploy/power-recovery.cjs",
+      "length": 26888,
+      "sha256": "c2d66b62fd8455865b58fded6cf656b81c191b038b2d90504bcdca117ea70f12"
+    },
+    {
       "name": "lib/rpc-channels.cjs",
-      "length": 3834,
-      "sha256": "96211ea5a70dd6617a6c5c5a6d1c42958881731297f7fd260fcde2036bc6d319"
+      "length": 3864,
+      "sha256": "c8c37cddc4faab193f12b69834ff4455b153e55fbde659462b7290f888a0faf4"
     },
     {
       "name": "lib/secrets.cjs",
@@ -831,12 +866,12 @@
     {
       "name": "package-lock.json",
       "length": 1369,
-      "sha256": "858e3757a433956a2985ae48276559066361026f7340576385d233502059f897"
+      "sha256": "a8739ffb2341b9476864c206dc38c4c1d57f19728d46cb1b336ae02711bf8182"
     },
     {
       "name": "package.json",
       "length": 509,
-      "sha256": "9380eddc49b1dc6cc0670b86cc0da71ea17467b9ed12b4210b633c9d1fb7b03d"
+      "sha256": "625a789c955e4d1b06852aa360052d33a631086ea72bf690264d3af4350a302b"
     },
     {
       "name": "server.cjs",
@@ -852,6 +887,11 @@
       "name": "test/backup-local-schedule.test.cjs",
       "length": 6978,
       "sha256": "078f927e790f98f8a82409ad4e307f09c6c95aa48b9858db8920074ddbec44f6"
+    },
+    {
+      "name": "test/bandwidth-purchase-drafts.test.cjs",
+      "length": 7745,
+      "sha256": "bf67960be14e0a96c475bd53394a33ee49971df924ee16fef0dbfd3cc5dfaf00"
     },
     {
       "name": "test/bank-collection-cards.test.cjs",
@@ -885,8 +925,8 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 105626,
-      "sha256": "9cb1c19f6ae2fae39a453719b215ba74b29aefb92333837b4a8dd5332031bad7"
+      "length": 113830,
+      "sha256": "b3ace53098426341dbcc20f668711f352e835b9387ce01d378d98260d1373349"
     },
     {
       "name": "test/change-service-customer-pricing.test.cjs",
@@ -957,6 +997,16 @@
       "name": "test/package-source.test.cjs",
       "length": 1536,
       "sha256": "729b49857479275ff68bbc296d68d18579e9b8ba7ddb869f889696ced6546c24"
+    },
+    {
+      "name": "test/power-recovery-units.test.cjs",
+      "length": 5206,
+      "sha256": "785291f14d1c2e1e0b6fc96509da687f711f3becc049554bab1283b8254ad3ee"
+    },
+    {
+      "name": "test/power-recovery.test.cjs",
+      "length": 15354,
+      "sha256": "1cd6ade6fdbe847a2673432d369279d71dafde386630c9e4e6339e6e607f5702"
     },
     {
       "name": "test/prior-month-reversal-proof.test.cjs",
@@ -1215,8 +1265,13 @@
     },
     {
       "name": "tools/package-source.cjs",
-      "length": 3932,
-      "sha256": "f60b9aae7db412569c7e1b36522da4183eb790ef8917c83aaeaf06f4c5342914"
+      "length": 4226,
+      "sha256": "2d06712cf1ad4f19cfb6e5ac7edce4bcbe2bd6a7992d723163d7631509fa04a7"
+    },
+    {
+      "name": "tools/power-recovery-smoke.cjs",
+      "length": 20843,
+      "sha256": "5d6294b7277cdca640a0182751076f88bbaa2ce823d5fb280b6895b226c04b4c"
     },
     {
       "name": "tools/prepare-domain-config.cjs",

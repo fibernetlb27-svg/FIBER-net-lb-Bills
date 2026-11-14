@@ -23,6 +23,7 @@
 .ba-root .ba-supplier-statement { padding: 20px 24px; border-bottom: 1px solid var(--line); }
 .ba-root .ba-supplier-statement:last-child { border-bottom: 0; }
 .ba-root .ba-statement-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.ba-root .ba-statement-actions { display: grid; gap: 8px; flex-shrink: 0; }
 .ba-root .ba-supplier-name { flex: 1 1 200px; min-width: 0; }
 .ba-root h4 { margin: 0 0 7px; font-size: 1rem; overflow-wrap: anywhere; }
 .ba-root .ba-supplier-name small { display: block; color: var(--muted); font-size: .75rem; line-height: 1.65; overflow-wrap: anywhere; }
@@ -63,6 +64,16 @@
 .ba-dialog .ba-payment-preview span { color: var(--muted); font-size: .78rem; }
 .ba-dialog .ba-payment-preview strong { color: var(--text); font-size: 1.5rem; font-variant-numeric: tabular-nums; }
 .ba-dialog .form-error { overflow-wrap: anywhere; }
+.ba-dialog.ba-purchase-draft { width: min(920px, calc(100vw - 32px)); }
+.ba-dialog .ba-draft-date { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.ba-dialog .ba-draft-lines { display: grid; gap: 10px; margin-block: 12px; }
+.ba-dialog .ba-draft-line { display: grid; grid-template-columns: minmax(120px, 2fr) repeat(2, minmax(90px, 1fr)) minmax(75px, auto) auto; align-items: end; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
+.ba-dialog .ba-draft-line-amount { display: grid; gap: 7px; align-self: center; overflow-wrap: anywhere; }
+.ba-dialog .ba-draft-line-amount small { color: var(--muted); }
+.ba-dialog .ba-draft-line-amount strong { font-variant-numeric: tabular-nums; }
+.ba-dialog .ba-draft-note { grid-column: 1 / -1; min-width: 0; }
+.ba-dialog .ba-draft-note summary { width: fit-content; color: var(--muted); font-size: .78rem; cursor: pointer; }
+.ba-dialog .ba-draft-note label { margin-top: 8px; }
 .ba-dialog .ba-success { display: grid; justify-items: center; gap: 10px; padding: 8px 14px 22px; text-align: center; }
 .ba-dialog .ba-success > span { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%; color: var(--success); border: 2px solid var(--success); background: var(--surface); font-size: 1.75rem; animation: ba-success .24s ease-out; }
 .ba-dialog .ba-success strong { font-size: 1.25rem; line-height: 1.5; overflow-wrap: anywhere; }
@@ -75,5 +86,6 @@ html[data-theme="fibernetlb"] .ba-root .ba-nav .active { color: var(--blue); bor
 @keyframes ba-success { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .ba-dialog .ba-success > span { animation: none; } }
 @media (max-width: 1250px) { .ba-root .ba-statement-heading { flex-wrap: wrap; } .ba-root .ba-balances { flex: 1 1 330px; gap: 14px; } }
-@media (max-width: 800px) { .ba-root .ba-metrics { grid-template-columns: 1fr; } .ba-root .ba-topline { flex-wrap: wrap; } .ba-root .ba-statement-heading { align-items: flex-start; } .ba-root .ba-statement-heading > button { width: 100%; } .ba-root .panel-heading { flex-wrap: wrap; } .ba-root .ba-filter { padding: 16px; } .ba-root .ba-filter label { flex: 1 1 150px; } .ba-root .ba-filter input { width: 100%; min-width: 0; } .ba-root .ba-supplier-statement { padding: 18px; } }
+@media (max-width: 800px) { .ba-root .ba-metrics { grid-template-columns: 1fr; } .ba-root .ba-topline { flex-wrap: wrap; } .ba-root .ba-statement-heading { align-items: flex-start; } .ba-root .ba-statement-actions { width: 100%; } .ba-root .panel-heading { flex-wrap: wrap; } .ba-root .ba-filter { padding: 16px; } .ba-root .ba-filter label { flex: 1 1 150px; } .ba-root .ba-filter input { width: 100%; min-width: 0; } .ba-root .ba-supplier-statement { padding: 18px; } }
+@media (max-width: 700px) { .ba-dialog .ba-draft-line { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ba-dialog .ba-draft-line > label:first-child { grid-column: 1 / -1; } .ba-dialog .ba-draft-line > button { justify-self: end; } }
 @media (max-width: 550px) { .ba-root .ba-nav { display: grid; grid-template-columns: 1fr 1fr; } .ba-root .ba-nav .button { padding: 8px; font-size: .75rem; } .ba-root .ba-balances { grid-template-columns: repeat(3,minmax(0,1fr)); } .ba-root .ba-balances dd { font-size: .92rem; } .ba-root .ba-balances dt { font-size: .65rem; } .ba-dialog .form-grid { grid-template-columns: 1fr; } .ba-dialog .modal-actions { flex-wrap: wrap; } .ba-dialog .modal-actions .button { flex: 1; } .ba-dialog .modal-heading { gap: 10px; } .ba-dialog .modal-heading h2 { font-size: 1.15rem; } }

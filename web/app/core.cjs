@@ -39,6 +39,7 @@ const OptionalWhishFees=require('./optional-whish-fees.cjs');
 const ConsolidatedFinance=require('./consolidated-finance.cjs');
 const EmployeeDashboard=require('./employee-dashboard.cjs');
 const Bandwidth=require('./bandwidth-accounting.cjs');
+const BandwidthDrafts=require('./bandwidth-purchase-drafts.cjs');
 const BandwidthPaymentService=require('./bandwidth-payments.cjs');
 const BandwidthSpending=require('./bandwidth-spending.cjs');
 const FixedMonthlyService=require('./fixed-monthly-payments.cjs');
@@ -450,7 +451,7 @@ function registerHandler(channel, handler) {
     if(currentUser()&&!/^(maintenance:|stockPurchases:)/.test(channel)&&(BANDWIDTH_GUARDED_WRITES.has(channel)||/^(warehouse:|invoiceVoids:|reports:|finance:|adminReceivables:|adminCatalog:|products:|purchases:|debts:|resellers:|bandwidth:|fixedMonthly:|companyDebts:|portal:|bills:|telecomPayments:)/.test(channel)))assertCommerceIdle();
     if(currentUser()&&!/^(fixedMonthly:|companyDebts:)/.test(channel)&&(BANDWIDTH_GUARDED_WRITES.has(channel)||/^(warehouse:|invoiceVoids:|reports:|finance:|adminReceivables:|adminCatalog:|products:|purchases:|debts:|resellers:|bandwidth:|portal:|bills:|telecomPayments:|updates:rollback)/.test(channel)))assertNoFixedMonthlyPending('main');
     if(currentUser()&&!channel.startsWith('invoiceVoids:')&&(BANDWIDTH_GUARDED_WRITES.has(channel)||/^(fixedMonthly:|companyDebts:|warehouse:|reports:|finance:|adminReceivables:|adminCatalog:|products:|purchases:|debts:|resellers:|bandwidth:|portal:|bills:|telecomPayments:)/.test(channel)))assertInvoiceVoidIdle();
-    if(currentUser()&&(BANDWIDTH_GUARDED_WRITES.has(channel)||['debts:settle','bills:reset','updates:rollback','portal:createCustomer','portal:applyChange','portal:resolvePlan','portal:resumeOperation','portal:resolveOperation','bills:renew','bills:resolveRenewal','resellers:releaseFailed','resellers:resumeWalletReconciliation','resellers:resumeWalletCorrection','resellers:importCharges','finance:payInternetCost','adminReceivables:payBill','bandwidth:createPurchase','bandwidth:pay','bandwidth:resume'].includes(channel)))assertWarehouseIdle();
+    if(currentUser()&&(BANDWIDTH_GUARDED_WRITES.has(channel)||['debts:settle','bills:reset','updates:rollback','portal:createCustomer','portal:applyChange','portal:resolvePlan','portal:resumeOperation','portal:resolveOperation','bills:renew','bills:resolveRenewal','resellers:releaseFailed','resellers:resumeWalletReconciliation','resellers:resumeWalletCorrection','resellers:importCharges','finance:payInternetCost','adminReceivables:payBill','bandwidth:createPurchase','bandwidth:createPurchases','bandwidth:pay','bandwidth:resume'].includes(channel)))assertWarehouseIdle();
     if(currentUser()&&['finance:handoverPreview','finance:handover','finance:walletMove','finance:endDayPreview','finance:endDay','finance:closeMonth','resellers:fund','resellers:refund','resellers:collectionPreview','resellers:payBill','resellers:cancelCollection','resellers:releaseFailed','portal:resumeOperation','portal:resolveOperation','workspace:reset','bills:reset'].includes(channel))assertNoWalletReconciliationPending(channel.startsWith('finance:')?String(args[0]?.workspaceId||activeWorkspace().id):activeWorkspace().id);
     if(currentUser()&&BANDWIDTH_GUARDED_WRITES.has(channel)){
       let target=activeWorkspace().id;
@@ -2410,27 +2411,39 @@ function assertNoBandwidthPending(section,ownRequestId=''){
   if(pending.length)throw Error('Finish the pending supplier payment in Main Office → Bandwidth Accounting before changing its funds, users or monthly ledgers.');
 }
 function bandwidthCore(){return new Bandwidth.BandwidthAccounting({db:workspaceDatabases.get('main').db,workspaceId:'main',actor:bandwidthAdmin(),now:localIso});}
-function bandwidthWrite(task){
+function bandwidthWrite(task,saveErrorMessage){
   const core=bandwidthCore(),entry=workspaceDatabases.get('main');assertNoBandwidthPending('main');
   let result;entry.db.exec('BEGIN');try{result=task(core,entry.db);entry.db.exec('COMMIT');}catch(error){entry.db.exec('ROLLBACK');throw error;}
   // Replays use the same saved request ID, including a prior failed file save.
-  saveSectionEntry(entry);return result;
+  try{saveSectionEntry(entry);}catch(error){if(saveErrorMessage)throw Error(saveErrorMessage,{cause:error});throw error;}
+  return result;
+}
+function createBandwidthPurchaseWithCost(core,db,input){
+  const purchase=core.createPurchase(input);if(purchase.expenseId)return purchase;
+  if(purchase.idempotent)throw Error('The existing bandwidth purchase has no linked cost. Review its original accounting record.');
+  db.run("INSERT INTO expenses(expense_date,category,description,amount,user_id,source_type,source_id,created_at) VALUES(?,'Bandwidth cost',?,?,?,'bandwidth_purchase',?,?)",[purchase.purchaseDate,`${purchase.receiptNo} · ${purchase.supplierName} · ${purchase.typeName} · ${purchase.quantity} ${purchase.unit}`,purchase.totalCost,purchase.actorId,String(purchase.id),localIso()]);
+  const expenseId=Number(Finance.query(db,'SELECT last_insert_rowid() AS id')[0].id);
+  return core.linkPurchaseExpense(purchase.id,{expenseId,sourceType:'bandwidth_purchase',sourceId:String(purchase.id)});
 }
 function registerBandwidthHandlers(){
   registerHandler('bandwidth:access',()=>({user:publicUser(bandwidthAdmin())}));
-  registerHandler('bandwidth:overview',(_event,input)=>{const result=bandwidthCore().overview(input||{});return {...result,pending:bandwidthPayments.pending(),costCategory:'Bandwidth cost',feePolicy:'No automatic supplier-payment fee',today:localIso().slice(0,10)};});
+  registerHandler('bandwidth:overview',(_event,input)=>{
+    const result=bandwidthCore().overview(input||{});
+    const totals={...result.totals,periodRemaining:BandwidthDrafts.periodRemaining(result.purchases)};
+    return {...result,totals,pending:bandwidthPayments.pending(),costCategory:'Bandwidth cost',feePolicy:'No automatic supplier-payment fee',today:localIso().slice(0,10)};
+  });
   registerHandler('bandwidth:sources',()=>{bandwidthAdmin();return bandwidthPayments.sources();});
   registerHandler('bandwidth:pending',()=>{bandwidthAdmin();return bandwidthPayments.pending();});
   registerHandler('bandwidth:createSupplier',(_event,input)=>bandwidthWrite(core=>core.createSupplier(input)));
   registerHandler('bandwidth:updateSupplier',(_event,id,input)=>bandwidthWrite(core=>core.updateSupplier(id,input)));
   registerHandler('bandwidth:createType',(_event,input)=>bandwidthWrite(core=>core.createType(input)));
   registerHandler('bandwidth:updateType',(_event,id,input)=>bandwidthWrite(core=>core.updateType(id,input)));
-  registerHandler('bandwidth:createPurchase',(_event,input)=>bandwidthWrite((core,db)=>{
-    const purchase=core.createPurchase(input);if(purchase.expenseId)return purchase;
-    if(purchase.idempotent)throw Error('The existing bandwidth purchase has no linked cost. Review its original accounting record.');
-    db.run("INSERT INTO expenses(expense_date,category,description,amount,user_id,source_type,source_id,created_at) VALUES(?,'Bandwidth cost',?,?,?,'bandwidth_purchase',?,?)",[purchase.purchaseDate,`${purchase.receiptNo} · ${purchase.supplierName} · ${purchase.typeName} · ${purchase.quantity} ${purchase.unit}`,purchase.totalCost,purchase.actorId,String(purchase.id),localIso()]);
-    const expenseId=Number(Finance.query(db,'SELECT last_insert_rowid() AS id')[0].id);return core.linkPurchaseExpense(purchase.id,{expenseId,sourceType:'bandwidth_purchase',sourceId:String(purchase.id)});
-  }));
+  registerHandler('bandwidth:createPurchase',(_event,input)=>bandwidthWrite((core,db)=>createBandwidthPurchaseWithCost(core,db,input)));
+  registerHandler('bandwidth:purchaseDraft',(_event,input)=>BandwidthDrafts.purchaseDraft(bandwidthCore(),input));
+  registerHandler('bandwidth:createPurchases',(_event,input)=>bandwidthWrite(
+    (core,db)=>BandwidthDrafts.createPurchases(core,input,line=>createBandwidthPurchaseWithCost(core,db,line)),
+    'The bandwidth purchase save could not be confirmed.'
+  ));
   registerHandler('bandwidth:pay',(_event,input)=>{bandwidthAdmin();return bandwidthPayments.pay(input);});
   registerHandler('bandwidth:resume',(_event,id)=>{bandwidthAdmin();return bandwidthPayments.resume(id);});
 }
