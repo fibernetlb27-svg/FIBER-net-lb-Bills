@@ -866,12 +866,12 @@
     {
       "name": "package-lock.json",
       "length": 1369,
-      "sha256": "a8739ffb2341b9476864c206dc38c4c1d57f19728d46cb1b336ae02711bf8182"
+      "sha256": "ca5ccdf2dc7f707c711e4ea3db818f55876f7991f95b5cd35868fbfdccc7424c"
     },
     {
       "name": "package.json",
       "length": 509,
-      "sha256": "625a789c955e4d1b06852aa360052d33a631086ea72bf690264d3af4350a302b"
+      "sha256": "b03f685c3b56ec37a9f09873ece4397c492c9aa9c2b10edfa5c421f22781bf11"
     },
     {
       "name": "server.cjs",
