@@ -845,8 +845,8 @@
     },
     {
       "name": "deploy/power-recovery.cjs",
-      "length": 26888,
-      "sha256": "c2d66b62fd8455865b58fded6cf656b81c191b038b2d90504bcdca117ea70f12"
+      "length": 27185,
+      "sha256": "060bbeb67adad1bb01b66ddfd419699c64a6a0c16aaeaf3b4664e2badd401308"
     },
     {
       "name": "lib/rpc-channels.cjs",

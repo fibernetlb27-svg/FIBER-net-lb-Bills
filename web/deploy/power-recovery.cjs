@@ -38,7 +38,15 @@ function validateConfig(input){
  ensure(input.dataDirectory!==input.jobsDirectory&&!inside(input.jobsDirectory,input.dataDirectory)&&!inside(input.stateFile,input.dataDirectory)&&!inside(input.serializationLock,input.dataDirectory)&&!inside(input.activeRecord,input.dataDirectory),'INVALID_CONFIG');
  ensure(new Set(keys.filter(k=>k!=='format'&&k!=='containerName').map(k=>input[k])).size===keys.length-2,'INVALID_CONFIG');return Object.freeze({...input});
 }
-function readConfig(file){ensure(process.platform==='linux'&&process.getuid?.()===0,'ROOT_HOST_REQUIRED');rootParents(file);rootPath(file,{mode:0o600});const config=validateConfig(readJson(file,{root:true,mode:0o600}).value);rootPath(config.privateDirectory,{directory:true,mode:0o700});rootParents(config.privateDirectory);rootPath(config.activeRecord,{mode:0o600});rootParents(config.auditScript);rootPath(config.auditScript,{readable:true});rootParents(config.dockerBinary);rootPath(config.dockerBinary);rootPath(config.serializationLock,{mode:0o600});rootParents(config.serializationLock);return config;}
+function protectedDocker(binary){
+ rootParents(binary);
+ ensure(fs.lstatSync(binary).uid===0,'UNTRUSTED_DOCKER_PATH');
+ const target=fs.realpathSync(binary);
+ rootParents(target);
+ const stat=fs.statSync(target);
+ ensure(stat.isFile()&&stat.uid===0&&(stat.mode&0o022)===0&&(stat.mode&0o111)!==0,'UNTRUSTED_DOCKER_PATH');
+}
+function readConfig(file){ensure(process.platform==='linux'&&process.getuid?.()===0,'ROOT_HOST_REQUIRED');rootParents(file);rootPath(file,{mode:0o600});const config=validateConfig(readJson(file,{root:true,mode:0o600}).value);rootPath(config.privateDirectory,{directory:true,mode:0o700});rootParents(config.privateDirectory);rootPath(config.activeRecord,{mode:0o600});rootParents(config.auditScript);rootPath(config.auditScript,{readable:true});protectedDocker(config.dockerBinary);rootPath(config.serializationLock,{mode:0o600});rootParents(config.serializationLock);return config;}
 function fileIdentity(stat){return {dev:String(stat.dev),ino:String(stat.ino),size:Number(stat.size),mtimeNs:String(stat.mtimeNs),uid:Number(stat.uid),mode:Number(stat.mode&0o777n)};}
 function validateLock(value){exactKeys(value,['pid','instance'],'UNRECOGNIZED_WRITER_LOCK');ensure(Number.isSafeInteger(value.pid)&&value.pid>0&&typeof value.instance==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value.instance),'UNRECOGNIZED_WRITER_LOCK');return value;}
 function readLock(directory){const file=path.join(directory,'.fibernetlb-web.lock');let saved;try{saved=readJson(file,{limit:4096});}catch(error){if(error.code==='ENOENT')return null;throw error;}ensure(saved.stat.uid===10001n&&(saved.stat.mode&0o777n)===0o600n,'UNTRUSTED_WRITER_LOCK');return {...fileIdentity(saved.stat),sha256:hash(saved.bytes),...validateLock(saved.value)};}
