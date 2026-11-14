@@ -446,7 +446,28 @@ window.FixedMonthlyPayments = (() => {
   }
   function operationFor(row) { const operation={requestId:row.requestId,kind:row.kind,...['payment','freeze'].includes(row.kind)?{billId:String(row.billId)}:{},...row.kind==='reversal'?{paymentRequestId:row.paymentRequestId}:{},...['template','categoryAssignment'].includes(row.kind)&&row.templateId!==undefined?{templateId:String(row.templateId)}:{},...row.kind==='month'?{month:row.month}:{}};validateMarker(prefix+operation.requestId,JSON.stringify(operation));return operation; }
   async function check(row=held) {
-    if(!allowed()||busy||held?.corrupt||!row)return;const state=capture(),operation=operationFor(row);busy=true;render();try{const result=await api().status({requestId:operation.requestId});if(!current(state))return;if(result?.requestId!==operation.requestId)throw Error('The saved request response does not match.');if(result.state==='completed'){await completed(result,operation);}else if(result.state==='not_found'){if(held?.requestId!==operation.requestId)throw Error('No local request is available for reviewed release.');held={...held,notFound:true};notify('Main found no saved request. Review the invoice/template, categories, balances and profit before releasing it.',true);}else if(['prepared','save_required'].includes(result.state)){if(result.kind!==operation.kind)throw Error('The prepared request kind does not match.');notify('The original request is saved and unfinished. Review unfinished requests to resume it.');busy=false;render();await openPending();}else throw Error('The saved request state could not be verified.');}
+    if(!allowed()||busy||held?.corrupt||!row)return;
+    const state=capture(),operation=operationFor(row);
+    if(held?.requestId===operation.requestId)held={...held,notFound:false};
+    busy=true;
+    if(el('fm-form-error'))el('fm-form-error').textContent='';
+    render();
+    try {
+      const result=await api().status({requestId:operation.requestId});
+      if(!current(state))return;
+      if(result?.requestId!==operation.requestId)throw Error('The saved request response does not match.');
+      if(result.state==='completed'){
+        await completed(result,operation);
+      }else if(result.state==='not_found'){
+        if(held?.requestId!==operation.requestId)throw Error('No local request is available for reviewed release.');
+        held={...held,notFound:true};
+        if(!modal?.open)notify('Main found no saved request. Review the bill and records before releasing the browser hold.');
+      }else if(['prepared','save_required'].includes(result.state)){
+        if(result.kind!==operation.kind)throw Error('The prepared request kind does not match.');
+        notify('The original request is saved and unfinished. Review unfinished requests to resume it.');
+        busy=false;render();await openPending();
+      }else throw Error('The saved request state could not be verified.');
+    }
     catch(error){if(current(state)){setStatus(message(error),true);if(el('fm-form-error'))el('fm-form-error').textContent=message(error);}}finally{if(current(state)){busy=false;render();}}
   }
   async function resume(row) {
@@ -487,7 +508,7 @@ window.FixedMonthlyPayments = (() => {
       }
       try{forget(operation.requestId);}catch(error){storageFailure(error);throw error;}
       busy=false;closeDialog();await load();
-      if(current(state))notify('Browser hold released. You can open a fresh payment review.');
+      if(current(state))notify('Browser hold released.');
     }catch(error){
       if(current(state)&&el('fm-form-error'))el('fm-form-error').textContent=held?.corrupt?held.error:message(error);
     }finally{if(current(state)){busy=false;render();}}
