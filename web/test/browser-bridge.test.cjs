@@ -12,7 +12,7 @@ function storage(initial = {}) {
   const values = new Map(Object.entries(initial));
   return {getItem:key => values.has(key) ? values.get(key) : null,setItem:(key,value) => values.set(key,String(value)),removeItem:key => values.delete(key),values};
 }
-function harness({workspaceId='main',rpc=() => ({}),demo=true,initialStorage={},rpcStatus=200} = {}) {
+function harness({workspaceId='main',rpc=() => ({}),demo=true,initialStorage={},rpcStatus=200,rpcNonJson=false} = {}) {
   const calls=[],events=[],listeners=new Map(),elements=[],navigations=[];
   const localStorage=storage(initialStorage),sessionStorage=storage();
   const banner={hidden:true};let serverVersion='1.45.3';
@@ -26,7 +26,10 @@ function harness({workspaceId='main',rpc=() => ({}),demo=true,initialStorage={},
     else if(route.startsWith('/api/session'))data={user,csrfToken:'fixture-csrf',version:serverVersion,workspaceId};
     else data=await rpc(JSON.parse(options.body));
     const status=route==='/api/rpc'?rpcStatus:200;
-    return {ok:status===200,status,json:async()=>status===200?{data}:{error:'Your session ended.'}};
+    return {ok:status===200,status,json:async()=>{
+      if(route==='/api/rpc'&&rpcNonJson)throw new SyntaxError('Gateway page');
+      return status===200?{data}:{error:'Your session ended.'};
+    }};
   }});
   vm.runInContext(contract,context,{filename:'browser-contract.js'});
   vm.runInContext(bridge,context,{filename:'browser-api.js'});
@@ -45,6 +48,9 @@ test('bridge uses cookie session and CSRF, preserving exact positional arguments
   assert.equal(call.options.headers.Authorization,undefined);
   assert.equal(h.api.printing,undefined);
   assert.equal(h.api.rollback,undefined);
+  assert.equal(h.api.web.mutationRevision(),1,'A successful save invalidates financial reads already in flight.');
+  await h.api.finance.overview({workspaceId:'printer'});
+  assert.equal(h.api.web.mutationRevision(),1,'A read leaves the mutation revision unchanged.');
 });
 test('login returns user contract and rejects accidentally exposed core tokens',async()=>{
   const h=harness({rpc:()=>user});
@@ -66,6 +72,11 @@ test('lost financial response is uncertain and is never retried',async()=>{
   const h=harness({rpc:()=>{throw Error('lost reply');}});
   await assert.rejects(h.api.sales.create({requestId:'original-request'}),error=>error.uncertain===true&&/Nothing was automatically retried/.test(error.message));
   assert.equal(h.calls.filter(row=>row.route==='/api/rpc').length,1);
+  const gateway=harness({rpcStatus:502,rpcNonJson:true});
+  await assert.rejects(gateway.api.finance.overview({workspaceId:'all'}),error=>error.status===502&&/website gateway/.test(error.message));
+  await assert.rejects(gateway.api.sales.create({requestId:'original-request'}),error=>error.uncertain===true&&/Nothing was automatically retried/.test(error.message));
+  assert.equal(gateway.calls.filter(row=>row.route==='/api/rpc').length,2);
+  assert.equal(gateway.api.web.mutationRevision(),0,'Unconfirmed writes cannot be treated as confirmed saves.');
 });
 
 test('combined change/renew keeps one saved request on a lost mutation response and treats quotes/status as reads',async()=>{
@@ -123,7 +134,9 @@ test('logout in a different tab clears only the matching workspace',async()=>{
 });
 test('stale tabs keep the loaded version and stop financial submissions until refresh',async()=>{
   const h=harness();await h.api.workspace.current();h.setVersion('1.45.4');
-  const status=await h.api.network.status();
+  const before=h.calls.length,{network:status,user:activeUser}=await h.api.web.syncStatus();
+  assert.equal(activeUser.username,user.username);
+  assert.deepEqual(h.calls.slice(before).map(call=>call.route),['/api/session?workspaceId=main'],'Visible tab polling needs only one authenticated status request.');
   assert.equal(status.localVersion,'1.45.3');assert.equal(status.serverVersion,'1.45.4');assert.equal(status.versionMismatch,true);
   await assert.rejects(h.api.sales.create({requestId:'original-request'}),/version changed/);
   assert.equal(h.calls.filter(row=>row.route==='/api/rpc').length,0);

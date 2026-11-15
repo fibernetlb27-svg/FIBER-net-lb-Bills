@@ -8,7 +8,7 @@
   const storage = window.sessionStorage;
   const signoutKey = id => 'fibernetlb.web.signed-out:' + id;
   const authEventKey = 'fibernetlb.web.auth-event.v1';
-  let metadata = null, csrfToken = '', bootstrapError = null, generation = 0, loadedVersion = '';
+  let metadata = null, csrfToken = '', bootstrapError = null, generation = 0, loadedVersion = '', observedVersion = '', mutationRevision = 0;
   let signedOut = false;
   try { storage.setItem('fibernetlb.web.workspace.v1', workspaceId); signedOut = storage.getItem(signoutKey(workspaceId)) === '1'; } catch (_) {}
   const fallback = () => ({version:'',section:{id:workspaceId,name:workspaceId === 'main' ? 'Main dashboard' : 'Business',kind:workspaceId === 'main' ? 'main' : 'unavailable'},sections:[],areas:[],needsSetup:false});
@@ -22,7 +22,12 @@
     try {
       const response = await fetch(route, {...options,credentials:'same-origin',redirect:'error',cache:'no-store',signal:controller.signal});
       let payload;
-      try { payload = await response.json(); } catch (_) { throw Error('The website returned an unreadable response.'); }
+      try { payload = await response.json(); } catch (_) {
+        if (!uncertain && [502,503,504].includes(response.status)) {
+          throw Object.assign(Error('The website gateway could not get a response from the server. Try refreshing in a moment.'), {status:response.status});
+        }
+        throw Error('The website returned an unreadable response.');
+      }
       if (!response.ok || payload?.error) {
         const error = Error(typeof payload?.error === 'string' ? payload.error : 'The request could not be completed.');
         error.status = response.status;
@@ -53,6 +58,7 @@
     const result = await request('/api/meta?workspaceId=' + encodeURIComponent(workspaceId));
     if (!result?.section || result.section.id !== workspaceId || !Array.isArray(result.sections)) throw Error('The website business context could not be verified.');
     metadata = result;
+    observedVersion = result.version;
     if (!loadedVersion) loadedVersion = result.version;
     showMetadata();
     return result;
@@ -63,13 +69,15 @@
     await bootstrap;
     if (!csrfToken) await session();
     if (signedOut && !['auth:login','auth:logout','auth:status'].includes(channel)) throw Error('Please sign in again.');
-    if (metadata?.version !== loadedVersion) throw Error('The website version changed. Refresh this page and check saved pending requests before making another change.');
+    if (!loadedVersion || observedVersion !== loadedVersion) throw Error('The website version changed. Refresh this page and check saved pending requests before making another change.');
     const ticket = generation;
+    const uncertain = financialMutation(channel);
     const timeoutMs = ['bills:savePortal','bills:saveRenew','bills:renew','bills:startChangeRenew','bills:confirmChangeRenew','bills:resumeChangeRenew','finance:commitMonthsClose','finance:resumeMonthsClose'].includes(channel) ? 600000 : /^finance:(?:closeMonth|commitMonth|resumeMonth|pendingMonth)/.test(channel) ? 120000 : 90000;
     let result;
-    try { result = await request('/api/rpc', {method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken,'X-App-Version':loadedVersion},body:JSON.stringify({channel,args,workspaceId})}, financialMutation(channel),timeoutMs); }
+    try { result = await request('/api/rpc', {method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken,'X-App-Version':loadedVersion},body:JSON.stringify({channel,args,workspaceId})}, uncertain,timeoutMs); }
     catch (error) { if(error.status === 401) authEnded(); throw error; }
     if (ticket !== generation && !['auth:logout'].includes(channel)) throw Error('The signed-in session changed. Check the original request before trying again.');
+    if (uncertain) mutationRevision++;
     return result;
   }
   const api = window.buildBrowserPosApi(invoke);
@@ -99,6 +107,23 @@
     logout:async () => { try { return await invoke('auth:logout'); } finally { authEnded(true); } },
     createOwner:unavailable('Initial administrator setup')
   };
+  function networkSnapshot() {
+    return {configured:true,connected:true,mode:'web',serverUrl:window.location.origin,version:loadedVersion,localVersion:loadedVersion,serverVersion:observedVersion,versionMismatch:observedVersion!==loadedVersion};
+  }
+  async function syncStatus() {
+    await bootstrap;
+    try {
+      // Recover the full workspace metadata after an interrupted initial page load.
+      if (!metadata) await loadMetadata();
+      const result = await session();
+      if (result.workspaceId !== workspaceId || typeof result.version !== 'string' || !result.version) throw Error('The website session context could not be verified. Reload the page.');
+      observedVersion = result.version;
+      bootstrapError = null;
+      return {network:networkSnapshot(),user:signedOut ? null : result.user || null};
+    } catch (error) {
+      return {network:{configured:true,connected:false,mode:'web',serverUrl:window.location.origin,error:(bootstrapError || error).message},user:null};
+    }
+  }
   api.workspace = {
     current:async () => { await bootstrap; return metadata || fallback(); },
     open:async id => {
@@ -116,7 +141,7 @@
   api.network = {
     status:async () => {
       await bootstrap;
-      try { await loadMetadata(); bootstrapError = null; return {configured:true,connected:true,mode:'web',serverUrl:window.location.origin,version:loadedVersion,localVersion:loadedVersion,serverVersion:metadata.version,versionMismatch:metadata.version!==loadedVersion}; }
+      try { await loadMetadata(); bootstrapError = null; return networkSnapshot(); }
       catch (error) { return {configured:true,connected:false,mode:'web',serverUrl:window.location.origin,error:(bootstrapError || error).message}; }
     },
     configure:unavailable('Connection configuration'),
@@ -154,6 +179,6 @@
     const link = document.createElement('a'); link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer';
     document.body.appendChild(link); link.click(); link.remove(); return {ok:true};
   };
-  Object.defineProperty(api,'web',{value:Object.freeze({workspaceId,metadata:() => metadata,authEnded}),enumerable:true});
+  Object.defineProperty(api,'web',{value:Object.freeze({workspaceId,metadata:() => metadata,authEnded,syncStatus,mutationRevision:() => mutationRevision}),enumerable:true});
   window.posApi = Object.freeze(api);
 })();

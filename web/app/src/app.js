@@ -13,6 +13,8 @@ let nativeCacheOwner = '';
 function nativeDataScope(){return JSON.stringify([authSessionVersion,businessWorkspace.id,state.currentUser?.accountKey||state.currentUser?.account_key||state.currentUser?.username,state.currentUser?.role]);}
 let lastBackgroundDataRefresh = 0;
 const BACKGROUND_DATA_REFRESH_MS = 15000;
+const WEBSITE_SESSION_POLL_MS = 15000;
+const WEBSITE_DASHBOARD_REFRESH_MS = 60000;
 let cashierCollectionsEpoch = 0, cashierCollectionsIdentity = "", cashierCollectionsRequest = null;
 let updateUiBusy=false,updateCheckBusy=false;
 let expenseOptionsVersion = 0, expenseOptionsLoading = false, expenseSaving = false;
@@ -698,31 +700,32 @@ async function startApp(user) {
   switchView(initialView,{deferLoad:true});
   const tasks = [whishStartup];
   if (initialView==='dashboard'&&has("dashboard.view")) tasks.push(loadDashboard());
-  if (initialView==='dashboard'&&has("drawer.view")) tasks.push(loadDrawer());
+  if (initialView==='dashboard'&&has("drawer.view")&&(!api.web||!has("dashboard.view"))) tasks.push(loadDrawer());
   if (initialView==='attendance'&&(has("attendance.view")||has("attendance.manage"))) tasks.push(loadEmployees(),loadAttendance());
   const initialResults = await Promise.allSettled(tasks);
   if (sessionVersion !== authSessionVersion || state.currentUser !== user) return;
   if (syncTimer) clearInterval(syncTimer);
-  syncTimer = setInterval(() => synchronizeSharedData().catch(() => {}), 5000);
+  syncTimer = setInterval(() => synchronizeSharedData().catch(() => {}), api.web?WEBSITE_SESSION_POLL_MS:5000);
   lastBackgroundDataRefresh = Date.now();
   const failed=initialResults.filter(result=>result.status==='rejected');
   if(failed.length)showToast('Signed in. Some sections could not load and can be refreshed safely. '+errorMessage(failed[0].reason),'error');
   checkForUpdatesQuietly();
 }
 
-async function synchronizeSharedData() {
-  if (!state.currentUser || state.syncing || document.querySelector("dialog[open]")) return;
+async function synchronizeSharedData(refreshVisibleView=false) {
+  if (!state.currentUser || state.syncing || (api.web&&document.hidden) || document.querySelector("dialog[open]")) return;
   const sessionVersion = authSessionVersion, pollingUser = state.currentUser;
   const pollingCurrent = () => sessionVersion === authSessionVersion && state.currentUser === pollingUser;
   state.syncing = true;
   try {
-    const status = await api.network.status();
+    const snapshot = api.web ? await api.web.syncStatus() : null;
+    const status = snapshot?.network ?? await api.network.status();
     if (!pollingCurrent()) return;
     updateNetworkIndicators(status);
     if (!status.connected) return;
     if(status.mode==='client'&&status.versionMismatch){await checkForUpdatesQuietly();if(!pollingCurrent())return;showAuth('login');await openUpdateDialog();return;}
     const tasks = [];
-    const auth = await api.auth.status();
+    const auth = snapshot ?? await api.auth.status();
     if (!pollingCurrent()) return;
     if (!auth.user) { showAuth("login"); return; }
     state.currentUser = auth.user;
@@ -743,9 +746,8 @@ async function synchronizeSharedData() {
     $("#current-user-name").textContent = auth.user.fullName;
     $("#current-user-role").textContent = roleLabel(auth.user.role);
     applyPermissions();
-    // Revalidate the session every5s, but refresh data only on the visible page
-    // every15s. Do not rebuild hidden dashboard/catalogue DOM on every tick.
-    if (Date.now() - lastBackgroundDataRefresh < BACKGROUND_DATA_REFRESH_MS) return;
+    const refreshInterval=api.web&&state.currentView==='dashboard'?WEBSITE_DASHBOARD_REFRESH_MS:BACKGROUND_DATA_REFRESH_MS;
+    if ((api.web&&document.hidden)||(!refreshVisibleView&&Date.now()-lastBackgroundDataRefresh<refreshInterval)) return;
     lastBackgroundDataRefresh = Date.now();
     if (has("products.read") && ["products","pos"].includes(state.currentView)) tasks.push(loadProducts());
     if (has("dashboard.view") && state.currentView === "dashboard") tasks.push(loadDashboard());
@@ -758,13 +760,17 @@ async function synchronizeSharedData() {
     if (state.currentView === "telecom" && (has("telecom.view") || has("telecom.create") || has("telecom.manage"))) tasks.push(loadTelecomCatalog());
     if (has("telecom.view") && state.currentView === "telecom") tasks.push(loadTelecomPayments());
     if (has("debts.view") && state.currentView === "debts") tasks.push(loadDebts());
-    if (has("drawer.view") && state.currentView === "dashboard") tasks.push(loadDrawer());
+    if (has("drawer.view") && state.currentView === "dashboard"&&(!api.web||!has("dashboard.view"))) tasks.push(loadDrawer());
     if (has("reports.view") && state.currentView === "reports") tasks.push(loadReport());
     await Promise.all(tasks);
   } finally {
     if (sessionVersion === authSessionVersion) state.syncing = false;
   }
 }
+
+if(api.web)document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden)void synchronizeSharedData(true).catch(()=>{});
+});
 
 async function loadProducts() {
   window.SharedMaintenance?.load();
@@ -884,13 +890,15 @@ function clearCombinedHeadlines(note) {
   state.drawer = null;
 }
 async function loadDashboard() {
+  if(api.web&&state.currentView!=='dashboard')return;
+  if(api.web)lastBackgroundDataRefresh=Date.now();
   window.InvoiceVoids?.load();
   window.AdminReceivables?.load();
   window.AdminPayables?.load();
   window.AdminWarehouse?.refreshDebts?.();
   const generation = ++dashboardLoadVersion, identity = dashboardIdentity();
   $('#metric-bandwidth-cost').textContent='—';
-  const current = () => generation === dashboardLoadVersion && identity === dashboardIdentity();
+  const current = () => generation === dashboardLoadVersion && identity === dashboardIdentity()&&(!api.web||state.currentView==='dashboard');
   if (isAllBusinessDashboard() && dashboardHeadlineKey !== identity) clearCombinedHeadlines('Loading combined totals…');
   dashboardHeadlineKey = identity;
   const cashierCollections=loadCashierCollections();
@@ -903,6 +911,10 @@ async function loadDashboard() {
     // Staff All is a minimal, read-only custody/debt DTO, not a company report.
     // Never fetch a broader report merely to populate retired headline nodes.
     clearCombinedHeadlines('Your assigned-business totals appear below.');
+    applyPermissions();await cashierCollections;return;
+  }
+  if(api.web&&isMainAdmin()&&finances&&!finances.aggregate){
+    // Only the finance panel is visible for this selection.
     applyPermissions();await cashierCollections;return;
   }
   const useFinanceDashboard = finances && (businessWorkspace.id !== 'main' || finances.aggregate);
@@ -944,14 +956,6 @@ async function loadDashboard() {
     : `<div class="empty-state"><div><strong>Stock levels look good</strong><p>Products at or below their alert quantity will appear here.</p></div></div>`;
   applyPermissions();
   if(isAllBusinessDashboard()||(finances?.admin&&finances.accountKey))$('#set-cash-drawer').classList.add('hidden');
-  if (isMainAdmin()) {
-    const report = finances?.aggregate ? finances.report : await api.reports.summary(`${localDate().slice(0,7)}-01`, localDate(), "", "all");
-    if (!current()) return;
-    $('#combined-overview > div > span').textContent = finances?.aggregate ? `All businesses · ${finances.employeeName} · this month` : 'All sections · this month';
-    $("#combined-revenue").textContent = formatMoney(report.revenue);
-    $("#combined-expenses").textContent = formatMoney(report.expenses);
-    $("#combined-profit").textContent = formatMoney(report.netProfit);
-  }
   await cashierCollections;
 }
 

@@ -2179,7 +2179,7 @@ function consolidatedFinanceOverview(input){
   const bandwidthCost=BandwidthSpending.purchaseSummary({entries:workspaceDatabases,start,end:today,accountKey}),bandwidthSpending=BandwidthSpending.summary({entries:workspaceDatabases,workspaceId:'fiber-resellers',start,end:today,accountKey});
   const contributions=WORKSPACES.map(section=>{const entry=workspaceDatabases.get(section.id),local=accountKey?Finance.query(entry.db,'SELECT * FROM users WHERE account_key=?',[accountKey])[0]:null,feePolicy=policy(section.id,entry),fixedMonthly=fixedMonthlySummary(start,today,accountKey,section.id),companyDebt=companyDebtSummary(start,today,accountKey,section.id);if(accountKey&&!local){const overview={...ConsolidatedFinance.emptyOverview(),fixedMonthly,companyDebt,whishFeePolicy:feePolicy,...section.id==='fiber-resellers'?{bandwidthCost,bandwidthSpending}:{}};overview.report=CompanyDebtSpending.applyToReport(FixedMonthlySpending.applyToReport({...overview.report,revenue:0,costOfGoods:0,grossProfit:0,expenses:0,netProfit:0,whishFees:0},fixedMonthly),companyDebt);return {section,overview:{...overview,dashboardTotals:ConsolidatedFinance.businessTotals(section,overview)}};}
     const selected=sectionAccess.forWorkspace(authority,section.id),viewed=accountKey?{...local,role:'viewer',activity_inspection:true}:selected;
-    return requestContext.run({workspaceId:section.id,user:viewed,consolidatedFinanceRead:true,...accountKey?{consolidatedReadAuthority:authority.account_key}:{}},()=>{const overview={report:financeReport(start,today),fixedMonthly,companyDebt,bankCustody:BankService.custodySummary({db:entry.db,workspaceId:section.id,accountKey,through:today}),monthOpening:MonthOpeningCustody.summary({db:entry.db,workspaceId:section.id,accountKey,through:today}),adminTransferCustody:AdminTransferService.custodySummary({entries:workspaceDatabases,workspaceId:section.id,accountKey,through:today}),...section.id==='fiber-resellers'?{carriedResellerCollectionCustody:ResellerCarryCustody.custodySummary({entries:workspaceDatabases,workspaceId:section.id,accountKey,through:today})}:{},accountKey,today,wallets:Finance.walletBalances(entry.db,destinations,accountKey),dashboard:localHandlers.get('reports:dashboard')(null),whishFeePolicy:feePolicy,...['main','fiber-resellers'].includes(section.id)?{bandwidthCost}:{},...section.id==='fiber-resellers'?{bandwidthSpending}:{}},legacyFunding=rows("SELECT service_type AS serviceType,date(paid_at) AS day,amount,COALESCE(bundle_cost,0) AS cost FROM active_fibernetlb_bills WHERE service_type='Reseller transfer' AND date(paid_at) BETWEEN ? AND ?",[start,today]);overview.dashboardTotals=ConsolidatedFinance.businessTotals(section,overview);return {section,overview:ConsolidatedFinance.excludeLegacyFunding(overview,legacyFunding,{start,today})};});
+    return requestContext.run({workspaceId:section.id,user:viewed,consolidatedFinanceRead:true,financeDashboardSummary:input.summaryOnly===true,...accountKey?{consolidatedReadAuthority:authority.account_key}:{}},()=>{const overview={report:financeReport(start,today),fixedMonthly,companyDebt,bankCustody:BankService.custodySummary({db:entry.db,workspaceId:section.id,accountKey,through:today}),monthOpening:MonthOpeningCustody.summary({db:entry.db,workspaceId:section.id,accountKey,through:today}),adminTransferCustody:AdminTransferService.custodySummary({entries:workspaceDatabases,workspaceId:section.id,accountKey,through:today}),...section.id==='fiber-resellers'?{carriedResellerCollectionCustody:ResellerCarryCustody.custodySummary({entries:workspaceDatabases,workspaceId:section.id,accountKey,through:today})}:{},accountKey,today,wallets:Finance.walletBalances(entry.db,destinations,accountKey),dashboard:localHandlers.get('reports:dashboard')(null),whishFeePolicy:feePolicy,...['main','fiber-resellers'].includes(section.id)?{bandwidthCost}:{},...section.id==='fiber-resellers'?{bandwidthSpending}:{}},legacyFunding=rows("SELECT service_type AS serviceType,date(paid_at) AS day,amount,COALESCE(bundle_cost,0) AS cost FROM active_fibernetlb_bills WHERE service_type='Reseller transfer' AND date(paid_at) BETWEEN ? AND ?",[start,today]);overview.dashboardTotals=ConsolidatedFinance.businessTotals(section,overview);return {section,overview:ConsolidatedFinance.excludeLegacyFunding(overview,legacyFunding,{start,today})};});
   });
   const combined=ConsolidatedFinance.combine(contributions,{sections:WORKSPACES,employees,accountKey,today});
   let customerDebts;try{
@@ -2194,6 +2194,10 @@ function consolidatedFinanceOverview(input){
   return {...combined,...customerDebts?{customerDebts}:{},bandwidthCost,dashboard:{...combined.dashboard,bandwidthCost}};
 }
 function financeReport(start,end){return localHandlers.get('reports:summary')(null,start,end);}
+function financeCardReport(report){
+  const fields=['revenue','grossProfit','expenses','netProfit','whishFees','profitParts','fixedMonthly','fixedMonthlyProfitCost'];
+  return Object.fromEntries(fields.filter(key=>Object.hasOwn(report,key)).map(key=>[key,report[key]]));
+}
 function resellerMonthSnapshot(value,month,accountKey=null){
   if(activeWorkspace().id!=='fiber-resellers')return value;
   const range=Finance.monthRange(month),bandwidth=BandwidthSpending.purchaseSummary({entries:workspaceDatabases,start:range.start,end:range.end,accountKey});
@@ -2477,9 +2481,12 @@ function registerFinanceHandlers(){
     return SupportLedger.copies(workspaceDatabases.get('fiber-users').db,key);
   });
   registerHandler('finance:receiptCopy',(_event,id)=>{if(activeWorkspace().id!=='fiber-users')throw Error('Open FIBER net lb Users to view a receipt copy.');requirePermission('bills.view');if(!Number.isSafeInteger(id)||id<1)throw Error('Choose a valid receipt copy.');return SupportLedger.copy(workspaceDatabases.get('fiber-users').db,sectionAccess.key(currentUser(),'fiber-users'),id);});
-  registerHandler('finance:overview',(_event,input={})=>{input=financeReadInput(input);const result=input.workspaceId==='all'?(currentUser()?.role==='admin'?consolidatedFinanceOverview(input):staffConsolidatedFinanceOverview(input)):financeContext(input,ctx=>{
+  registerHandler('finance:overview',(_event,input={})=>{input=financeReadInput(input);
+  if(input.summaryOnly!==undefined&&typeof input.summaryOnly!=='boolean')throw Error('Choose valid finance overview detail options.');
+  const result=input.workspaceId==='all'?(currentUser()?.role==='admin'?consolidatedFinanceOverview(input):staffConsolidatedFinanceOverview(input)):financeContext(input,ctx=>{
     refreshWhishReceiptPolicy();
-    const today=localIso().slice(0,10),start=`${today.slice(0,7)}-01`,report=financeReport(start,today);
+    const today=localIso().slice(0,10),start=`${today.slice(0,7)}-01`;
+    const report=input.summaryOnly===true?requestContext.run({...activeSession(),financeDashboardSummary:true},()=>financeReport(start,today)):financeReport(start,today);
     const scope=ctx.admin&&!input.accountKey?null:ctx.viewed.account_key,customerDebts=ctx.debtReadAllowed?availableCustomerDebtOverview(ctx.section.id,scope,today):undefined;
     const bandwidthSpending=ctx.admin&&ctx.section.id==='fiber-resellers'?BandwidthSpending.summary({entries:workspaceDatabases,workspaceId:ctx.section.id,start,end:today,accountKey:scope}):undefined;
     const bandwidthCost=ctx.admin&&['main','fiber-resellers'].includes(ctx.section.id)?BandwidthSpending.purchaseSummary({entries:workspaceDatabases,start,end:today,accountKey:scope}):undefined;
@@ -2534,7 +2541,7 @@ function registerFinanceHandlers(){
         }
       }
     }
-    return result;
+    return input.summaryOnly===true&&result.report?{...result,report:financeCardReport(result.report)}:result;
   });
   registerHandler('finance:handoverPreview',(_event,input)=>{requirePermission('drawer.manage');return financeContext(input,ctx=>{if(ctx.section.id==='fiber-users')throw Error('Use Support End of day instead of manual cash handovers.');const from=financeMember(ctx,input.fromKey,{own:true}),to=financeMember(ctx,input.toKey);return Finance.handoverPreview(ctx.entry.db,from,to,input.amount);});});
   registerHandler('finance:handover',(_event,input)=>{requirePermission('drawer.manage');return financeContext(input,ctx=>{if(ctx.section.id==='fiber-users')throw Error('Use Support End of day instead of manual cash handovers.');const from=financeMember(ctx,input.fromKey,{own:true}),to=financeMember(ctx,input.toKey);const result=Finance.handover(ctx.entry.db,input,ctx.caller,from,to,localIso());saveDatabase();return result;});});
@@ -3749,7 +3756,8 @@ function registerHandlers() {
       dailyMap.set(entry.day, previous);
     }
     const daily = [...dailyMap.values()].sort((a, b) => a.day.localeCompare(b.day));
-    const recentSales = rows(`
+    const cardsOnly=activeSession().financeDashboardSummary===true;
+    const recentSales = cardsOnly?[]:rows(`
       SELECT s.id, s.invoice_no AS invoiceNo, s.created_at AS createdAt,
              ROUND(SUM(si.line_total), 2) AS subtotal,
              ROUND(SUM(si.line_total - (si.unit_cost * si.quantity)), 2) AS profit,
@@ -3770,7 +3778,7 @@ function registerHandlers() {
     const telecomProfit = Number(telecom.telecomProfit);
     const grossProfit = money(Number(sales.grossProfit) + serviceProfit + telecomProfit+paid.installationIncome);
     const profitParts=profitBreakdown(sales,billProfitParts,telecom,expense.expenses,paid.installationIncome);
-    const internetRenewals = listBills(startDate,endDate).filter(bill => bill.serviceType === "Internet");
+    const internetRenewals = cardsOnly?[]:listBills(startDate,endDate).filter(bill => bill.serviceType === "Internet");
     let result={ ...paid, internetRenewals, profitParts, posCategory, reportCurrency: "USD", exchangeRate: USD_TO_LBP, revenue: money(Number(sales.revenue) + serviceRevenue + telecomRevenue+paid.installationIncome), posRevenue: Number(sales.revenue), serviceRevenue, serviceCost, serviceProfit, telecomRevenue, telecomCost, telecomProfit, costOfGoods: money(Number(sales.costOfGoods) + serviceCost + telecomCost), posCostOfGoods: Number(sales.costOfGoods), posGrossProfit: Number(sales.grossProfit), grossProfit, saleCount: Number(sales.saleCount), billCount: Number(bills.billCount), telecomCount: Number(telecom.telecomCount), expenses: Number(expense.expenses), netProfit: money(grossProfit - Number(expense.expenses)), outstandingDebt: money(debts.outstanding), debtCount: Number(debts.count), daily, recentSales };
     if(warehouseHasTable(activeWorkspace().id,'warehouse_sale_links')){
       const purchaseFees=warehousePurchaseFeeRows(startDate,endDate),fee=money(purchaseFees.reduce((sum,row)=>sum+row.amount,0));

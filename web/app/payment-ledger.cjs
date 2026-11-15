@@ -13,6 +13,28 @@ function allocatePaid(detail,portion,total) {
 }
 function query(db,sql,params=[]) { const statement=db.prepare(sql); try { statement.bind(params); const result=[]; while(statement.step()) result.push(statement.getAsObject()); return result; } finally { statement.free(); } }
 
+function paymentsBySource(payments) {
+  const grouped=new Map();
+  for(const payment of payments) {
+    const key=`${payment.kind}:${payment.record_id}`;
+    if(!grouped.has(key))grouped.set(key,[]);
+    grouped.get(key).push(payment);
+  }
+  return grouped;
+}
+
+function snapshotReader(db) {
+  // One synchronous ledger read may summarize thousands of receipts. Keep
+  // snapshot bytes local to that read and parse each only when its row uses it.
+  if(!query(db,"SELECT name FROM sqlite_master WHERE name='payment_destinations'").length)return ()=>null;
+  const snapshots=new Map(query(db,"SELECT kind,record_key,snapshot_json FROM payment_destinations")
+    .map(row=>[`${row.kind}:${row.record_key}`,row.snapshot_json]));
+  return (kind,id)=>{
+    const key=`${kind}:${id}`;
+    return snapshots.has(key)?JSON.parse(snapshots.get(key)):null;
+  };
+}
+
 function initializePayments(db) {
   db.run(`CREATE TABLE IF NOT EXISTS debt_payments (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('sale','bill','telecom')),
@@ -33,7 +55,7 @@ function initializePayments(db) {
 
 class PaymentLedger {
   logicalPayments(payments){
-    if(!this.getUser()?.financial_ownership)return payments;
+    if(!payments.length||!this.getUser()?.financial_ownership)return payments;
     const owners=new Map(query(this.getRawDatabase(),'SELECT o.id,u.id AS user_id FROM finance_collection_owners o JOIN users u ON u.account_key=o.owner_key').map(o=>[o.id,o.user_id]));
     return payments.map(p=>owners.has(p.id)?{...p,user_id:owners.get(p.id)}:p);
   }
@@ -45,9 +67,8 @@ class PaymentLedger {
   sources(category="") {
     return Object.entries(TYPES).flatMap(([kind,type]) => query(this.db,`SELECT '${kind}' AS kind,t.id,t.${type.reference} AS referenceNo,t.${type.date} AS createdAt,t.${type.amount} AS originalAmount,t.customer_name AS customerName,t.${type.phone} AS phone,t.${type.account} AS customerAccount,t.payment_method AS originalMethod,t.payment_status AS originalStatus,t.settled_at AS settledAt,t.cashier_name AS cashierName FROM ${this.readTables[kind]} t ${kind==="sale" && category ? "WHERE EXISTS (SELECT 1 FROM sale_items si WHERE si.sale_id=t.id AND si.category=?)" : ""}`,kind==="sale" && category ? [category] : []));
   }
-  summarize(source,payments) {
-    payments=this.logicalPayments(payments);
-    const whishDestination=readSnapshot(this.db,source.kind,source.id);
+  summarize(source,payments,snapshot) {
+    const whishDestination=snapshot(source.kind,source.id);
     const original=cents(source.originalAmount), refund=original<0, debt=!refund&&(source.originalMethod==="Unpaid" || payments.length>0);
     let cash=0,whish=0,other=0;
     if(!debt && source.originalStatus!=="unpaid") {
@@ -57,13 +78,18 @@ class PaymentLedger {
     }
     for(const p of payments) { if(p.payment_method==="Cash")cash+=p.amount_cents; else whish+=p.amount_cents; }
     const paid=Math.min(original,cash+whish+other),remaining=Math.max(0,original-paid);
-    return {...source,whishDestination,isDebt:debt,isRefund:refund,originalAmount:dollars(original),paidAmount:dollars(paid),remainingAmount:dollars(remaining),amount:dollars(remaining),cashPaid:dollars(cash),whishPaid:dollars(whish),otherPaid:dollars(other),paymentStatus:remaining ? paid ? "partial" : "unpaid" : "paid",paymentMethod:cash && whish ? "Cash + Whish Money" : cash ? "Cash" : whish ? "Whish Money" : source.originalMethod,payments:payments.map(p=>({id:p.id,userId:p.user_id,amount:dollars(p.amount_cents),paymentMethod:p.payment_method,whishDestination:readSnapshot(this.db,'debt',p.id),receivedAt:p.received_at,cashierName:p.cashier_name,remainingAfter:dollars(p.balance_after_cents)}))};
+    return {...source,whishDestination,isDebt:debt,isRefund:refund,originalAmount:dollars(original),paidAmount:dollars(paid),remainingAmount:dollars(remaining),amount:dollars(remaining),cashPaid:dollars(cash),whishPaid:dollars(whish),otherPaid:dollars(other),paymentStatus:remaining ? paid ? "partial" : "unpaid" : "paid",paymentMethod:cash && whish ? "Cash + Whish Money" : cash ? "Cash" : whish ? "Whish Money" : source.originalMethod,payments:payments.map(p=>({id:p.id,userId:p.user_id,amount:dollars(p.amount_cents),paymentMethod:p.payment_method,whishDestination:snapshot('debt',p.id),receivedAt:p.received_at,cashierName:p.cashier_name,remainingAfter:dollars(p.balance_after_cents)}))};
   }
-  details(kind,id) { const source=this.source(kind,id); if(!source)throw new Error("Debt record not found."); return this.summarize(source,query(this.db,"SELECT * FROM debt_payments WHERE kind=? AND record_id=? ORDER BY received_at,rowid",[kind,Number(id)])); }
+  details(kind,id) {
+    const source=this.source(kind,id);
+    if(!source)throw new Error("Debt record not found.");
+    const payments=this.logicalPayments(query(this.db,"SELECT * FROM debt_payments WHERE kind=? AND record_id=? ORDER BY received_at,rowid",[kind,Number(id)]));
+    return this.summarize(source,payments,(kind,id)=>readSnapshot(this.db,kind,id));
+  }
   accounts(includePaid=false,category="") {
-    const grouped=new Map();
-    for(const payment of query(this.db,"SELECT * FROM debt_payments ORDER BY received_at,rowid")) { const key=`${payment.kind}:${payment.record_id}`; if(!grouped.has(key))grouped.set(key,[]); grouped.get(key).push(payment); }
-    return this.sources(category).map(source=>this.summarize(source,grouped.get(`${source.kind}:${source.id}`)||[])).filter(item=>item.isDebt && (includePaid || item.remainingAmount>0)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
+    const grouped=paymentsBySource(this.logicalPayments(query(this.db,"SELECT * FROM debt_payments ORDER BY received_at,rowid")));
+    const snapshot=snapshotReader(this.db);
+    return this.sources(category).map(source=>this.summarize(source,grouped.get(`${source.kind}:${source.id}`)||[],snapshot)).filter(item=>item.isDebt && (includePaid || item.remainingAmount>0)).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
   }
   outstanding() { const rows=this.accounts(); return {value:dollars(rows.reduce((sum,item)=>sum+cents(item.remainingAmount),0)),count:rows.length}; }
   enrich(kind,item) { const detail=this.details(kind,item.id); return {...item,whishDestination:detail.whishDestination,isRefund:detail.isRefund,originalAmount:detail.originalAmount,paidAmount:detail.paidAmount,remainingAmount:detail.remainingAmount,cashPaid:detail.cashPaid,whishPaid:detail.whishPaid,paymentStatus:detail.paymentStatus,paymentMethod:detail.paymentMethod,paymentHistory:detail.payments}; }
@@ -101,8 +127,8 @@ class PaymentLedger {
   report(start,end,category="") {
     if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||start>end)throw new Error("Choose a valid report date range.");
     const between=value=>value?.slice(0,10)>=start && value.slice(0,10)<=end;
-    const allPayments=this.logicalPayments(query(this.db,"SELECT * FROM debt_payments ORDER BY received_at,rowid")), grouped=new Map();
-    for(const p of allPayments) {const key=`${p.kind}:${p.record_id}`;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(p);}
+    const allPayments=this.logicalPayments(query(this.db,"SELECT * FROM debt_payments ORDER BY received_at,rowid"));
+    const grouped=paymentsBySource(allPayments),snapshot=snapshotReader(this.db);
     const result={cashPaid:0,whishPaid:0,otherPaid:0,periodDebt:0,paymentTotal:0,cashReceived:0,whishReceived:0,otherReceived:0,collectionsTotal:0,cashRefunded:0,whishRefunded:0,refundsTotal:0,refundPayments:[],debtAccounts:[],debtPayments:[]};
     result.whishPayments=[];result.whishFees=0;
     const sources=this.sources(category),user=this.getUser();
@@ -114,8 +140,8 @@ class PaymentLedger {
       if(source)sources.push({...source,collectionOnly:true});
     }
     for(const source of sources) {
-      const detail=this.summarize(source,grouped.get(`${source.kind}:${source.id}`)||[]);
-      const user=this.getUser(),issued=!source.collectionOnly&&between(source.createdAt), collected=detail.payments.filter(p=>between(p.receivedAt)&&(!user||user.role==='admin'||Number(p.userId)===Number(user.id)));
+      const detail=this.summarize(source,grouped.get(`${source.kind}:${source.id}`)||[],snapshot);
+      const issued=!source.collectionOnly&&between(source.createdAt), collected=detail.payments.filter(p=>between(p.receivedAt)&&(!user||user.role==='admin'||Number(p.userId)===Number(user.id)));
       let portion=1;
       if(category && source.kind==="sale") {
         const lineTotal=query(this.db,"SELECT COALESCE(SUM(line_total),0) AS total FROM sale_items WHERE sale_id=? AND category=?",[source.id,category])[0].total;

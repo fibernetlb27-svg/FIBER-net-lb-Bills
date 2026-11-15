@@ -1,6 +1,6 @@
 {
   "name": "fibernetlb-web",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "private": true,
   "license": "UNLICENSED",
   "description": "FIBER net lb browser website and headless accounting server",

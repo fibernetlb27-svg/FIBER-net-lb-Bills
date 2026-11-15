@@ -621,8 +621,16 @@ test('genuine browser signs in, uses accounting routes, prints paper layouts, an
  await waitFor(page,"!document.querySelector('#app-shell').classList.contains('hidden')&&document.querySelector('#current-user-name').textContent==='Fictional Browser Admin'",'Administrator dashboard');
  await waitFor(page,"document.querySelector('#updates-button-label').textContent==='Website version'",'Website version controls');
  await waitFor(page,"document.querySelector('#finance-business')?.value==='all'&&document.querySelector('#finance-scope-note').textContent.includes('All businesses')",'Consolidated finances');
- await evaluate(page,"(()=>{const business=document.querySelector('#finance-business');business.value='fiber-resellers';business.dispatchEvent(new Event('change',{bubbles:true}));})()");
+ await evaluate(page,"(async()=>{window.__qaDashboardRequests=[];window.__qaDashboardFetch=window.fetch;window.fetch=(url,options)=>{if(url==='/api/rpc')window.__qaDashboardRequests.push(JSON.parse(options.body));return window.__qaDashboardFetch(url,options);};const business=document.querySelector('#finance-business');business.value='fiber-resellers';business.dispatchEvent(new Event('change',{bubbles:true}));await loadDashboard();})()");
  await waitFor(page,`document.querySelector('[data-finance-metric="revenue"] strong')?.textContent==='$0.00'&&document.querySelector('[data-finance-metric="revenue"] small')?.textContent==='Reseller bills · Money collected this month'`,'Current-month reseller revenue');
+ const dashboardRequests=await evaluate(page,"(()=>{window.fetch=window.__qaDashboardFetch;const requests=window.__qaDashboardRequests;delete window.__qaDashboardFetch;delete window.__qaDashboardRequests;return requests;})()");
+ assert.deepEqual(dashboardRequests.filter(row=>row.channel==='finance:overview').map(row=>row.args[0]),[{workspaceId:'fiber-resellers',accountKey:'',summaryOnly:true}]);
+ assert.ok(dashboardRequests.every(row=>!['reports:dashboard','reports:summary'].includes(row.channel)),'A business selection does not request any hidden dashboard or combined report.');
+ assert.equal(await evaluate(page,"document.querySelector('#finance-history-body').childElementCount"),0,'Movement history is rendered when opened.');
+ await evaluate(page,"document.querySelector('#finance-dashboard .finance-history').open=true");
+ await waitFor(page,"document.querySelector('#finance-history-body').childElementCount>0",'Movement history on demand');
+ await evaluate(page,"document.querySelector('#finance-dashboard .finance-history').open=false");
+ t.diagnostic('Genuine Chrome switched dashboard businesses without requesting the hidden combined report.');
  t.diagnostic('Genuine Chrome Main dashboard reseller revenue showed $0.00 with the current-month collection label.');
  await evaluate(page,"(()=>{const business=document.querySelector('#finance-business');business.value='all';business.dispatchEvent(new Event('change',{bubbles:true}));})()");
  await responsive(page,'Main dashboard');

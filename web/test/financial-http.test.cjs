@@ -7,6 +7,15 @@ test('real browser HTTP funding edits and all-business close conserve custody, s
  // Use the real backend's business date, including when the CI host is in UTC
  // during Beirut's first hours of a new month. Monthly guards remain unchanged.
  const initialFinance=await client.rpc('finance:overview',[{workspaceId:'all'}]),date=initialFinance.today;assert.match(date,/^\d{4}-\d{2}-\d{2}$/);const currentMonth=date.slice(0,7),priorDate=new Date(date+'T12:00:00Z');priorDate.setUTCMonth(priorDate.getUTCMonth()-1,1);const priorMonth=priorDate.toISOString().slice(0,7);
+ const cardFields=['revenue','grossProfit','expenses','netProfit','whishFees','profitParts','fixedMonthly','fixedMonthlyProfitCost'];
+ for(const workspaceId of ['all','fiber-resellers']){
+  const full=workspaceId==='all'?initialFinance:await client.rpc('finance:overview',[{workspaceId}]);
+  const compact=await client.rpc('finance:overview',[{workspaceId,summaryOnly:true}]);
+  assert(Array.isArray(full.report.internetRenewals),'Full finance report still includes detailed renewal records.');
+  const cards=Object.fromEntries(cardFields.filter(key=>Object.hasOwn(full.report,key)).map(key=>[key,full.report[key]]));
+  assert.deepEqual(compact,{...full,report:cards},workspaceId+' retains the exact card values and financial proof.');
+ }
+ t.diagnostic('Compact finance overview preserves verified amounts, business scope, and custody history.');
  const options=()=>client.rpc('expenses:options',['fiber-users',{expenseDate:date}]),cash=()=>client.rpc('finance:overview',[{workspaceId:'all'}]);
  const initialOptions=await options(),funded=initialOptions.fundingMonths.months.find(row=>row.month===currentMonth);assert.equal(funded.received,15);assert.equal(funded.remaining,15);const before=await cash();
  const expense=await client.rpc('expenses:create',[{workspaceId:'fiber-users',expenseDate:date,category:'Other',description:'Fictional website funding test',amount:5,fundingMethod:'Cash',fundingMonth:currentMonth}]);assert.equal(expense.fundingMonth,currentMonth);assert.equal((await options()).fundingMonths.months.find(row=>row.month===currentMonth).remaining,10);assert.equal((await cash()).dashboardTotals.cash,before.dashboardTotals.cash,'Funding budget is not a second drawer debit.');

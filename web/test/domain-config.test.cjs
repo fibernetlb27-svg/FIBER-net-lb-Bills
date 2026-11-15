@@ -25,6 +25,13 @@ test('candidate gateway has exactly two HTTPS sites and never rewrites origins o
  const text=fs.readFileSync(path.join(root,'deploy/Caddyfile-domain.example'),'utf8');assert.equal((text.match(/^https:\/\//gm)||[]).length,2);assert.match(text,/https:\/\/\{\$APP_IP_ADDRESS\} \{\s+tls internal/);assert.match(text,/https:\/\/\{\$APP_DOMAIN\} \{/);assert.match(text,/default_sni \{\$APP_IP_ADDRESS\}/);assert.match(text,/skip_install_trust/);assert.match(text,/admin off/);assert.equal((text.match(/^\s+reverse_proxy /gm)||[]).length,1);assert.match(text,/reverse_proxy web:3000/);
  assert.doesNotMatch(text,/header_up|header_down|on_demand|local_certs|auto_https off|\*\.|lb_retries|lb_try_duration|\n\s*log\s*\{/);
 });
+test('gateway keeps idle backend connections shorter than Node and preserves long operation deadlines',()=>{
+ for(const file of ['Caddyfile','Caddyfile-domain.example']){
+  const config=fs.readFileSync(path.join(root,'deploy',file),'utf8');
+  assert.match(config,/\btransport http \{\s+dial_timeout 5s\s+keepalive 2s\s+response_header_timeout 660s\s+read_timeout 660s/);
+  assert.doesNotMatch(config,/\blb_retries\b|\blb_try_duration\b/);
+ }
+});
 test('CLI produces only a new candidate and rejects duplicate arguments rather than interpreting commands',t=>{
  const parent=temporary(t),out=path.join(parent,'cli-candidate'),script=path.join(root,'tools/prepare-domain-config.cjs');
  const completed=cp.spawnSync(process.execPath,[script,'--primary-origin','https://192.0.2.40','--domain','accounts.example.com','--out',out],{encoding:'utf8',windowsHide:true});assert.equal(completed.status,0);assert.deepEqual(JSON.parse(completed.stdout),{prepared:true,version:require('../package.json').version,files:4,activationPerformed:false,dnsChanged:false,firewallChanged:false,dataChanged:false});assert.equal(completed.stderr,'');

@@ -1,8 +1,14 @@
 # FIBER net lb website preview
 
-Version 0.1.16 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
+Version 0.1.17 is the browser version of the existing FIBER net lb accounting application. It runs the accounting modules on a separate Node 24 server and serves the current DaisyUI interface to phones, tablets and computers. Electron and a Windows desktop are not required on the server.
 
 Use isolated staging and a copied-data rehearsal before a new deployment or upgrade. The existing authorized accounting server remains the sole authority until an agreed cutover; an already migrated website must not resume recording on its old desktop copy. The website uses the seven existing SQLite database formats. Fictional previews and their checks are separate from accepting live business data.
+
+## Dashboard speed and gateway connections
+
+The browser reduces repeated dashboard work and refreshes the visible view as needed. Select a business to load its finance and outstanding payment balances. Reports are available from **Combined reports**.
+
+The gateway templates close idle connections to the accounting server after two seconds, before Node closes them. For an existing deployment, apply the same `keepalive 2s` setting to the active Caddy HTTP transport. Long-running operations retain their existing response deadlines.
 
 ## Reseller revenue on the Main Dashboard
 

@@ -1,6 +1,7 @@
 window.FinanceDashboard=(()=>{
  const el=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),usd=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(n||0));
  let config,api,data,ledgerData,archiveData,archiveBusinessName='',preview,pendingInput,inflight,ticket=0,ledgerSequence=0,archiveSequence=0,mounted=false,saving=false,includeOtherExpenses=false,includeCompanyDebtPayments=false,monthlyDeductionMode='none',profitOwnerKey='';
+ let refreshTimer=null;
  const option=(value,label)=>`<option value="${esc(value)}">${esc(label)}</option>`;
  const selections=()=>({workspaceId:el('finance-business').value,accountKey:el('finance-employee').value});
  const effectiveRole=()=>config?.user.role==='section_user'?(config.user.sourceRole||config.user.source_role):config?.user.role;
@@ -47,6 +48,8 @@ window.FinanceDashboard=(()=>{
   const dialog=document.createElement('dialog');dialog.id='finance-dialog';dialog.className='modal finance-modal';dialog.innerHTML=`<div class="modal-heading"><div><p class="eyebrow">LOCAL ACCOUNTING</p><h2 id="finance-dialog-title"></h2></div><button id="finance-dialog-close" type="button" class="button button-secondary">Close</button></div><form id="finance-form"><div id="finance-form-fields" class="form-grid"></div><div id="finance-preview" class="finance-preview"></div><p id="finance-error" class="field-note" role="alert"></p><div class="modal-actions"><button id="finance-preview-button" type="button" class="button button-secondary hidden">Review handover</button><button id="finance-dialog-cancel" type="button" class="button button-secondary">Cancel</button><button id="finance-submit" type="submit" class="button button-primary">Confirm</button></div></form>`;document.body.append(dialog);
   const archive=document.createElement('dialog');archive.id='ledger-archive-dialog';archive.className='modal finance-modal ledger-archive';archive.innerHTML=`<div class="modal-heading"><div><p class="eyebrow">READ-ONLY MONTHLY ARCHIVE</p><h2 id="ledger-archive-title"></h2></div><button id="ledger-archive-close" type="button" class="button button-secondary">Close</button></div><div class="ledger-toolbar no-print"><label>From<input id="ledger-report-start" type="date" /></label><label>To<input id="ledger-report-end" type="date" /></label><button id="ledger-archive-csv" type="button" class="button button-secondary">Download CSV</button><button id="ledger-archive-print" type="button" class="button button-secondary">Print A4</button></div><div id="ledger-archive-report"></div>`;document.body.append(archive);
   el('finance-business').onchange=()=>{el('finance-employee').innerHTML='';refresh();};el('finance-employee').onchange=refresh;
+  const history=panel.querySelector('.finance-history');
+  history.ontoggle=()=>{if(history.open&&data)renderHistory();};
   el('finance-employee-summary').addEventListener('click',adminMoneyAction);el('finance-wallets').addEventListener('click',adminMoneyAction);
   el('finance-handover').onclick=()=>fullFinanceView()?window.AdminMoneyTransfers?.open(adminMoneyPreset('cash')).catch(fail):openHandover();el('finance-recipient-settings').onclick=openRecipient;el('finance-wallet-move').onclick=openWallet;
   el('finance-dialog-close').onclick=el('finance-dialog-cancel').onclick=()=>{if(!saving)dialog.close();};dialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});el('finance-form').onsubmit=submit;el('finance-preview-button').onclick=review;
@@ -59,8 +62,14 @@ window.FinanceDashboard=(()=>{
  }
  function fail(error){config?.toast(error.message||String(error),'error');}
  function clearOverview(){data=null;el('finance-dashboard').querySelector('.finance-content').classList.add('hidden');for(const id of ['finance-employee-summary','finance-wallets','finance-history-body','finance-scope-note','finance-correction-note'])el(id).innerHTML='';el('set-cash-drawer').classList.add('hidden');}
- function refresh(){const generation=++ticket,owner=config;inflight=null;clearOverview();config?.reload()?.catch(error=>{if(generation===ticket&&config===owner)fail(error);});}
+ function cancelQueuedRefresh(){if(refreshTimer!==null){clearTimeout(refreshTimer);refreshTimer=null;}}
+ function refresh(){
+  const generation=++ticket,owner=config;inflight=null;clearOverview();cancelQueuedRefresh();
+  const reload=()=>{refreshTimer=null;owner?.reload()?.catch(error=>{if(generation===ticket&&config===owner)fail(error);});};
+  if(api?.web)refreshTimer=setTimeout(reload,120);else reload();
+ }
  function init(value){
+  cancelQueuedRefresh();
   const ownerKey=JSON.stringify([value.workspace.id,value.user.role,value.user.sourceRole,value.user.source_role,value.user.active,value.user.accountKey||value.user.id||value.user.username,value.user.allowedSections,value.user.permissions]);
   if(ownerKey!==profitOwnerKey){includeOtherExpenses=false;includeCompanyDebtPayments=false;monthlyDeductionMode='none';profitOwnerKey=ownerKey;}
   config=value;api=value.api;
@@ -79,18 +88,24 @@ window.FinanceDashboard=(()=>{
   if(inactive()){if(mounted){clearOverview();el('finance-dashboard').classList.add('hidden');}throw Error('This account is inactive. Sign in again to refresh your access.');}
   if(!config.has('reports.view'))return null;
   if(typeof api.finance.overview!=='function'){clearOverview();throw Error('Finance overview is unavailable. Update the Main PC and this PC together.');}
-  if(inflight)return inflight;
-  const generation=ticket,owner=config,selection=selections();
+  cancelQueuedRefresh();
+  const generation=ticket,owner=config,selection=selections(),revision=api.web?.mutationRevision?.()??0;
+  const scopeMatches=value=>value.workspaceId===selection.workspaceId&&value.accountKey===selection.accountKey;
+  if(inflight?.revision===revision&&scopeMatches(inflight.selection))return inflight.promise;
   if(selection.workspaceId==='all'&&!isAggregate())throw Error('This combined overview is unavailable for your current access.');
-  inflight=api.finance.overview(selection).then(result=>{
-   if(generation!==ticket||config!==owner)return null;
+  const request={selection,revision};
+  const current=()=>generation===ticket&&config===owner&&inflight===request&&scopeMatches(selections())&&revision===(api.web?.mutationRevision?.()??0);
+  inflight=request;
+  request.promise=Promise.resolve().then(()=>current()?api.finance.overview(api.web?{...selection,summaryOnly:true}:selection):null).then(result=>{
+   if(!current())return null;
    if(inactive()){el('finance-dashboard').classList.add('hidden');throw Error('This account is inactive. Sign in again to refresh your access.');}
    if(!result||result.workspaceId!==selection.workspaceId)throw Error('Finance overview is unavailable. No totals were substituted.');
    if(config.user.role!=='admin'&&(typeof config.user.accountKey!=='string'||!config.user.accountKey||result.accountKey!==config.user.accountKey))throw Error('Your own finance scope could not be verified. Sign in again and refresh.');
+   if(config.user.role==='admin'&&(result.accountKey??'')!==selection.accountKey)throw Error('The selected employee’s finance scope could not be verified. Refresh the dashboard.');
    if(selection.workspaceId==='all'&&(result.aggregate!==true||(mainAdminView()?result.admin!==true:!staffAggregateKnown(result))))throw Error('The combined finance overview is unavailable. Update the Main PC and this PC together; no unverified totals were substituted.');
    data=result;render();return result;
-  }).catch(error=>{if(generation!==ticket||config!==owner)return null;clearOverview();throw error;}).finally(()=>{if(generation===ticket)inflight=null;});
-  return inflight;
+  }).catch(error=>{if(!current())return null;clearOverview();throw error;}).finally(()=>{if(inflight===request)inflight=null;});
+  return request.promise;
  }
  function render(){
   el('finance-dashboard').querySelector('.finance-content').classList.remove('hidden');
@@ -108,9 +123,12 @@ window.FinanceDashboard=(()=>{
   el('finance-correction-note').textContent=fullFinanceView()&&data.whishCorrection?.count?`${data.whishCorrection.count} older Whish receipts corrected; ${usd(data.whishCorrection.restoredFees)} receipt fees reversed. Original snapshots and closed reports remain unchanged.`:'';
   el('finance-wallet-move').classList.toggle('hidden',aggregate||representative||!config.has('drawer.manage'));
   el('finance-dashboard').querySelector('h2').textContent=aggregate?(fullFinanceView()?'All businesses · consolidated finances':'All businesses · your balances'):representative?'Whish wallets and employee activity':'Whish wallets and cash handovers';
-  el('finance-history-body').innerHTML=data.history.map(e=>`<tr><td>${esc(e.createdAt.replace('T',' '))}</td><td>${esc(e.result.resellerCollection&&e.result.destinationType==='wallet'?'reseller wallet collection':e.kind.replaceAll('_',' '))}</td><td>${esc(movementParty(e))} → ${esc(movementParty(e,true))}</td><td class="number">${usd(e.result.amount??e.result.balance)}</td><td>${esc(e.note)}${fullFinanceView()&&e.result.fee?`<p>Cash-out fee ${usd(e.result.fee)} · Net drawer deposit ${usd(e.result.netCash)}</p>`:''}${e.result.resellerCollection&&e.result.destinationType==='wallet'?`<small>Admin Whish wallet received ${usd(e.result.netWallet)} · Cash drawer unchanged · No additional fee</small>`:''}${e.result.cashOnly?'<small>Cash custody only · receipts stay with their cashier</small>':''}${e.result.receipts?.length?`<details><summary>${e.result.receipts.length} linked receipts${fullFinanceView()?` · cost ${usd(e.result.cost)} · profit ${usd(e.result.profit)}`:''}</summary>${e.result.receipts.map(r=>`<p>${esc(r.reference)} · ${esc(r.service)} · ${usd(r.amount)}${fullFinanceView()?` / cost ${usd(r.cost)} / profit ${usd(r.profit)}`:''} · originally ${esc(r.originalName)}</p>`).join('')}</details>`:''}</td></tr>`).join('')||`<tr><td colspan="5">${aggregate?'Read-only consolidated overview. Select a business to view its movement history.':'No recorded movements yet.'}</td></tr>`;
+  if(!api.web||el('finance-dashboard').querySelector('.finance-history').open)renderHistory();
   renderEmployeeSummary();
   el('set-cash-drawer').classList.toggle('hidden',aggregate||Boolean(data.accountKey&&data.admin));
+ }
+ function renderHistory(){
+  el('finance-history-body').innerHTML=data.history.map(e=>`<tr><td>${esc(e.createdAt.replace('T',' '))}</td><td>${esc(e.result.resellerCollection&&e.result.destinationType==='wallet'?'reseller wallet collection':e.kind.replaceAll('_',' '))}</td><td>${esc(movementParty(e))} → ${esc(movementParty(e,true))}</td><td class="number">${usd(e.result.amount??e.result.balance)}</td><td>${esc(e.note)}${fullFinanceView()&&e.result.fee?`<p>Cash-out fee ${usd(e.result.fee)} · Net drawer deposit ${usd(e.result.netCash)}</p>`:''}${e.result.resellerCollection&&e.result.destinationType==='wallet'?`<small>Admin Whish wallet received ${usd(e.result.netWallet)} · Cash drawer unchanged · No additional fee</small>`:''}${e.result.cashOnly?'<small>Cash custody only · receipts stay with their cashier</small>':''}${e.result.receipts?.length?`<details><summary>${e.result.receipts.length} linked receipts${fullFinanceView()?` · cost ${usd(e.result.cost)} · profit ${usd(e.result.profit)}`:''}</summary>${e.result.receipts.map(r=>`<p>${esc(r.reference)} · ${esc(r.service)} · ${usd(r.amount)}${fullFinanceView()?` / cost ${usd(r.cost)} / profit ${usd(r.profit)}`:''} · originally ${esc(r.originalName)}</p>`).join('')}</details>`:''}</td></tr>`).join('')||`<tr><td colspan="5">${data.workspaceId==='all'?'Read-only consolidated overview. Select a business to view its movement history.':'No recorded movements yet.'}</td></tr>`;
  }
  // Dashboard checkboxes are presentation only. Authoritative business totals
  // include actual-payment-period monthly cost. Restore only that cost, then
@@ -265,7 +283,7 @@ window.FinanceDashboard=(()=>{
   }catch(error){el('ledger-archive-report').textContent=error.message;}
  }
  function downloadArchive(){try{const {start,end,days,profitKnown,profitReason}=archiveSelection(),quote=x=>`"${String(x??'').replaceAll('"','""')}"`,lines=[['FIBER net lb monthly ledger',archiveBusinessName,archiveData.month,'Read-only archive'],['From',start,'To',end],...!profitKnown?[['PROFIT ATTRIBUTION NOTE',profitReason||'Native employee transactions only. Select All employees for verified profit.']]:[],['Day','Revenue USD','Direct cost USD','Expenses USD','Whish fees USD','Net profit USD'],...days.map(d=>[d.date,...['revenue','costOfGoods','expenses','whishFees','netProfit'].map(k=>k==='netProfit'&&d.report.wholesaleAttributionUnavailable===true?'Unavailable':d.report[k])])];const blob=new Blob(['\uFEFF'+lines.map(r=>r.map(quote).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`FIBER-ledger-${archiveData.month}-${start}-${end}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){fail(error);}}
- function reset(){window.MonthClosing?.reset();window.MonthClosingAll?.reset();ledgerSequence++;archiveSequence++;archiveBusinessName='';ticket++;inflight=null;config=null;api=null;data=null;ledgerData=null;archiveData=null;preview=null;pendingInput=null;includeOtherExpenses=false;includeCompanyDebtPayments=false;monthlyDeductionMode='none';profitOwnerKey='';if(!mounted)return;el('finance-dashboard').classList.add('hidden');el('finance-dashboard').querySelector('.finance-content').classList.add('hidden');for(const id of ['finance-employee-summary','finance-wallets','finance-history-body','finance-scope-note','finance-correction-note','finance-fee-policy-alert','finance-wallet-policy-note','ledger-months','ledger-archive-report'])el(id).innerHTML='';el('finance-fee-policy-alert').classList.add('hidden');for(const id of ['finance-dialog','ledger-archive-dialog'])if(el(id).open)el(id).close();}
+ function reset(){cancelQueuedRefresh();window.MonthClosing?.reset();window.MonthClosingAll?.reset();ledgerSequence++;archiveSequence++;archiveBusinessName='';ticket++;inflight=null;config=null;api=null;data=null;ledgerData=null;archiveData=null;preview=null;pendingInput=null;includeOtherExpenses=false;includeCompanyDebtPayments=false;monthlyDeductionMode='none';profitOwnerKey='';if(!mounted)return;el('finance-dashboard').classList.add('hidden');el('finance-dashboard').querySelector('.finance-content').classList.add('hidden');for(const id of ['finance-employee-summary','finance-wallets','finance-history-body','finance-scope-note','finance-correction-note','finance-fee-policy-alert','finance-wallet-policy-note','ledger-months','ledger-archive-report'])el(id).innerHTML='';el('finance-fee-policy-alert').classList.add('hidden');for(const id of ['finance-dialog','ledger-archive-dialog'])if(el(id).open)el(id).close();}
  function updateUser(user){if(!config)return;const previous=config.user,changed=previous.accountKey!==user.accountKey||previous.id!==user.id||previous.username!==user.username||previous.role!==user.role||previous.sourceRole!==user.sourceRole||previous.source_role!==user.source_role||previous.active!==user.active||previous.activity_inspection!==user.activity_inspection||previous.activityInspection!==user.activityInspection||JSON.stringify(previous.allowedSections)!==JSON.stringify(user.allowedSections)||JSON.stringify(previous.permissions)!==JSON.stringify(user.permissions);if(changed)init({...config,user});else config.user=user;}
  return {init,load,loadLedger,updateUser,isAggregate,isCurrent,reset};
 })();

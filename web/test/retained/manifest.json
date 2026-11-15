@@ -392,8 +392,8 @@
     {
       "file": "payment-ledger.cjs",
       "sourceSha256": "60df068ebbe903f3b471e7c0cba59629467d060ed66e261c11b60450087a7631",
-      "sha256": "1074cc68f0fb7c7300e9c13a010cbeead399f015acdb4de746ca7a50eb1c0293",
-      "reason": "Explicitly audited Users payment corrections preserve the first collection request and wallet snapshot for idempotent replay. A cancelled selected collection remains reserved by its immutable correction journal, so a delayed original request returns the current debt without collecting again. Ordinary records, calculations, collections and accepted fixtures retain their previous behavior."
+      "sha256": "079be43d9cc29335d049fa7f012f0edaf699a5d48e698410b96de5b907794867",
+      "reason": "Explicitly audited Users payment corrections preserve the first collection request and wallet snapshot for idempotent replay. A cancelled selected collection remains reserved by its immutable correction journal, so a delayed original request returns the current debt without collecting again. Account and report reads batch the same receipt snapshots and ownership lookups within each synchronous calculation. Ordinary records, calculations, collections and accepted fixtures retain their previous behavior."
     },
     {
       "file": "backup-manager.cjs",
