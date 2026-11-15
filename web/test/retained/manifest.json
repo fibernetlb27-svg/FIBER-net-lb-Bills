@@ -3,7 +3,7 @@
   "tests": [
     {
       "file": "qa-all-business-finance.cjs",
-      "sha256": "78d7170fe06909dd598e421e04983e6ba6de28d143e0a9c4bdbb888786517b05"
+      "sha256": "6519f36594d4299ce07c0605c30345e44d226f98254596446fe2c7d625317938"
     },
     {
       "file": "qa-business-dashboard-totals.cjs",

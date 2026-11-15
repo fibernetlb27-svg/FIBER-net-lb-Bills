@@ -1,6 +1,6 @@
 {
   "format": "FIBERNETLB-WEB-PUBLIC-SOURCE-1",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "scope": "Explicit public application source only; no dependencies, runtime data, credentials, logs or private audit reports.",
   "files": [
     {
@@ -40,8 +40,8 @@
     },
     {
       "name": "README.md",
-      "length": 22987,
-      "sha256": "7fbf7e6ad5a7fe4c4be5096724030a541d968fb6f8274f7ad0e8d69b69f00e3d"
+      "length": 23139,
+      "sha256": "ce9c153b467a227479b757bbe948323626d57c5c5a14c31ac8bd2ec89440455a"
     },
     {
       "name": "RECEIPTS-PRINTING-GUIDE.md",
@@ -540,8 +540,8 @@
     },
     {
       "name": "app/src/finance-dashboard.js",
-      "length": 66747,
-      "sha256": "6542202e37a8f0fea24650626567be0a21ede6aea815cc3123778bdfacaf4e89"
+      "length": 66741,
+      "sha256": "f1d2c6c087051a7a457bf21bb5ea30d22b669c3342a20b83e923fb54535e04c0"
     },
     {
       "name": "app/src/finance-workspace.css",
@@ -866,12 +866,12 @@
     {
       "name": "package-lock.json",
       "length": 1369,
-      "sha256": "f8cbfa9c04ed765c92b2842f93c4387fa3da70e3b0132d4f89cb20fbfb357e3f"
+      "sha256": "7dd06df5e33fbeb4eab4879f57da71987e3c95e62e07d1250045e5b7f68db942"
     },
     {
       "name": "package.json",
       "length": 509,
-      "sha256": "f38f3d6e16fc9e9e0f6edfdbd2533b5626953926480ace45fb17981b68c8ed55"
+      "sha256": "7a075da79556123c48af139dfff0f795a2a5caf216c6c59a7304d55977359a9f"
     },
     {
       "name": "server.cjs",
@@ -925,8 +925,8 @@
     },
     {
       "name": "test/browser-ui.test.cjs",
-      "length": 121883,
-      "sha256": "24660a6f9235583576a153dd6ab6c2a6e9e2077546e4693ff74da0c455bcd8c2"
+      "length": 122464,
+      "sha256": "cb3853f325a67488075813a6edfbd2d10722ed62907c78c0ab91b28bd338405e"
     },
     {
       "name": "test/change-service-customer-pricing.test.cjs",
@@ -1066,7 +1066,7 @@
     {
       "name": "test/retained/manifest.json",
       "length": 20171,
-      "sha256": "f5fc5ceea18b8aee0b6ba5a62ad6225a72a146f58a731f134cdf1df91e7907d5"
+      "sha256": "7cb47272494234a70b7e7c7b09bfcbcea54d4bc3f306f87fc20273e4bd568263"
     },
     {
       "name": "test/retained/qa-admin-money-transfers.cjs",
@@ -1085,8 +1085,8 @@
     },
     {
       "name": "test/retained/qa-all-business-finance.cjs",
-      "length": 21325,
-      "sha256": "78d7170fe06909dd598e421e04983e6ba6de28d143e0a9c4bdbb888786517b05"
+      "length": 21548,
+      "sha256": "6519f36594d4299ce07c0605c30345e44d226f98254596446fe2c7d625317938"
     },
     {
       "name": "test/retained/qa-bank-accounts.cjs",

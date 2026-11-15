@@ -176,7 +176,7 @@ window.FinanceDashboard=(()=>{
  async function adminMoneyAction(event){const button=event.target.closest('[data-finance-money][data-finance-op]');if(!button)return;try{const preset=adminMoneyPreset(button.dataset.financeMoney,button.dataset.financeWallet||'');if(button.dataset.financeOp==='bank')await window.Bank.openDeposit(preset);else await window.AdminMoneyTransfers.open(preset);}catch(error){fail(error);}}
  function renderEmployeeSummary(){
   const summary=el('finance-employee-summary'),visible=config.has('reports.view'),admin=config.user.role==='admin'&&data.admin,allBusinesses=data.workspaceId==='all',full=fullFinanceView();
-  const showBandwidth=full&&['all','main','fiber-resellers'].includes(data.workspaceId),showMonthly=full;
+  const showBandwidth=full&&['main','fiber-resellers'].includes(data.workspaceId),showMonthly=full;
   summary.classList.toggle('hidden',!visible);summary.classList.toggle('finance-admin-summary',visible);summary.classList.toggle('finance-simple-summary',!full);summary.classList.toggle('finance-workspace-summary',full);summary.classList.toggle('finance-no-internet',data.workspaceId!=='fiber-users');summary.classList.toggle('finance-all-businesses',allBusinesses);summary.classList.toggle('finance-bandwidth-cost',showBandwidth);summary.classList.toggle('finance-monthly-payments',showMonthly);
   if(!visible){summary.innerHTML='';return;}
   const card=(id,label,amount,note='',extra='')=>`<article class="metric-card" data-finance-metric="${id}"><span>${label}</span><strong>${amount===null?'—':usd(amount/100)}</strong>${note?`<small>${note}</small>`:''}${extra}</article>`;
